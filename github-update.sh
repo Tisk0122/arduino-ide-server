@@ -1,52 +1,75 @@
 #!/usr/bin/env bash
-# GitHub push -> arduino-helper 自動更新。root 専用。
-# リポジトリ内のスクリプトは実行せず、許可した固定ファイルだけを検証・反映する。
+# Arduino Web IDE - GitHub auto updater
+# GitHub Push -> signed webhook -> this script -> staged validation -> atomic-ish deployment -> health check
 set -euo pipefail
+umask 077
 
-APP_DIR=/opt/arduino-helper
-CONF_DIR=/etc/arduino-helper
-UPDATE_DIR=/var/lib/arduino-helper-updater
+APP_DIR="/opt/arduino-helper"
+CONF_DIR="/etc/arduino-helper"
+UPDATE_DIR="/var/lib/arduino-helper-updater"
 ENV_FILE="$CONF_DIR/github-webhook.env"
-SERVICE=arduino-helper
-PORT="${HELPER_PORT:-8765}"
+SERVICE="arduino-helper"
+LOCK_FILE="$UPDATE_DIR/update.lock"
+KEEP_BACKUPS="${KEEP_BACKUPS:-3}"
 
-log() {
-  printf '[arduino-helper-update] %s\n' "$*" >&2
+die() {
+  printf 'エラー: %s\n' "$*" >&2
+  exit 1
 }
 
-[ "$(id -u)" -eq 0 ] || { log "root only"; exit 1; }
-[ -r "$ENV_FILE" ] || { log "GitHub webhook が設定されていません"; exit 2; }
+log() {
+  printf '[arduino-helper-update] %s\n' "$*"
+}
+
+[ "$(id -u)" -eq 0 ] || die "root 権限で実行してください"
+[ -r "$ENV_FILE" ] || die "$ENV_FILE がありません"
+
 # shellcheck disable=SC1090
 . "$ENV_FILE"
 
 : "${GITHUB_REPO:?GITHUB_REPO がありません}"
 : "${GITHUB_BRANCH:=main}"
 
-case "$GITHUB_REPO" in
-  https://github.com/*/*|git@github.com:*/*) ;;
-  *) log "許可されていない GitHub リポジトリURLです"; exit 3 ;;
-esac
+command -v git >/dev/null 2>&1 || die "git がありません"
+command -v python3 >/dev/null 2>&1 || die "python3 がありません"
+command -v curl >/dev/null 2>&1 || die "curl がありません"
+command -v systemctl >/dev/null 2>&1 || die "systemctl がありません"
+
 case "$GITHUB_BRANCH" in
-  ''|*[^A-Za-z0-9._/-]*) log "ブランチ名が不正です"; exit 3 ;;
+  ""|*[!A-Za-z0-9._/-]*) die "不正なブランチ名です" ;;
 esac
 
 mkdir -p "$UPDATE_DIR"
 chmod 0700 "$UPDATE_DIR"
-exec 9>"$UPDATE_DIR/update.lock"
-flock -n 9 || { log "更新はすでに実行中です"; exit 0; }
+
+# 同時実行を防止
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  log "別の更新処理が実行中です。終了します。"
+  exit 0
+fi
 
 stage="$(mktemp -d "$UPDATE_DIR/stage.XXXXXX")"
-backup="$(mktemp -d "$UPDATE_DIR/backup.XXXXXX")"
+backup=""
 cleanup() {
-  rm -rf -- "$stage" "$backup"
+  rm -rf "$stage"
 }
 trap cleanup EXIT
 
-log "GitHubから $GITHUB_BRANCH を取得しています"
-git clone --quiet --depth 1 --single-branch --branch "$GITHUB_BRANCH" "$GITHUB_REPO" "$stage/repo"
-cd "$stage/repo"
+repo="$stage/repo"
 
-# 本番へ反映するファイルは固定。install.sh 等は絶対に実行・コピーしない。
+log "GitHub から最新版を取得: $GITHUB_REPO ($GITHUB_BRANCH)"
+git clone \
+  --depth 1 \
+  --single-branch \
+  --branch "$GITHUB_BRANCH" \
+  "$GITHUB_REPO" \
+  "$repo" >/dev/null
+
+cd "$repo"
+
+# デプロイ対象は明示的な allowlist の3ファイルだけ。
+# install.sh、設定、秘密情報、systemd定義、Arduino CLI等はPushでは変更しない。
 FILES=(
   "arduino-helper.py"
   "arduino-build-run"
@@ -54,69 +77,106 @@ FILES=(
 )
 
 for f in "${FILES[@]}"; do
-  [ -f "$f" ] || { log "必須ファイルがありません: $f"; exit 4; }
-  [ ! -L "$f" ] || { log "symlink は許可しません: $f"; exit 5; }
+  [ -f "$f" ] || die "必須ファイルがありません: $f"
+  [ ! -L "$f" ] || die "symlink は許可しません: $f"
 done
 
-# www 自体も symlink であってはならない。
-[ ! -L "www" ] || { log "symlink は許可しません: www"; exit 5; }
-
-# リポジトリ由来のコードを実行せず、構文だけ検査する。
+# PythonファイルをPythonとして検証する。
+# arduino-build-run は Bash ではなく Python なので /bin/bash -n は使用しない。
 /usr/bin/python3 -m py_compile arduino-helper.py
 /usr/bin/python3 -m py_compile arduino-build-run
 
-commit="$(git rev-parse --short=12 HEAD)"
-log "検証OK: commit=$commit"
+# 主要ファイル以外を実行ファイルとして持ち込まないことを確認。
+# Git管理下にある不要ファイルはデプロイしないので、ここでは allowlist のみを検証対象にする。
 
-# 新ファイルを本番へ直接上書きせず、一時ファイルとして用意する。
-install -d -o root -g root -m 0755 "$APP_DIR" "$APP_DIR/www"
-install -m 0644 -o root -g root "$stage/repo/arduino-helper.py" "$APP_DIR/arduino-helper.py.new"
-install -m 0755 -o root -g root "$stage/repo/arduino-build-run" "$APP_DIR/arduino-build-run.new"
-install -m 0644 -o root -g root "$stage/repo/www/index.html" "$APP_DIR/www/index.html.new"
+# 現在の稼働ファイルをバックアップ。
+timestamp="$(date +%Y%m%d-%H%M%S)"
+backup="$UPDATE_DIR/backup.$timestamp"
+mkdir -p "$backup"
 
-# 現行版を退避してから3ファイルをまとめて切り替える。
-for f in arduino-helper.py arduino-build-run; do
-  [ -f "$APP_DIR/$f" ] && cp -a -- "$APP_DIR/$f" "$backup/$f"
+for f in "${FILES[@]}"; do
+  src="$APP_DIR/$f"
+  if [ -e "$src" ] && [ ! -L "$src" ]; then
+    mkdir -p "$backup/$(dirname "$f")"
+    cp -a "$src" "$backup/$f"
+  fi
 done
-[ -f "$APP_DIR/www/index.html" ] && cp -a -- "$APP_DIR/www/index.html" "$backup/index.html"
+
+# 新版を .new として配置してから置換。
+install -d -o root -g root -m 0755 "$APP_DIR" "$APP_DIR/www"
+
+install -m 0644 -o root -g root \
+  "$repo/arduino-helper.py" \
+  "$APP_DIR/arduino-helper.py.new"
+
+install -m 0755 -o root -g root \
+  "$repo/arduino-build-run" \
+  "$APP_DIR/arduino-build-run.new"
+
+install -m 0644 -o root -g root \
+  "$repo/www/index.html" \
+  "$APP_DIR/www/index.html.new"
 
 mv -f "$APP_DIR/arduino-helper.py.new" "$APP_DIR/arduino-helper.py"
 mv -f "$APP_DIR/arduino-build-run.new" "$APP_DIR/arduino-build-run"
 mv -f "$APP_DIR/www/index.html.new" "$APP_DIR/www/index.html"
 
-rollback() {
-  log "新バージョンの起動/ヘルスチェックに失敗したためロールバックします"
-  if [ -f "$backup/arduino-helper.py" ]; then
-    install -m 0644 -o root -g root "$backup/arduino-helper.py" "$APP_DIR/arduino-helper.py"
-  fi
-  if [ -f "$backup/arduino-build-run" ]; then
-    install -m 0755 -o root -g root "$backup/arduino-build-run" "$APP_DIR/arduino-build-run"
-  fi
-  if [ -f "$backup/index.html" ]; then
-    install -m 0644 -o root -g root "$backup/index.html" "$APP_DIR/www/index.html"
-  fi
-  systemctl restart "$SERVICE" || true
-}
+commit="$(git rev-parse --short HEAD)"
+log "ファイルを $commit に更新しました"
 
-log "arduino-helper を再起動しています"
+# 更新後のPythonを再検証。
+/usr/bin/python3 -m py_compile "$APP_DIR/arduino-helper.py"
+/usr/bin/python3 -m py_compile "$APP_DIR/arduino-build-run"
+
+log "サービスを再起動します"
 if ! systemctl restart "$SERVICE"; then
-  rollback
-  exit 10
+  log "サービス再起動失敗。バックアップから復元します。" >&2
+  for f in "${FILES[@]}"; do
+    if [ -f "$backup/$f" ]; then
+      install -D -m 0644 -o root -g root "$backup/$f" "$APP_DIR/$f"
+    fi
+  done
+  # arduino-build-run は実行可能属性を戻す
+  [ -f "$backup/arduino-build-run" ] && chmod 0755 "$APP_DIR/arduino-build-run"
+  systemctl restart "$SERVICE" || true
+  exit 1
 fi
 
-# 再起動直後は少し待ってからヘルスチェック。最大20秒待つ。
-healthy=0
-for _ in $(seq 1 20); do
-  if curl -fsS "http://127.0.0.1:${PORT}/ping" >/dev/null 2>&1; then
-    healthy=1
-    break
-  fi
-  sleep 1
-done
-
-if [ "$healthy" -ne 1 ]; then
-  rollback
-  exit 11
+# 起動直後のクラッシュを検出。
+sleep 2
+if ! systemctl is-active --quiet "$SERVICE"; then
+  log "サービスが active ではありません。バックアップから復元します。" >&2
+  for f in "${FILES[@]}"; do
+    if [ -f "$backup/$f" ]; then
+      mode=0644
+      [ "$f" = "arduino-build-run" ] && mode=0755
+      install -D -m "$mode" -o root -g root "$backup/$f" "$APP_DIR/$f"
+    fi
+  done
+  systemctl restart "$SERVICE" || true
+  exit 1
 fi
 
-log "GitHub update applied successfully: $commit"
+# ローカルヘルスチェック
+if ! curl -fsS --max-time 10 "http://127.0.0.1:8765/ping" >/dev/null; then
+  log "ヘルスチェック失敗。バックアップから復元します。" >&2
+  for f in "${FILES[@]}"; do
+    if [ -f "$backup/$f" ]; then
+      mode=0644
+      [ "$f" = "arduino-build-run" ] && mode=0755
+      install -D -m "$mode" -o root -g root "$backup/$f" "$APP_DIR/$f"
+    fi
+  done
+  systemctl restart "$SERVICE" || true
+  exit 1
+fi
+
+# バックアップを古い順に整理
+find "$UPDATE_DIR" -maxdepth 1 -type d -name 'backup.*' -printf '%T@ %p\n' \
+  | sort -nr \
+  | awk 'NR > '"$KEEP_BACKUPS"' {sub(/^[^ ]+ /, ""); print}' \
+  | while IFS= read -r old; do
+      [ -n "$old" ] && rm -rf -- "$old"
+    done
+
+log "GitHub update applied: $commit"
