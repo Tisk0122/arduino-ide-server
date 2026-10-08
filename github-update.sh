@@ -68,12 +68,13 @@ git clone \
 
 cd "$repo"
 
-# デプロイ対象は明示的な allowlist の3ファイルだけ。
+# デプロイ対象は明示的な allowlist のファイルだけ。
 # install.sh、設定、秘密情報、systemd定義、Arduino CLI等はPushでは変更しない。
 FILES=(
   "arduino-helper.py"
   "arduino-build-run"
   "www/index.html"
+  "www/admin.html"
 )
 
 for f in "${FILES[@]}"; do
@@ -117,9 +118,14 @@ install -m 0644 -o root -g root \
   "$repo/www/index.html" \
   "$APP_DIR/www/index.html.new"
 
+install -m 0644 -o root -g root \
+  "$repo/www/admin.html" \
+  "$APP_DIR/www/admin.html.new"
+
 mv -f "$APP_DIR/arduino-helper.py.new" "$APP_DIR/arduino-helper.py"
 mv -f "$APP_DIR/arduino-build-run.new" "$APP_DIR/arduino-build-run"
 mv -f "$APP_DIR/www/index.html.new" "$APP_DIR/www/index.html"
+mv -f "$APP_DIR/www/admin.html.new" "$APP_DIR/www/admin.html"
 
 commit="$(git rev-parse --short HEAD)"
 log "ファイルを $commit に更新しました"

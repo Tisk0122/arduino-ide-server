@@ -39,7 +39,10 @@ Python 3.8+ の標準ライブラリだけで動きます。arduino-cli が必�
   POST /compile  {sketch, board, files:[{name,content}]} -> 202 {job, position, queued}
   GET  /jobs/<id>?from=N          進捗。コンパイルは完了時に result を含む
   POST /jobs/<id>/cancel          キャンセル
+  GET  /admin                     管理画面 (HTML。認証不要。ページ内でトークンを入力)
   --- 以下は管理者トークンが必要 ---
+  GET  /admin/api/overview        サーバー状態・トークン詳細・統計・アクティブジョブ (JSON)
+  GET  /admin/api/history         利用履歴 (JSON。offset/limit/kind/state/q で絞り込み)
   POST /cores/install   {id}      -> {job}
   POST /cores/uninstall {id}      -> {job}
   POST /libs/install    {name, version?} -> {job}
@@ -73,7 +76,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
-VERSION = "2.6.0"
+VERSION = "2.7.0"
 
 
 def env_int(name, default, lo=0, hi=10 ** 9):
@@ -116,6 +119,9 @@ MAX_JSON_OUTPUT_CHARS = 20000000  # JSON取得コマンド (lib search 等) の�
 JOB_KEEP_SEC = 600
 RESULT_CACHE_ENTRIES = 32
 RESULT_CACHE_BYTES = 96 * 1024 * 1024
+HISTORY_FILE = HOME / "history.jsonl"   # 利用履歴 (JSON 1行1件)
+HISTORY_KEEP = 1000                     # メモリに保持する履歴件数
+HISTORY_TRIM = 4000                     # これを超えたら履歴ファイルを書き直す
 
 ALLOWED_EXT = {".ino", ".h", ".hpp", ".cpp", ".c"} | ({".s", ".S"} if ALLOW_ASM else set())
 ARTIFACT_EXT = {".hex", ".bin", ".uf2"}
@@ -147,6 +153,9 @@ READ_SEM = threading.BoundedSemaphore(4)
 READ_CACHE = {}                 # path+query -> (expires, gen, data)
 CLI_VER = {"t": 0, "v": ""}
 COMPILES_DONE = 0
+HISTORY = collections.deque(maxlen=HISTORY_KEEP)   # 過去 HISTORY_KEEP 件の利用履歴
+HISTORY_LOCK = threading.Lock()
+HISTORY_LINES = 0                                   # history.jsonl の現在の行数
 
 
 class ApiError(Exception):
@@ -509,6 +518,7 @@ def cancel_path(job):
 
 
 def finish(job, state, error=None):
+    prev = job["state"]
     job["state"] = state
     job["error"] = error
     job["t"] = time.time()
@@ -517,6 +527,11 @@ def finish(job, state, error=None):
         cancel_path(job).unlink()
     except OSError:
         pass
+    if prev not in ("done", "error", "cancelled"):
+        try:
+            history_record(job, state, error)
+        except Exception as e:  # noqa
+            log("履歴の記録に失敗: %r" % (e,))
 
 
 def purge_jobs():
@@ -552,6 +567,169 @@ def rmtree(p):
         except Exception:
             pass
     shutil.rmtree(str(p), onerror=onerr)
+
+
+# ---------------------------------------------------------------
+# 利用履歴 (コンパイル・管理操作の記録)。管理画面 /admin で表示する。
+# メモリ (直近 HISTORY_KEEP 件) + HELPER_HOME/history.jsonl に永続化。
+# ---------------------------------------------------------------
+def load_history():
+    global HISTORY_LINES
+    try:
+        with open(str(HISTORY_FILE), "r", encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+    except OSError:
+        return
+    recs = []
+    for line in lines[-HISTORY_KEEP:]:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            r = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(r, dict) and isinstance(r.get("t"), (int, float)):
+            recs.append(r)
+    with HISTORY_LOCK:
+        HISTORY.clear()
+        HISTORY.extend(recs)
+        HISTORY_LINES = len(lines)
+    if len(lines) > HISTORY_TRIM:
+        trim_history()
+
+
+def trim_history():
+    """履歴ファイルが大きくなったら直近 HISTORY_KEEP*2 件だけ残して書き直す。"""
+    global HISTORY_LINES
+    with HISTORY_LOCK:
+        try:
+            with open(str(HISTORY_FILE), "r", encoding="utf-8", errors="replace") as f:
+                lines = [l for l in f.readlines() if l.strip()][-HISTORY_KEEP * 2:]
+            tmp = HISTORY_FILE.with_suffix(".tmp")
+            with open(str(tmp), "w", encoding="utf-8") as f:
+                f.writelines(lines)
+            os.replace(str(tmp), str(HISTORY_FILE))
+            HISTORY_LINES = len(lines)
+        except OSError as e:
+            log("履歴ファイルを整理できません: %s" % e)
+
+
+def history_record(job, state, error=None):
+    """ジョブ完了時に 1 件記録する (失敗しても処理は止めない)。"""
+    global HISTORY_LINES
+    res = job.get("result") or {}
+    now = time.time()
+    rec = {"t": round(now, 1), "id": job["id"], "kind": job["kind"], "state": state,
+           "client": job["client"], "admin": bool(job["admin"]),
+           "success": bool(state == "done" and res.get("success", True)),
+           "elapsed": round(now - job["created"], 1)}
+    if job["kind"] == "compile":
+        rec["fqbn"] = job.get("fqbn") or ""
+        rec["sketch"] = job.get("sketch") or ""
+        if res.get("time") is not None:
+            rec["time"] = res["time"]
+        if res.get("cached"):
+            rec["cached"] = True
+        size = res.get("size") or {}
+        if size.get("program") is not None:
+            rec["program"] = size["program"]
+    else:
+        rec["title"] = job.get("title") or ""
+        if job.get("rc") is not None:
+            rec["rc"] = job["rc"]
+    if not rec["success"]:
+        errs = res.get("errors") or []
+        msg = error or (errs[0] if errs else None)
+        if not msg and state == "cancelled":
+            msg = "キャンセル"
+        if msg:
+            rec["error"] = str(msg)[:300]
+    line = json.dumps(rec, ensure_ascii=False) + "\n"
+    with HISTORY_LOCK:
+        HISTORY.append(rec)
+        try:
+            with open(str(HISTORY_FILE), "a", encoding="utf-8") as f:
+                f.write(line)
+            HISTORY_LINES += 1
+        except OSError as e:
+            log("履歴を保存できません: %s" % e)
+            return
+        trim = HISTORY_LINES > HISTORY_TRIM
+    if trim:
+        trim_history()
+
+
+def history_stats(recs):
+    """履歴レコード群から管理画面用の集計を作る。"""
+    now = time.time()
+    total = len(recs)
+    ok = sum(1 for r in recs if r.get("success"))
+    fail = sum(1 for r in recs if not r.get("success") and r.get("state") != "cancelled")
+    cancelled = sum(1 for r in recs if r.get("state") == "cancelled")
+    compiles = [r for r in recs if r.get("kind") == "compile"]
+    times = [r["time"] for r in compiles if r.get("success") and isinstance(r.get("time"), (int, float))]
+    by_board, by_client, by_day = {}, {}, {}
+
+    def day_key(ts):
+        return time.strftime("%Y-%m-%d", time.localtime(ts))
+
+    today = day_key(now)
+    for r in recs:
+        b = r.get("fqbn") or r.get("title") or "(不明)"
+        by_board[b] = by_board.get(b, 0) + 1
+        c = r.get("client") or "?"
+        by_client[c] = by_client.get(c, 0) + 1
+        k = day_key(r["t"])
+        by_day[k] = by_day.get(k, 0) + 1
+    top = lambda d, n: sorted([{"key": k, "count": v} for k, v in d.items()],
+                              key=lambda x: -x["count"])[:n]
+    week = sorted(day_key(now - 86400 * i) for i in range(7))
+    return {
+        "total": total, "ok": ok, "fail": fail, "cancelled": cancelled,
+        "successRate": round(ok * 100.0 / total, 1) if total else None,
+        "avgTime": round(sum(times) / len(times), 1) if times else None,
+        "today": by_day.get(today, 0),
+        "last24h": sum(1 for r in recs if now - r["t"] <= 86400),
+        "last7days": [{"day": d, "count": by_day.get(d, 0)} for d in week],
+        "byBoard": top(by_board, 10),
+        "byClient": top(by_client, 10),
+    }
+
+
+def _token_file_info(fname, env_name, value):
+    """トークンのメタ情報 (本体は絶対に返さない)。"""
+    f = HOME / fname
+    from_env = bool(os.environ.get(env_name))
+    info = {"source": "env" if from_env else ("file" if f.exists() else "不明"),
+            "path": "" if from_env else str(f), "length": len(value),
+            "fingerprint": hashlib.sha256(value.encode("utf-8", "replace")).hexdigest()[:12],
+            "masked": (value[:4] + "…" + value[-4:]) if len(value) > 12 else "********"}
+    if not from_env and f.exists():
+        try:
+            st = f.stat()
+            info["mode"] = oct(st.st_mode & 0o777)[2:]
+            info["mtime"] = int(st.st_mtime)
+        except OSError:
+            pass
+    return info
+
+
+def token_infos():
+    return {
+        "singleToken": SINGLE_TOKEN,
+        "user": _token_file_info("token", "HELPER_TOKEN", TOKEN or ""),
+        "admin": _token_file_info("admin-token", "HELPER_ADMIN_TOKEN", ADMIN_TOKEN or ""),
+    }
+
+
+def process_rss_mb():
+    try:
+        with open("/proc/self/statm", "r") as f:
+            pages = int(f.read().split()[1])
+        return round(pages * (os.sysconf("SC_PAGE_SIZE") / (1024 * 1024)), 1)
+    except (OSError, ValueError, IndexError, AttributeError):
+        return None
 
 
 # ---------------------------------------------------------------
@@ -880,6 +1058,7 @@ def submit_compile(req, client):
         if hit is not None:
             RESULT_CACHE.move_to_end(key)
             job = new_job("compile", client, False)
+            job["fqbn"], job["sketch"] = plan["fqbn"], plan["sketch"]
             res = dict(hit)
             res["cached"] = True
             job["result"] = res
@@ -890,6 +1069,7 @@ def submit_compile(req, client):
             raise ApiError(429, "コンパイルサーバーが混み合っています。少し待ってからもう一度実行してください",
                            {"retryAfter": 30})
         job = new_job("compile", client, False)
+        job["fqbn"], job["sketch"] = plan["fqbn"], plan["sketch"]
         job["plan"] = plan
         job["key"] = key
         QUEUE.append(job["id"])
@@ -1041,6 +1221,8 @@ def housekeeping():
         time.sleep(60)
         try:
             purge_jobs()
+            if HISTORY_LINES > HISTORY_TRIM:
+                trim_history()
         except Exception as e:  # noqa
             log("housekeeping: %r" % (e,))
 
@@ -1115,6 +1297,109 @@ def read_cached(key, ttl, fn):
     return data
 
 
+# ---------------------------------------------------------------
+# 管理画面 API (/admin/api/*。管理者トークンが必要)
+# ---------------------------------------------------------------
+def _int_q(q, name, default, lo, hi):
+    try:
+        v = int(q.get(name, default) or default)
+    except ValueError:
+        raise ApiError(400, "%s が不正です" % name)
+    return max(lo, min(hi, v))
+
+
+def admin_overview():
+    """サーバー状態・トークン詳細・統計・アクティブジョブをまとめて返す。"""
+    now = time.time()
+    with JOBS_LOCK:
+        jobs = list(JOBS.values())
+        queued_ids = list(QUEUE)
+        cache_entries, cache_bytes = len(RESULT_CACHE), RESULT_CACHE_SIZE
+        read_cache_entries = len(READ_CACHE)
+        gen = GEN
+    active = []
+    for j in jobs:
+        if j["state"] not in ("queued", "running"):
+            continue
+        item = {"id": j["id"], "kind": j["kind"], "state": j["state"], "client": j["client"],
+                "admin": bool(j["admin"]), "age": round(now - j["created"], 1),
+                "title": j.get("title") or j.get("sketch") or j.get("fqbn") or "",
+                "detail": j.get("fqbn") or "", "lines": len(j["lines"])}
+        if j["state"] == "queued" and j["id"] in queued_ids:
+            item["position"] = queued_ids.index(j["id"]) + 1
+        active.append(item)
+    active.sort(key=lambda x: (0 if x["state"] == "queued" else 1, x.get("position", 0), x["age"]))
+    with HISTORY_LOCK:
+        recs = list(HISTORY)
+        hist_lines = HISTORY_LINES
+    with AUTH_LOCK:
+        blocks = [{"ip": ip, "remain": int(un - now) + 1}
+                  for ip, un in AUTH_BLOCK.items() if un > now]
+        fails = sum(1 for lst in AUTH_FAILS.values() for t in lst if now - t < 60)
+    stats = history_stats(recs)
+    stats["compilesSinceStart"] = COMPILES_DONE
+    return {
+        "ok": True,
+        "now": round(now, 1),
+        "server": {
+            "version": VERSION, "started": round(STARTED, 1), "uptime": round(now - STARTED, 1),
+            "pid": os.getpid(), "python": sys.version.split()[0],
+            "host": HOST, "port": PORT, "home": str(HOME),
+            "wrapper": WRAPPER or "", "wrapperFound": cli_available(),
+            "buildUser": BUILD_USER or "", "singleToken": SINGLE_TOKEN, "allowAsm": ALLOW_ASM,
+            "cliVersion": cli_version() if cli_available() else "",
+            "cliBusy": CLI_LOCK.locked(), "gen": gen,
+            "freeMb": free_mb(), "rssMb": process_rss_mb(),
+        },
+        "limits": {
+            "maxQueue": MAX_QUEUE, "perClient": PER_CLIENT, "compileTimeout": COMPILE_TIMEOUT,
+            "minFreeMb": MIN_FREE_MB, "jobKeepSec": JOB_KEEP_SEC, "maxBodyMb": MAX_BODY // (1024 * 1024),
+            "maxSourceMb": MAX_SOURCE_TOTAL // (1024 * 1024), "maxFiles": MAX_FILES,
+            "resultCacheEntries": RESULT_CACHE_ENTRIES, "resultCacheMb": RESULT_CACHE_BYTES // (1024 * 1024),
+        },
+        "queue": {"queued": len(queued_ids), "running": sum(1 for j in active if j["state"] == "running"),
+                  "adminWaiting": ADMIN_WAITING, "active": active},
+        "jobsInMemory": len(jobs),
+        "tokens": token_infos(),
+        "caches": {"resultEntries": cache_entries, "resultBytes": cache_bytes,
+                   "readEntries": read_cache_entries, "historyLines": hist_lines},
+        "auth": {"blocked": blocks, "recentFails": fails},
+        "webhook": {"enabled": bool(GITHUB_WEBHOOK_SECRET and GITHUB_WEBHOOK_REPO),
+                    "repo": GITHUB_WEBHOOK_REPO, "branch": GITHUB_WEBHOOK_BRANCH,
+                    "last": round(WEBHOOK_LAST, 1) if WEBHOOK_LAST else 0},
+        "stats": stats,
+        "history": list(reversed(recs))[:50],
+    }
+
+
+def admin_history(q):
+    """利用履歴を新しい順にページングして返す。"""
+    offset = _int_q(q, "offset", 0, 0, 10 ** 9)
+    limit = _int_q(q, "limit", 50, 1, 200)
+    kind = q.get("kind", "").strip()
+    state = q.get("state", "").strip()
+    text = q.get("q", "").strip().lower()
+    with HISTORY_LOCK:
+        recs = list(HISTORY)
+        kept = len(recs)
+    recs.reverse()   # 新しい順
+    if kind in ("compile", "admin"):
+        recs = [r for r in recs if r.get("kind") == kind]
+    if state == "ok":
+        recs = [r for r in recs if r.get("success")]
+    elif state == "ng":
+        recs = [r for r in recs if not r.get("success") and r.get("state") != "cancelled"]
+    elif state:
+        recs = [r for r in recs if r.get("state") == state]
+    if text:
+        def hay(r):
+            return " ".join(str(r.get(k, "")) for k in
+                            ("fqbn", "sketch", "title", "client", "id", "error")).lower()
+        recs = [r for r in recs if text in hay(r)]
+    return {"ok": True, "total": len(recs), "offset": offset, "kept": kept,
+            "items": recs[offset:offset + limit]}
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "arduino-helper/" + VERSION
@@ -1163,6 +1448,20 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self._cors()
         self.end_headers()
+
+    def _send_html(self, fpath):
+        p = Path(fpath)
+        if not p.is_file():
+            raise ApiError(404, "ページが見つかりません (%s がありません)" % p.name)
+        body = p.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self._cors()
+        self.end_headers()
+        self.wfile.write(body)
 
     def _token(self):
         auth = self.headers.get("Authorization", "")
@@ -1285,6 +1584,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.end_headers()
             return
 
+        if method == "GET" and path in ("/admin", "/admin.html"):
+            return self._send_html(Path(__file__).resolve().parent / "www" / "admin.html")
+
         if method == "GET" and path == "/ping":
             role = role_for(self._token())
             d = {"ok": True, "version": "arduino-helper %s" % VERSION, "cliFound": cli_available(),
@@ -1305,6 +1607,14 @@ class Handler(BaseHTTPRequestHandler):
         if role is None:
             auth_failed(ip)
             return self._send(401, {"success": False, "error": "トークンが正しくありません"}, close=True)
+        if method == "GET" and path.startswith("/admin/api"):
+            # 管理画面 API。arduino-cli が無くても状態を確認できるよう、CLI 判定より先に処理する。
+            self._need(role, True)
+            if path == "/admin/api/overview":
+                return self._send(200, admin_overview())
+            if path == "/admin/api/history":
+                return self._send(200, admin_history(q))
+            raise ApiError(404, "不明なエンドポイント: %s %s" % (method, path[:80]))
         if not cli_available():
             return self._send(500, {"success": False, "error": "arduino-cli を実行できません (arduino-build-run が見つかりません)"})
 
@@ -1615,6 +1925,7 @@ def main():
         if ADMIN_TOKEN == TOKEN:
             sys.exit("生徒用と管理者用のトークンが同じです。--rotate admin で再発行してください")
     load_gen()
+    load_history()
     log("Arduino Web IDE helper %s" % VERSION)
     log("  実行ラッパー : %s" % (WRAPPER or "見つかりません"))
     log("  コンパイル   : %s" % (("sudo -u %s" % BUILD_USER) if BUILD_USER else "このユーザーで直接実行 (権限分離なし)"))

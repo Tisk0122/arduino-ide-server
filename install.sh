@@ -41,7 +41,7 @@ warn() { printf '警告: %s\n' "$*" >&2; }
 die()  { printf 'エラー: %s\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || die "root 権限で実行してください:  sudo bash install.sh"
-for f in arduino-helper.py arduino-build-run github-update.sh configure-github-webhook.sh; do
+for f in arduino-helper.py arduino-build-run github-update.sh configure-github-webhook.sh www/index.html www/admin.html; do
   [ -f "$HERE/$f" ] || die "$HERE/$f がありません。アーカイブを展開したフォルダで実行してください"
 done
 command -v systemctl >/dev/null || die "systemd が必要です"
@@ -135,6 +135,9 @@ fi
 say "6/8 サーバー本体・ラッパー・sudo 設定"
 install -m 0644 -o root -g root "$HERE/arduino-helper.py" "$APP_DIR/arduino-helper.py"
 install -m 0755 -o root -g root "$HERE/arduino-build-run" "$WRAP"
+install -d -o root -g root -m 0755 "$APP_DIR/www"
+install -m 0644 -o root -g root "$HERE/www/index.html" "$APP_DIR/www/index.html"
+install -m 0644 -o root -g root "$HERE/www/admin.html" "$APP_DIR/www/admin.html"
 install -m 0700 -o root -g root "$HERE/github-update.sh" /usr/local/libexec/arduino-helper-update
 install -m 0700 -o root -g root "$HERE/configure-github-webhook.sh" /usr/local/libexec/arduino-helper-configure-github-webhook
 cat > "$CONF_DIR/build-run.conf" <<EOF
@@ -274,6 +277,7 @@ echo "  管理者トークン … 先生だけが使う。ボード・ライブ�
 echo
 echo "状態確認   : systemctl status arduino-helper"
 echo "ログ       : journalctl -u arduino-helper -f"
+echo "管理画面   : http://127.0.0.1:$HELPER_PORT/admin  (管理者トークンが必要)"
 echo "再起動     : sudo systemctl restart arduino-helper"
 echo "配布リンク : sudo -u $H_USER env HELPER_HOME=$H_HOME python3 $APP_DIR/arduino-helper.py --share-link https://あなたのURL"
 [ "$fail" -eq 0 ] || { echo; echo "※ [NG] の項目があります。上のメッセージを確認してください。"; exit 1; }

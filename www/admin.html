@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#005F61">
+<title>管理コンソール - Arduino Web IDE</title>
+<style>
+:root {
+  --teal: #00878A; --teal-dk: #005F61; --teal-lt: #00ABAE;
+  --orange: #E47128; --red: #C0392B; --green: #27AE60;
+  --bg0: #131820; --bg1: #1A2030; --bg2: #212836; --bg3: #2A3240; --bg4: #333D50;
+  --bg-input: #161D28;
+  --tx0: #E8EDF5; --tx1: #B0BCCF; --tx2: #7A8AA0;
+  --bd0: rgba(255,255,255,0.06); --bd1: rgba(255,255,255,0.10); --bd2: rgba(255,255,255,0.16);
+  --ok: #4EC994; --warn: #F0C040; --err: #FF6B6B; --info: #58A6FF;
+  --ff-mono: 'Consolas','Cascadia Code','JetBrains Mono','Monaco','Menlo','DejaVu Sans Mono',monospace;
+  --ff-ui: -apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;
+  --radius: 5px; --sh-md: 0 4px 16px rgba(0,0,0,0.5);
+}
+[data-theme="light"] {
+  --bg0: #F0F2F5; --bg1: #FFFFFF; --bg2: #F5F7FA; --bg3: #E8ECF1; --bg4: #D8DEE8;
+  --bg-input: #FAFBFC;
+  --tx0: #1A2030; --tx1: #3A4A60; --tx2: #6A7A90;
+  --bd0: rgba(0,0,0,0.06); --bd1: rgba(0,0,0,0.10); --bd2: rgba(0,0,0,0.18);
+  --ok: #177A3C; --warn: #B25000; --err: #CC1F1F; --info: #0050A0;
+  --sh-md: 0 4px 16px rgba(0,0,0,0.15);
+}
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+html,body { min-height: 100%; background: var(--bg0); color: var(--tx0);
+  font-family: var(--ff-ui); font-size: 13px; line-height: 1.55; }
+body { padding-bottom: 48px; }
+button { cursor: pointer; border: none; outline: none; font-family: inherit; font-size: inherit;
+  background: none; color: inherit; }
+input,select { font-family: inherit; font-size: inherit; color: inherit; outline: none; }
+a { color: var(--teal-lt); text-decoration: none; }
+:focus-visible { outline: 2px solid var(--teal-lt); outline-offset: 1px; }
+::selection { background: rgba(0,135,138,0.30); }
+code,.mono { font-family: var(--ff-mono); }
+
+/* ---- トップバー ---- */
+#topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 14px;
+  padding: 0 16px; height: 48px; background: var(--bg1); border-bottom: 1px solid var(--bd1);
+  box-shadow: var(--sh-md); flex-wrap: wrap; }
+#topbar h1 { font-size: 15px; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap; }
+#topbar h1 span { color: var(--teal-lt); }
+.tb-meta { display: flex; align-items: center; gap: 12px; color: var(--tx1); font-size: 12px;
+  flex-wrap: wrap; }
+.tb-spacer { flex: 1 1 auto; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--tx2);
+  margin-right: 5px; vertical-align: -1px; }
+.dot.ok { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+.dot.ng { background: var(--err); box-shadow: 0 0 6px var(--err); }
+.dot.warn { background: var(--warn); }
+
+/* ---- ボタン ---- */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: var(--radius);
+  background: var(--bg3); border: 1px solid var(--bd1); color: var(--tx0); font-size: 12px;
+  transition: background .15s, border-color .15s; white-space: nowrap; }
+.btn:hover { background: var(--bg4); border-color: var(--bd2); }
+.btn-primary { background: var(--teal); border-color: transparent; color: #fff; }
+.btn-primary:hover { background: var(--teal-lt); }
+.btn-ghost { background: transparent; }
+.btn-sm { padding: 4px 9px; font-size: 11px; }
+
+/* ---- レイアウト ---- */
+main { max-width: 1280px; margin: 0 auto; padding: 18px 16px 0; }
+section { margin-bottom: 22px; }
+.sec-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.sec-head h2 { font-size: 13px; font-weight: 700; text-transform: none; letter-spacing: 0.04em;
+  color: var(--tx1); padding-left: 9px; border-left: 3px solid var(--teal-lt); }
+.sec-head .sec-note { color: var(--tx2); font-size: 11px; }
+.grid { display: grid; gap: 10px; }
+.g4 { grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); }
+.g2 { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.g3 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+
+/* ---- カード ---- */
+.card { background: var(--bg1); border: 1px solid var(--bd0); border-radius: var(--radius);
+  padding: 12px 14px; }
+.card h3 { font-size: 11px; font-weight: 600; color: var(--tx2); margin-bottom: 8px;
+  letter-spacing: 0.06em; }
+.stat { display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  padding: 4px 0; border-bottom: 1px dashed var(--bd0); font-size: 12px; }
+.stat:last-child { border-bottom: none; }
+.stat .k { color: var(--tx2); }
+.stat .v { color: var(--tx0); font-weight: 600; text-align: right; word-break: break-all; }
+.stat .v.mono { font-family: var(--ff-mono); font-weight: 500; }
+.big { font-size: 22px; font-weight: 700; line-height: 1.2; }
+.big small { font-size: 12px; font-weight: 500; color: var(--tx2); margin-left: 4px; }
+.sub { color: var(--tx2); font-size: 11px; }
+.ok { color: var(--ok); } .ng { color: var(--err); } .warn { color: var(--warn); }
+.info { color: var(--info); } .muted { color: var(--tx2); }
+
+/* ---- テーブル ---- */
+.tbl-wrap { overflow-x: auto; background: var(--bg1); border: 1px solid var(--bd0);
+  border-radius: var(--radius); }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th, td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--bd0);
+  white-space: nowrap; }
+th { color: var(--tx2); font-weight: 600; font-size: 11px; background: var(--bg2); }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--bg2); }
+td.wrap-cell { white-space: normal; word-break: break-all; }
+.empty { padding: 18px; text-align: center; color: var(--tx2); }
+
+/* ---- ピル ---- */
+.pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px;
+  font-weight: 600; background: var(--bg3); color: var(--tx1); border: 1px solid var(--bd1); }
+.pill.ok { background: rgba(78,201,148,0.14); color: var(--ok); border-color: rgba(78,201,148,0.35); }
+.pill.ng { background: rgba(255,107,107,0.13); color: var(--err); border-color: rgba(255,107,107,0.35); }
+.pill.warn { background: rgba(240,192,64,0.13); color: var(--warn); border-color: rgba(240,192,64,0.35); }
+.pill.info { background: rgba(88,166,255,0.13); color: var(--info); border-color: rgba(88,166,255,0.35); }
+
+/* ---- 入力 ---- */
+.input { background: var(--bg-input); border: 1px solid var(--bd1); border-radius: var(--radius);
+  color: var(--tx0); padding: 7px 10px; font-size: 12px; min-width: 120px; }
+.input:focus { border-color: var(--teal-lt); }
+select.input { cursor: pointer; }
+.filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.filters .grow { flex: 1 1 200px; max-width: 340px; }
+
+/* ---- 棒グラフ ---- */
+.bars { display: flex; align-items: flex-end; gap: 6px; height: 92px; padding-top: 6px; }
+.bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  height: 100%; gap: 4px; min-width: 26px; }
+.bar-col .bar { width: 100%; max-width: 46px; background: linear-gradient(180deg, var(--teal-lt), var(--teal));
+  border-radius: 3px 3px 0 0; min-height: 2px; }
+.bar-col .bv { font-size: 10px; color: var(--tx1); font-weight: 600; }
+.bar-col .bl { font-size: 10px; color: var(--tx2); }
+.rank { display: flex; flex-direction: column; gap: 7px; }
+.rank-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; font-size: 12px; }
+.rank-row .rk-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-row .rk-count { color: var(--tx1); font-weight: 600; }
+.rank-row .rk-track { grid-column: 1 / -1; height: 5px; background: var(--bg3); border-radius: 3px;
+  overflow: hidden; }
+.rank-row .rk-fill { height: 100%; background: var(--teal-lt); border-radius: 3px; }
+
+/* ---- ログイン ---- */
+#login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.login-box { width: 100%; max-width: 400px; background: var(--bg1); border: 1px solid var(--bd1);
+  border-radius: 8px; padding: 26px 24px; box-shadow: var(--sh-md); }
+.login-box h1 { font-size: 17px; margin-bottom: 4px; }
+.login-box h1 span { color: var(--teal-lt); }
+.login-box .lead { color: var(--tx2); font-size: 12px; margin-bottom: 18px; }
+.login-box label { display: block; font-size: 11px; color: var(--tx2); margin-bottom: 5px; }
+.login-box .input { width: 100%; font-family: var(--ff-mono); letter-spacing: 0.04em; }
+.login-box .btn { width: 100%; justify-content: center; margin-top: 14px; padding: 9px; font-size: 13px; }
+.login-err { color: var(--err); font-size: 12px; margin-top: 10px; min-height: 16px; }
+.login-note { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--bd0);
+  color: var(--tx2); font-size: 11px; line-height: 1.6; }
+.login-note code { word-break: break-all; color: var(--tx1); }
+
+.notice { padding: 9px 12px; border-radius: var(--radius); font-size: 12px; margin-bottom: 10px;
+  background: rgba(240,192,64,0.10); border: 1px solid rgba(240,192,64,0.35); color: var(--warn); }
+.notice.err { background: rgba(255,107,107,0.10); border-color: rgba(255,107,107,0.35); color: var(--err); }
+[hidden] { display: none !important; }
+footer { max-width: 1280px; margin: 0 auto; padding: 10px 16px; color: var(--tx2); font-size: 11px; }
+@media (max-width: 640px) {
+  #topbar { height: auto; padding: 8px 12px; }
+  main { padding: 12px 10px 0; }
+  th, td { padding: 6px 8px; }
+}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="login-box">
+    <h1>Arduino Helper <span>管理コンソール</span></h1>
+    <p class="lead">サーバーの状態・トークン・利用履歴の確認</p>
+    <form id="login-form">
+      <label for="login-token">管理者トークン</label>
+      <input class="input" type="password" id="login-token" autocomplete="current-password"
+             placeholder="管理者トークンを入力" spellcheck="false">
+      <div class="login-err" id="login-err"></div>
+      <button class="btn btn-primary" type="submit" id="login-btn">接続</button>
+    </form>
+    <p class="login-note">
+      トークンは <code>--show-tokens</code> で表示できます。<br>
+      <code>sudo -u arduino-helper env HELPER_HOME=/var/lib/arduino-helper python3 /opt/arduino-helper/arduino-helper.py --show-tokens</code><br>
+      入力したトークンはこの端末の localStorage にのみ保存されます。
+    </p>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <header id="topbar">
+    <h1>Arduino Helper <span>管理コンソール</span></h1>
+    <div class="tb-meta">
+      <span id="st-dot"><span class="dot"></span><span id="st-dot-text">確認中</span></span>
+      <span>v<span id="st-version">-</span></span>
+      <span id="st-uptime">稼働時間 -</span>
+      <span id="st-updated" class="muted">-</span>
+    </div>
+    <div class="tb-spacer"></div>
+    <div class="tb-meta">
+      <label class="btn btn-ghost btn-sm" style="cursor:pointer">
+        <input type="checkbox" id="auto-refresh" checked style="accent-color:var(--teal-lt)"> 自動更新
+      </label>
+      <button class="btn btn-sm" id="btn-reload">更新</button>
+      <button class="btn btn-sm" id="btn-theme">表示切替</button>
+      <button class="btn btn-sm" id="btn-logout">ログアウト</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="global-err" class="notice err" hidden></div>
+
+    <section>
+      <div class="sec-head"><h2>サーバー状態</h2><span class="sec-note" id="srv-note"></span></div>
+      <div class="grid g4">
+        <div class="card">
+          <h3>基本</h3>
+          <div class="big" id="srv-status">-</div>
+          <div class="stat"><span class="k">バージョン</span><span class="v mono" id="srv-version">-</span></div>
+          <div class="stat"><span class="k">稼働時間</span><span class="v" id="srv-uptime">-</span></div>
+          <div class="stat"><span class="k">起動時刻</span><span class="v" id="srv-started">-</span></div>
+        </div>
+        <div class="card">
+          <h3>リソース</h3>
+          <div class="big" id="srv-free">-<small>MB 空き</small></div>
+          <div class="stat"><span class="k">ディスク空き</span><span class="v" id="srv-free2">-</span></div>
+          <div class="stat"><span class="k">メモリ (RSS)</span><span class="v" id="srv-rss">-</span></div>
+          <div class="stat"><span class="k">generation</span><span class="v mono" id="srv-gen">-</span></div>
+        </div>
+        <div class="card">
+          <h3>arduino-cli</h3>
+          <div class="big" id="cli-status">-</div>
+          <div class="stat"><span class="k">バージョン</span><span class="v mono" id="cli-version">-</span></div>
+          <div class="stat"><span class="k">実行中</span><span class="v" id="cli-busy">-</span></div>
+          <div class="stat"><span class="k">実行ユーザー</span><span class="v" id="cli-user">-</span></div>
+          <div class="stat"><span class="k">ラッパー</span><span class="v mono" id="cli-wrapper">-</span></div>
+        </div>
+        <div class="card">
+          <h3>コンパイル</h3>
+          <div class="big" id="cq-queued">-<small>件 待機</small></div>
+          <div class="stat"><span class="k">実行中</span><span class="v" id="cq-running">-</span></div>
+          <div class="stat"><span class="k">管理作業 待機</span><span class="v" id="cq-adminwait">-</span></div>
+          <div class="stat"><span class="k">起動後の完了数</span><span class="v" id="cq-done">-</span></div>
+          <div class="stat"><span class="k">メモリ上のジョブ</span><span class="v" id="cq-jobs">-</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><h2>利用統計</h2><span class="sec-note">履歴ファイルの全件を集計</span></div>
+      <div class="grid g4">
+        <div class="card"><h3>成功率</h3>
+          <div class="big" id="st-rate">-</div>
+          <div class="stat"><span class="k">成功 / 失敗 / 中断</span><span class="v" id="st-okfail">-</span></div>
+          <div class="stat"><span class="k">平均コンパイル時間</span><span class="v" id="st-avg">-</span></div>
+        </div>
+        <div class="card"><h3>件数</h3>
+          <div class="big" id="st-today">-<small>件 今日</small></div>
+          <div class="stat"><span class="k">直近24時間</span><span class="v" id="st-24h">-</span></div>
+          <div class="stat"><span class="k">記録の総数</span><span class="v" id="st-total">-</span></div>
+        </div>
+        <div class="card" style="grid-column: span 2;">
+          <h3>直近7日間</h3>
+          <div class="bars" id="chart-days"></div>
+        </div>
+      </div>
+      <div class="grid g2" style="margin-top:10px">
+        <div class="card"><h3>ボード別の利用 (上位)</h3><div class="rank" id="rank-boards"></div></div>
+        <div class="card"><h3>クライアント別 (上位)</h3><div class="rank" id="rank-clients"></div></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><h2>トークン</h2>
+        <span class="sec-note">トークン本体は表示されません (マスクと指紋のみ)</span></div>
+      <div class="notice" id="single-token-note" hidden>
+        HELPER_SINGLE_TOKEN=1 が有効です。生徒用トークンと管理者用トークンは同一で、どちらも管理操作ができます。
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>種別</th><th>値 (マスク)</th><th>指紋 (SHA-256)</th><th>長さ</th><th>発行元</th>
+            <th>ファイル</th><th>権限</th><th>ファイル更新日時</th>
+          </tr></thead>
+          <tbody id="tokens-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><h2>設定・制限</h2></div>
+      <div class="grid g3">
+        <div class="card"><h3>サーバー設定</h3><div id="cfg-server"></div></div>
+        <div class="card"><h3>制限値</h3><div id="cfg-limits"></div></div>
+        <div class="card"><h3>キャッシュ / 認証 / Webhook</h3>
+          <div id="cfg-cache"></div>
+          <div id="cfg-auth" style="margin-top:8px"></div>
+          <div id="cfg-webhook" style="margin-top:8px"></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><h2>アクティブジョブ</h2><span class="sec-note">待機中・実行中</span></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>状態</th><th>順番</th><th>ID</th><th>種別</th><th>対象</th>
+            <th>クライアント</th><th>経過</th><th>ログ行数</th>
+          </tr></thead>
+          <tbody id="jobs-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><h2>利用履歴</h2>
+        <span class="sec-note" id="hist-note"></span>
+        <div class="tb-spacer"></div>
+        <div class="filters">
+          <select class="input" id="f-kind">
+            <option value="">全種別</option>
+            <option value="compile">コンパイル</option>
+            <option value="admin">管理作業</option>
+          </select>
+          <select class="input" id="f-state">
+            <option value="">全状態</option>
+            <option value="ok">成功のみ</option>
+            <option value="ng">失敗のみ</option>
+            <option value="cancelled">キャンセルのみ</option>
+          </select>
+          <input class="input grow" id="f-q" type="search" placeholder="ボード・スケッチ・クライアントで検索">
+          <button class="btn btn-sm" id="btn-hist-reload">更新</button>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>日時</th><th>種別</th><th>結果</th><th>対象</th><th>ボード / タイトル</th>
+            <th>クライアント</th><th>所要</th><th>メモ</th>
+          </tr></thead>
+          <tbody id="hist-body"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:8px; display:flex; gap:8px; align-items:center">
+        <button class="btn btn-sm" id="btn-hist-more" hidden>さらに読み込む</button>
+        <span class="sub" id="hist-count"></span>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    arduino-helper 管理コンソール — API: <code>GET /admin/api/overview</code> /
+    <code>GET /admin/api/history</code> (管理者トークン必須)
+  </footer>
+</div>
+
+<script>
+'use strict';
+var $ = function (s) { return document.querySelector(s); };
+var LS_KEY = 'helperAdminToken';
+var state = {
+  token: localStorage.getItem(LS_KEY) || '',
+  data: null,
+  timer: null,
+  hist: [],          // 履歴テーブルに積んだ行 (新しい順)
+  histTotal: 0,
+  histKept: 0,
+  histPaged: false,  // 「さらに読み込む」で積んだ状態なら自動更新ではリセットしない
+  busy: false
+};
+
+function esc(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function fmtDur(sec) {
+  sec = Math.max(0, Math.floor(sec || 0));
+  var d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600),
+      m = Math.floor(sec % 3600 / 60), s = sec % 60;
+  if (d) return d + '日' + h + '時間';
+  if (h) return h + '時間' + m + '分';
+  if (m) return m + '分' + s + '秒';
+  return s + '秒';
+}
+
+function fmtAge(sec) {
+  sec = Math.floor(sec || 0);
+  if (sec < 60) return sec + '秒';
+  return Math.floor(sec / 60) + '分' + (sec % 60) + '秒';
+}
+
+function fmtTime(ts) {
+  if (!ts) return '-';
+  var d = new Date(ts * 1000);
+  var p = function (n) { return (n < 10 ? '0' : '') + n; };
+  return d.getFullYear() + '/' + p(d.getMonth() + 1) + '/' + p(d.getDate()) + ' ' +
+         p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+}
+
+function fmtDay(ts) {
+  var d = new Date(ts * 1000);
+  var p = function (n) { return (n < 10 ? '0' : '') + n; };
+  return p(d.getMonth() + 1) + '/' + p(d.getDate());
+}
+
+function fmtBytes(n) {
+  if (n == null) return '-';
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+  if (n < 1073741824) return (n / 1048576).toFixed(1) + ' MB';
+  return (n / 1073741824).toFixed(2) + ' GB';
+}
+
+function stat(k, v, cls) {
+  return '<div class="stat"><span class="k">' + esc(k) + '</span>' +
+         '<span class="v' + (cls ? ' ' + cls : '') + '">' + v + '</span></div>';
+}
+
+function api(path, timeoutMs) {
+  var opts = {
+    headers: { 'Authorization': 'Bearer ' + state.token, 'X-Client-Id': 'admin-console' },
+    cache: 'no-store'
+  };
+  if (timeoutMs && window.AbortSignal && AbortSignal.timeout) {
+    opts.signal = AbortSignal.timeout(timeoutMs);
+  }
+  return fetch(path, opts).then(function (r) {
+    if (r.status === 401 || r.status === 403) {
+      var e = new Error('認証に失敗しました (管理者トークンを確認してください)');
+      e.auth = true;
+      throw e;
+    }
+    return r.json().then(function (j) {
+      if (!r.ok) throw new Error(j && j.error ? j.error : ('HTTP ' + r.status));
+      return j;
+    });
+  });
+}
+
+/* ---------------- ログイン ---------------- */
+function showLogin(msg, clear) {
+  if (clear) { state.token = ''; localStorage.removeItem(LS_KEY); }
+  $('#app').hidden = true;
+  $('#login').hidden = false;
+  $('#login-err').textContent = msg || '';
+  $('#login-token').value = '';
+  $('#login-token').focus();
+}
+
+function showApp() {
+  $('#login').hidden = true;
+  $('#app').hidden = false;
+}
+
+$('#login-form').addEventListener('submit', function (e) {
+  e.preventDefault();
+  var v = $('#login-token').value.trim();
+  if (v.length < 16) { $('#login-err').textContent = 'トークンが短すぎます (16文字以上)'; return; }
+  var btn = $('#login-btn');
+  btn.disabled = true; btn.textContent = '確認中...';
+  state.token = v;
+  api('/admin/api/overview', 15000).then(function () {
+    localStorage.setItem(LS_KEY, v);
+    btn.disabled = false; btn.textContent = '接続';
+    showApp();
+    boot();
+  }).catch(function (err) {
+    btn.disabled = false; btn.textContent = '接続';
+    state.token = '';
+    $('#login-err').textContent = err.auth ? err.message : ('接続できませんでした: ' + err.message);
+  });
+});
+
+$('#btn-logout').addEventListener('click', function () { stopAuto(); showLogin('', true); });
+
+/* ---------------- テーマ ---------------- */
+(function () {
+  var t = localStorage.getItem('helperAdminTheme');
+  if (t) document.documentElement.setAttribute('data-theme', t);
+})();
+$('#btn-theme').addEventListener('click', function () {
+  var cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', cur);
+  localStorage.setItem('helperAdminTheme', cur);
+});
+
+/* ---------------- 自動更新 ---------------- */
+function stopAuto() { if (state.timer) { clearInterval(state.timer); state.timer = null; } }
+function startAuto() {
+  stopAuto();
+  if ($('#auto-refresh').checked) {
+    state.timer = setInterval(function () { refresh(false); }, 5000);
+  }
+}
+$('#auto-refresh').addEventListener('change', startAuto);
+$('#btn-reload').addEventListener('click', function () { refresh(true); });
+
+/* ---------------- 描画 ---------------- */
+function render(d) {
+  var s = d.server || {}, q = d.queue || {}, st = d.stats || {};
+  var cliOk = s.wrapperFound;
+
+  /* トップバー */
+  $('#st-version').textContent = s.version || '-';
+  $('#st-uptime').textContent = '稼働 ' + fmtDur(s.uptime);
+  $('#st-updated').textContent = '更新 ' + new Date().toLocaleTimeString('ja-JP');
+  var dot = $('#st-dot').firstElementChild;
+  dot.className = 'dot ' + (cliOk ? 'ok' : 'warn');
+  $('#st-dot-text').textContent = cliOk ? '正常' : 'arduino-cli 不明';
+
+  /* サーバー状態 */
+  $('#srv-status').innerHTML = cliOk
+    ? '<span class="ok">正常</span>'
+    : '<span class="warn">CLI なし</span>';
+  $('#srv-status').className = 'big';
+  $('#srv-version').textContent = s.version || '-';
+  $('#srv-uptime').textContent = fmtDur(s.uptime);
+  $('#srv-started').textContent = fmtTime(s.started);
+  $('#srv-note').textContent = (s.host || '') + ':' + (s.port || '') + '  ' + (s.home || '');
+  var free = s.freeMb;
+  $('#srv-free').innerHTML = (free == null ? '-' : (free >= 1024 ? (free / 1024).toFixed(1) : free)) +
+    '<small>' + (free != null && free >= 1024 ? 'GB' : 'MB') + ' 空き</small>';
+  $('#srv-free').className = 'big' + (free != null && free < 2048 ? ' ng' : '');
+  $('#srv-free2').textContent = free == null ? '-' : (free + ' MB');
+  $('#srv-rss').textContent = s.rssMb == null ? '取得不可' : (s.rssMb + ' MB');
+  $('#srv-gen').textContent = s.gen == null ? '-' : s.gen;
+
+  /* cli */
+  $('#cli-status').innerHTML = cliOk ? '<span class="ok">利用可</span>' : '<span class="ng">見つからない</span>';
+  $('#cli-version').textContent = s.cliVersion || '-';
+  $('#cli-busy').innerHTML = s.cliBusy ? '<span class="warn">実行中</span>' : '待機中';
+  $('#cli-user').textContent = s.buildUser ? (s.buildUser + ' (権限分離)') : '直接実行 (権限分離なし)';
+  $('#cli-user').className = 'v' + (s.buildUser ? '' : ' warn');
+  $('#cli-wrapper').textContent = s.wrapper || '(なし)';
+  $('#cli-wrapper').style.fontSize = '11px';
+
+  /* キュー */
+  $('#cq-queued').innerHTML = (q.queued == null ? '-' : q.queued) + '<small>件 待機</small>';
+  $('#cq-running').textContent = q.running == null ? '-' : q.running;
+  $('#cq-adminwait').textContent = q.adminWaiting == null ? '-' : q.adminWaiting;
+  $('#cq-done').textContent = st.compilesSinceStart == null ? '-' : st.compilesSinceStart;
+  $('#cq-jobs').textContent = d.jobsInMemory == null ? '-' : d.jobsInMemory;
+
+  /* 統計 */
+  $('#st-rate').innerHTML = st.successRate == null ? '-' : st.successRate + '%<small>成功</small>';
+  $('#st-rate').className = 'big' + (st.successRate == null ? '' :
+    (st.successRate >= 90 ? ' ok' : (st.successRate >= 70 ? ' warn' : ' ng')));
+  $('#st-okfail').textContent = (st.ok || 0) + ' / ' + (st.fail || 0) + ' / ' + (st.cancelled || 0);
+  $('#st-avg').textContent = st.avgTime == null ? '-' : (st.avgTime + ' 秒');
+  $('#st-today').innerHTML = (st.today == null ? '-' : st.today) + '<small>件 今日</small>';
+  $('#st-24h').textContent = st.last24h == null ? '-' : st.last24h;
+  $('#st-total').textContent = st.total == null ? '-' : st.total;
+
+  /* 7日チャート */
+  var week = st.last7days || [];
+  var maxDay = Math.max.apply(null, week.map(function (x) { return x.count; }).concat([1]));
+  $('#chart-days').innerHTML = week.length ? week.map(function (x) {
+    var h = Math.round(x.count / maxDay * 100);
+    return '<div class="bar-col"><span class="bv">' + x.count + '</span>' +
+           '<div class="bar" style="height:' + Math.max(h, x.count ? 6 : 1) + '%"></div>' +
+           '<span class="bl">' + esc(String(x.day).slice(5)) + '</span></div>';
+  }).join('') : '<div class="sub">履歴がありません</div>';
+
+  renderRank('#rank-boards', st.byBoard, function (x) { return x.key; });
+  renderRank('#rank-clients', st.byClient, function (x) { return x.key; });
+
+  /* トークン */
+  var tk = d.tokens || {};
+  $('#single-token-note').hidden = !tk.singleToken;
+  var rows = [['生徒用', tk.user], ['管理者用', tk.admin]];
+  $('#tokens-body').innerHTML = rows.map(function (r) {
+    var t = r[1] || {};
+    return '<tr>' +
+      '<td><strong>' + esc(r[0]) + '</strong></td>' +
+      '<td class="mono">' + esc(t.masked || '-') + '</td>' +
+      '<td class="mono">' + esc(t.fingerprint || '-') + '</td>' +
+      '<td>' + (t.length ? t.length + ' 文字' : '-') + '</td>' +
+      '<td>' + esc(t.source || '-') + (t.source === 'env' ? ' (環境変数)' : '') + '</td>' +
+      '<td class="mono" style="font-size:11px">' + esc(t.path || '-') + '</td>' +
+      '<td>' + esc(t.mode || '-') + '</td>' +
+      '<td>' + (t.mtime ? fmtTime(t.mtime) : '-') + '</td>' +
+      '</tr>';
+  }).join('');
+
+  /* 設定 */
+  var sw = [];
+  sw.push(stat('待受', esc(s.host) + ':' + esc(s.port)));
+  sw.push(stat('データ置き場', '<span class="mono" style="font-size:11px">' + esc(s.home) + '</span>'));
+  sw.push(stat('実行ユーザー', s.buildUser ? esc(s.buildUser) : '直接実行'));
+  sw.push(stat('単一トークン', tk.singleToken ? '有効' : '無効', tk.singleToken ? 'warn' : ''));
+  sw.push(stat('アセンブラ許可', s.allowAsm ? '有効' : '無効'));
+  sw.push(stat('PID', '<span class="mono">' + esc(s.pid) + '</span>'));
+  sw.push(stat('Python', esc(s.python)));
+  $('#cfg-server').innerHTML = sw.join('');
+
+  var lm = d.limits || {};
+  var lim = [];
+  lim.push(stat('待ち行列の上限', lm.maxQueue));
+  lim.push(stat('端末あたり同時実行', lm.perClient));
+  lim.push(stat('コンパイル上限', lm.compileTimeout + ' 秒'));
+  lim.push(stat('空きディスク下限', lm.minFreeMb + ' MB'));
+  lim.push(stat('ジョブ保持時間', lm.jobKeepSec + ' 秒'));
+  lim.push(stat('ソース上限', lm.maxSourceMb + ' MB / ' + lm.maxFiles + ' ファイル'));
+  lim.push(stat('リクエスト上限', lm.maxBodyMb + ' MB'));
+  lim.push(stat('結果キャッシュ', lm.resultCacheEntries + ' 件 / ' + lm.resultCacheMb + ' MB'));
+  $('#cfg-limits').innerHTML = lim.join('');
+
+  var c = d.caches || {};
+  var cs = [];
+  cs.push(stat('結果キャッシュ', c.resultEntries + ' 件 (' + fmtBytes(c.resultBytes) + ')'));
+  cs.push(stat('応答キャッシュ', c.readEntries + ' 件'));
+  cs.push(stat('履歴ファイル', (c.historyLines || 0) + ' 行'));
+  $('#cfg-cache').innerHTML = cs.join('');
+
+  var a = d.auth || {};
+  var blocked = a.blocked || [];
+  var as = [];
+  as.push(stat('直近1分の認証失敗', a.recentFails == null ? '-' : a.recentFails,
+               a.recentFails > 0 ? 'warn' : ''));
+  if (blocked.length) {
+    as.push('<div class="stat"><span class="k">ブロック中</span><span class="v ng">' + blocked.length + ' 件</span></div>');
+    as.push('<div class="sub" style="margin-top:4px">' + blocked.map(function (b) {
+      return esc(b.ip) + ' (残り ' + b.remain + ' 秒)';
+    }).join('<br>') + '</div>');
+  } else {
+    as.push(stat('ブロック中', 'なし', 'ok'));
+  }
+  $('#cfg-auth').innerHTML = as.join('');
+
+  var w = d.webhook || {};
+  var ws = [];
+  ws.push(stat('GitHub 自動更新', w.enabled ? '有効' : '無効', w.enabled ? 'ok' : 'muted'));
+  if (w.enabled) {
+    ws.push(stat('リポジトリ', '<span class="mono" style="font-size:11px">' + esc(w.repo) + '</span>'));
+    ws.push(stat('ブランチ', esc(w.branch)));
+    ws.push(stat('最終更新', w.last ? fmtTime(w.last) : 'なし'));
+  }
+  $('#cfg-webhook').innerHTML = ws.join('');
+
+  /* アクティブジョブ */
+  var act = q.active || [];
+  $('#jobs-body').innerHTML = act.length ? act.map(function (j) {
+    var pill = j.state === 'running'
+      ? '<span class="pill info">実行中</span>'
+      : '<span class="pill warn">待機中</span>';
+    var target = j.kind === 'compile' ? (j.title || '-') : ('(管理) ' + (j.title || '-'));
+    var detail = (j.detail && j.detail !== j.title)
+      ? ' <span class="sub">' + esc(j.detail) + '</span>' : '';
+    var pos = j.state === 'queued'
+      ? (j.position ? ('#' + j.position) : '-')
+      : '-';
+    return '<tr>' +
+      '<td>' + pill + '</td>' +
+      '<td>' + esc(pos) + '</td>' +
+      '<td class="mono" title="' + esc(j.id) + '">' + esc(j.id.slice(0, 8)) + '…</td>' +
+      '<td>' + (j.kind === 'compile' ? 'コンパイル' : '管理作業') + (j.admin ? ' <span class="pill">admin</span>' : '') + '</td>' +
+      '<td class="wrap-cell">' + esc(target) + detail + '</td>' +
+      '<td class="mono" style="font-size:11px">' + esc(j.client) + '</td>' +
+      '<td>' + fmtAge(j.age) + '</td>' +
+      '<td>' + (j.lines || 0) + '</td>' +
+      '</tr>';
+  }).join('') : '<tr><td colspan="8" class="empty">実行中のジョブはありません</td></tr>';
+}
+
+function renderRank(sel, list, labelFn) {
+  list = list || [];
+  var max = Math.max.apply(null, list.map(function (x) { return x.count; }).concat([1]));
+  $(sel).innerHTML = list.length ? list.map(function (x) {
+    return '<div class="rank-row">' +
+      '<span class="rk-label" title="' + esc(labelFn(x)) + '">' + esc(labelFn(x)) + '</span>' +
+      '<span class="rk-count">' + x.count + ' 件</span>' +
+      '<span class="rk-track"><span class="rk-fill" style="width:' +
+      Math.round(x.count / max * 100) + '%"></span></span></div>';
+  }).join('') : '<div class="sub">履歴がありません</div>';
+}
+
+/* ---------------- 履歴テーブル ---------------- */
+function histQuery(offset, limit) {
+  var p = 'offset=' + offset + '&limit=' + limit;
+  var k = $('#f-kind').value, s = $('#f-state').value, q = $('#f-q').value.trim();
+  if (k) p += '&kind=' + encodeURIComponent(k);
+  if (s) p += '&state=' + encodeURIComponent(s);
+  if (q) p += '&q=' + encodeURIComponent(q);
+  return '/admin/api/history?' + p;
+}
+
+function histRow(r) {
+  var res = r.success ? '<span class="pill ok">成功</span>'
+    : (r.state === 'cancelled' ? '<span class="pill">中断</span>' : '<span class="pill ng">失敗</span>');
+  var kind = r.kind === 'compile' ? 'コンパイル' : '管理作業';
+  var target = r.kind === 'compile' ? (r.sketch || '-') : (r.title || '-');
+  var detail = r.kind === 'compile' ? (r.fqbn || '-') : '';
+  if (r.cached) detail = (detail ? detail + ' ' : '') + '<span class="pill">cache</span>';
+  var took = r.time != null ? (r.time + ' 秒') : (r.elapsed != null ? r.elapsed + ' 秒' : '-');
+  return '<tr>' +
+    '<td>' + fmtTime(r.t) + '</td>' +
+    '<td>' + kind + '</td>' +
+    '<td>' + res + '</td>' +
+    '<td>' + esc(target) + '</td>' +
+    '<td class="wrap-cell" style="font-size:11px">' + detail + '</td>' +
+    '<td class="mono" style="font-size:11px">' + esc(r.client || '-') + '</td>' +
+    '<td>' + esc(took) + '</td>' +
+    '<td class="wrap-cell muted" style="font-size:11px; max-width:320px">' + esc(r.error || '') + '</td>' +
+    '</tr>';
+}
+
+function loadHistory(mode) {   // 'reset' | 'more'
+  if (!state.token) return;
+  var offset = mode === 'more' ? state.hist.length : 0;
+  api(histQuery(offset, 50), 20000).then(function (d) {
+    state.histTotal = d.total;
+    state.histKept = d.kept || 0;
+    if (mode === 'more') {
+      state.hist = state.hist.concat(d.items);
+      state.histPaged = true;
+    } else {
+      state.hist = d.items;
+      state.histPaged = false;
+    }
+    renderHistory();
+  }).catch(function (err) {
+    if (err.auth) { stopAuto(); showLogin(err.message, true); }
+    else $('#hist-count').textContent = '履歴の取得に失敗: ' + err.message;
+  });
+}
+
+function renderHistory() {
+  var rows = state.hist;
+  $('#hist-body').innerHTML = rows.length ? rows.map(histRow).join('')
+    : '<tr><td colspan="8" class="empty">該当する履歴がありません</td></tr>';
+  $('#hist-count').textContent = rows.length + ' / ' + state.histTotal + ' 件を表示';
+  $('#hist-note').textContent = 'サーバー保持 ' + state.histKept + ' 件';
+  $('#btn-hist-more').hidden = rows.length >= state.histTotal;
+}
+
+$('#btn-hist-more').addEventListener('click', function () { loadHistory('more'); });
+$('#btn-hist-reload').addEventListener('click', function () { loadHistory('reset'); });
+$('#f-kind').addEventListener('change', function () { loadHistory('reset'); });
+$('#f-state').addEventListener('change', function () { loadHistory('reset'); });
+var qTimer = null;
+$('#f-q').addEventListener('input', function () {
+  clearTimeout(qTimer);
+  qTimer = setTimeout(function () { loadHistory('reset'); }, 350);
+});
+
+/* ---------------- 更新ループ ---------------- */
+function refresh(withHistory) {
+  if (state.busy || !state.token) return;
+  state.busy = true;
+  api('/admin/api/overview', 20000).then(function (d) {
+    state.data = d;
+    render(d);
+    $('#global-err').hidden = true;
+    if (withHistory || !state.histPaged) loadHistory('reset');
+  }).catch(function (err) {
+    if (err.auth) { stopAuto(); showLogin(err.message, true); return; }
+    var el = $('#global-err');
+    el.textContent = '取得に失敗しました: ' + err.message + ' (5秒後に再試行します)';
+    el.hidden = false;
+  }).finally(function () { state.busy = false; });
+}
+
+function boot() {
+  showApp();
+  refresh(true);
+  startAuto();
+}
+
+if (state.token) boot();
+else showLogin('');
+</script>
+</body>
+</html>
