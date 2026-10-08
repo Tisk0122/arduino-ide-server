@@ -1,0 +1,281 @@
+#!/usr/bin/python3 -I
+# -*- coding: utf-8 -*-
+"""Restricted execution wrapper for Arduino CLI.
+
+The API process may submit untrusted sketch source, so this wrapper uses a
+separate low-privilege user and a strict allow-list of Arduino CLI arguments.
+The root-owned configuration file is trusted only when invoked through sudo.
+"""
+import json
+import os
+import pwd
+import resource
+import shutil
+import signal
+import subprocess
+import sys
+import time
+
+CONF_PATH = "/etc/arduino-helper/build-run.conf"
+
+
+def die(msg, code=64):
+    sys.stderr.write("arduino-build-run: %s\n" % msg)
+    sys.exit(code)
+
+
+def load_conf():
+    via_sudo = bool(os.environ.get("SUDO_UID"))
+    path = CONF_PATH
+    if not via_sudo and os.environ.get("ARDUINO_BUILD_RUN_CONF"):
+        path = os.environ["ARDUINO_BUILD_RUN_CONF"]
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            conf = json.load(f)
+    except FileNotFoundError:
+        conf = {}
+    except Exception as e:
+        die("設定ファイルを読めません: %s" % e)
+    if not via_sudo:
+        if os.environ.get("HELPER_HOME") and "workroot" not in conf:
+            conf["workroot"] = os.environ["HELPER_HOME"]
+        if os.environ.get("ARDUINO_CLI") and "cli" not in conf:
+            conf["cli"] = os.environ["ARDUINO_CLI"]
+    if not conf.get("workroot"):
+        conf["workroot"] = os.path.join(os.path.expanduser("~"), ".arduino-helper")
+    if not conf.get("cli"):
+        for c in ("/opt/arduino-cli/arduino-cli", os.path.expanduser("~/.local/bin/arduino-cli"),
+                  "/usr/local/bin/arduino-cli", shutil.which("arduino-cli") or ""):
+            if c and os.path.exists(c):
+                conf["cli"] = c
+                break
+    if not conf.get("cli"):
+        die("arduino-cli が見つかりません", 127)
+    return conf
+
+
+def under(path, root):
+    p = os.path.realpath(path)
+    r = os.path.realpath(root)
+    return p == r or p.startswith(r.rstrip("/") + "/")
+
+
+def parse_opts(argv):
+    timeout = 600.0
+    cancel = None
+    cleanup = []
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--":
+            return timeout, cancel, cleanup, argv[i + 1:]
+        if a in ("--timeout", "--cancel-file", "--cleanup") and i + 1 < len(argv):
+            value = argv[i + 1]
+            if a == "--timeout":
+                try:
+                    timeout = float(value)
+                except ValueError:
+                    die("--timeout が不正です")
+                if not (1 <= timeout <= 7200):
+                    die("--timeout は 1〜7200 秒です")
+            elif a == "--cancel-file":
+                cancel = value
+            else:
+                cleanup.append(value)
+            i += 2
+        else:
+            die("不明なラッパーオプション: %s" % a)
+    die("-- が必要です")
+
+
+def expect_value(args, i, flag):
+    if i + 1 >= len(args):
+        die("%s に値がありません" % flag)
+    value = args[i + 1]
+    if value.startswith("-"):
+        die("%s の値が不正です" % flag)
+    return value, i + 2
+
+
+def validate_common_format(args, i):
+    if args[i] != "--format":
+        return None
+    value, ni = expect_value(args, i, "--format")
+    if value != "json":
+        die("--format は json のみ許可されています")
+    return ni
+
+
+def validate_path(value, root, label):
+    if not value or not under(value, root):
+        die("%s は作業ディレクトリの外を指定できません: %s" % (label, value))
+
+
+def validate_compile(args, root):
+    # compile は API が生成した最小限の引数だけ許可する。
+    allowed = {"--fqbn", "--output-dir", "--build-path", "--format"}
+    positional = []
+    seen = set()
+    i = 1
+    while i < len(args):
+        a = args[i]
+        if a == "--":
+            die("不正な -- です")
+        if a in allowed:
+            if a in seen:
+                die("同じオプションを複数回指定できません: %s" % a)
+            seen.add(a)
+            value, i = expect_value(args, i, a)
+            if a in ("--output-dir", "--build-path"):
+                validate_path(value, root, a)
+            elif a == "--format" and value != "json":
+                die("--format は json のみ許可されています")
+        elif a.startswith("-"):
+            die("compile で許可されていない引数です: %s" % a)
+        else:
+            positional.append(a)
+            i += 1
+    if not {"--fqbn", "--output-dir", "--build-path"}.issubset(seen):
+        die("compile には --fqbn / --output-dir / --build-path が必要です")
+    if len(positional) != 1:
+        die("compile のスケッチパスは 1 つだけ必要です")
+    validate_path(positional[0], root, "スケッチ")
+
+
+def validate_command(args, root):
+    if not args:
+        die("arduino-cli の引数がありません")
+    cmd = args[0]
+    if cmd == "compile":
+        validate_compile(args, root)
+        return
+    if cmd in ("version", "update"):
+        if len(args) != 1:
+            die("%s に追加の引数は許可されていません" % cmd)
+        return
+    if cmd == "board":
+        if len(args) not in (2, 4) or args[1] != "listall":
+            die("board は listall のみ許可されています")
+        if len(args) == 4 and args[2:] != ["--format", "json"]:
+            die("board listall のオプションが不正です")
+        return
+    if cmd not in ("core", "lib") or len(args) < 2:
+        die("許可されていないコマンドです: %s" % cmd)
+    sub = args[1]
+    if cmd == "core" and sub not in ("install", "uninstall", "list", "search"):
+        die("許可されていない core サブコマンドです: %s" % sub)
+    if cmd == "lib" and sub not in ("install", "uninstall", "list", "search"):
+        die("許可されていない lib サブコマンドです: %s" % sub)
+
+    tail = args[2:]
+    if sub == "list":
+        if tail not in ([], ["--format", "json"]):
+            die("%s list のオプションが不正です" % cmd)
+        return
+    if sub == "search":
+        if not tail or tail[0].startswith("-"):
+            die("%s search の検索語が必要です" % cmd)
+        rest = tail[1:]
+        if cmd == "lib" and rest == ["--omit-releases-details", "--format", "json"]:
+            return
+        if rest in ([], ["--format", "json"]):
+            return
+        die("%s search のオプションが不正です" % cmd)
+    if sub in ("install", "uninstall"):
+        if cmd == "lib" and sub == "install" and len(tail) == 2 and tail[0] == "--zip-path":
+            validate_path(tail[1], root, "--zip-path")
+            return
+        if len(tail) != 1 or tail[0].startswith("-"):
+            die("%s %s の引数が不正です" % (cmd, sub))
+        return
+    die("許可されていない引数です")
+
+
+def kill_group(pid, sig=signal.SIGKILL):
+    try:
+        os.killpg(pid, sig)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
+def main():
+    os.umask(0o007)
+    try:
+        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+        resource.setrlimit(resource.RLIMIT_FSIZE, (512 << 20, 512 << 20))
+    except (ValueError, OSError):
+        pass
+    timeout, cancel, cleanup, args = parse_opts(sys.argv[1:])
+    conf = load_conf()
+    root = conf["workroot"]
+    validate_command(args, root)
+    if cancel:
+        validate_path(cancel, root, "--cancel-file")
+    for d in cleanup:
+        validate_path(d, root, "--cleanup")
+        if os.path.realpath(d) == os.path.realpath(root):
+            die("--cleanup に作業ルート自身は指定できません")
+
+    home = pwd.getpwuid(os.getuid()).pw_dir
+    env = {
+        "PATH": "/usr/local/bin:/usr/bin:/bin",
+        "HOME": home,
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "ARDUINO_CLI_NO_COLOR": "true",
+        "NO_COLOR": "1",
+        "TMPDIR": os.environ.get("TMPDIR", "/tmp"),
+    }
+    if args[0] == "lib" and args[1] == "install" and "--zip-path" in args:
+        env["ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL"] = "true"
+    if not os.environ.get("SUDO_UID"):
+        for k in ("ARDUINO_DIRECTORIES_DATA", "ARDUINO_DIRECTORIES_USER", "ARDUINO_DIRECTORIES_DOWNLOADS",
+                  "ARDUINO_CONFIG_FILE", "FAKE_CLI_LOG"):
+            if k in os.environ:
+                env[k] = os.environ[k]
+
+    try:
+        p = subprocess.Popen([conf["cli"]] + args, stdin=subprocess.DEVNULL, env=env,
+                             start_new_session=True)
+    except OSError as e:
+        die("arduino-cli を起動できません: %s" % e, 127)
+
+    def on_term(signum, frame):
+        kill_group(p.pid)
+        raise SystemExit(143)
+    for s in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+        signal.signal(s, on_term)
+
+    start = time.time()
+    rc = None
+    reason = None
+    try:
+        while True:
+            try:
+                rc = p.wait(timeout=0.4)
+                break
+            except subprocess.TimeoutExpired:
+                pass
+            if time.time() - start > timeout:
+                reason = (124, "実行時間の上限 (%d 秒) を超えたため中断しました" % int(timeout))
+            elif cancel and os.path.exists(cancel):
+                reason = (130, "キャンセルされました")
+            if reason:
+                kill_group(p.pid)
+                try:
+                    p.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    pass
+                rc = reason[0]
+                sys.stdout.write("\n%s\n" % reason[1])
+                sys.stdout.flush()
+                break
+    finally:
+        kill_group(p.pid)
+        for d in cleanup:
+            shutil.rmtree(d, ignore_errors=True)
+    sys.exit(rc if rc is not None else 1)
+
+
+if __name__ == "__main__":
+    main()
