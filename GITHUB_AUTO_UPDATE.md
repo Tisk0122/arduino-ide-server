@@ -17,7 +17,7 @@ arduino-helper が HMAC-SHA256 署名を検証
   ↓
 git clone（指定 branch の最新コミット）
   ↓
-Python / shell の構文検査
+Python の構文検査
   ↓
 許可した3ファイルだけ反映
   ↓
@@ -67,3 +67,13 @@ www/index.html
 ## 手動更新
 
 自動更新を使わない場合でも従来どおり `install.sh` を実行できます。
+
+
+## 更新スクリプトの安全策
+
+- `arduino-helper.py` と `arduino-build-run` は Python として構文検査します。
+- `www` ディレクトリを含め、許可ファイルの symlink を拒否します。
+- GitHub リポジトリ内の `install.sh` / `deploy.sh` などは実行しません。
+- 本番へ反映するのは `arduino-helper.py`、`arduino-build-run`、`www/index.html` の3ファイルだけです。
+- 新版の再起動または `/ping` に失敗した場合は、直前の3ファイルへ自動ロールバックします。
+- Webhook の repo / branch / secret は初期設定時に `/etc/arduino-helper/helper.env` と `github-webhook.env` の両方へ同期します。
