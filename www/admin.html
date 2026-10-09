@@ -12,6 +12,8 @@
   --teal:          #0EA5A8;
   --teal-dk:       #076D70;
   --teal-lt:       #2DD4D8;
+  --teal-link:     #2DD4D8;
+  --teal-link-hover: #0EA5A8;
   --teal-glow:     rgba(14,165,168,0.15);
   --orange:        #F08040;
   --red:           #E05252;
@@ -26,12 +28,13 @@
   --bg4:           #293547;
   --bg-input:      #0D1117;
   --bg-modal:      #18212F;
+  --bg-hover:      rgba(255,255,255,0.05);
 
   /* テキスト */
   --tx0:           #EEF2F8;
   --tx1:           #B8C4D4;
   --tx2:           #7A8FA6;
-  --tx3:           #4A5C70;
+  --tx3:           #8A9BB0;
 
   /* ボーダー */
   --bd0:           rgba(255,255,255,0.05);
@@ -55,6 +58,8 @@
 }
 
 [data-theme="light"] {
+  --teal-link:     #076D70;
+  --teal-link-hover: #005F61;
   --bg0:     #F0F4F8;
   --bg1:     #FFFFFF;
   --bg2:     #F5F8FB;
@@ -62,10 +67,11 @@
   --bg4:     #DDE4EE;
   --bg-input:#FAFBFD;
   --bg-modal:#FFFFFF;
+  --bg-hover:rgba(0,0,0,0.04);
   --tx0:     #1A2535;
   --tx1:     #3A4E66;
   --tx2:     #607590;
-  --tx3:     #90A5BC;
+  --tx3:     #52677F;
   --bd0:     rgba(0,0,0,0.05);
   --bd1:     rgba(0,0,0,0.09);
   --bd2:     rgba(0,0,0,0.16);
@@ -89,7 +95,7 @@ html,body {
 body { padding-bottom: 56px; }
 button { cursor: pointer; border: none; outline: none; font-family: inherit; font-size: inherit; background: none; color: inherit; }
 input,select { font-family: inherit; font-size: inherit; color: inherit; outline: none; }
-a { color: var(--teal-lt); text-decoration: none; }
+a { color: var(--teal-link); text-decoration: none; }
 :focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 ::selection { background: rgba(14,165,168,0.25); }
 code,.mono { font-family: var(--ff-mono); }
@@ -103,7 +109,8 @@ code,.mono { font-family: var(--ff-mono); }
   align-items: center;
   gap: 14px;
   padding: 0 20px;
-  height: 52px;
+  min-height: 50px;
+  height: auto;
   background: linear-gradient(135deg, #063A3C 0%, #085557 60%, #0A6A6C 100%);
   border-bottom: 1px solid rgba(45,212,216,0.15);
   box-shadow: 0 2px 12px rgba(0,0,0,0.5);
@@ -151,7 +158,7 @@ code,.mono { font-family: var(--ff-mono); }
   color: rgba(255,255,255,0.88);
   font-size: 12px;
   font-weight: 500;
-  transition: background .15s, border-color .15s;
+  transition: background .15s, border-color .15s, color .15s;
   white-space: nowrap;
 }
 .btn:hover { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.24); }
@@ -162,7 +169,7 @@ code,.mono { font-family: var(--ff-mono); }
 }
 [data-theme="light"] .btn:hover { background: var(--bg3); border-color: var(--bd2); }
 .btn-primary { background: var(--teal); border-color: var(--teal); color: #fff; }
-.btn-primary:hover { background: var(--teal-lt); border-color: var(--teal-lt); box-shadow: 0 0 12px rgba(14,165,168,0.35); }
+.btn-primary:hover { background: var(--teal-lt); border-color: var(--teal-lt); color: #063A3C; box-shadow: 0 0 12px rgba(14,165,168,0.35); }
 .btn-ghost { background: transparent; border-color: transparent; }
 .btn-ghost:hover { background: rgba(255,255,255,0.10); }
 [data-theme="light"] .btn-ghost:hover { background: var(--bg3); }
@@ -187,42 +194,45 @@ section { margin-bottom: 24px; }
   padding-left: 10px;
   border-left: 3px solid var(--teal);
 }
-.sec-head .sec-note { color: var(--tx3); font-size: 11px; }
+.sec-head .sec-note { color: var(--tx2); font-size: 12px; }
+.sec-head .filters { flex: 1 1 100%; }
 .grid { display: grid; gap: 10px; }
-.g4 { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.g4 { grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); }
 .g2 { grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); }
 .g3 { grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); }
 
 /* ---- カード ---- */
 .card {
   background: var(--bg1);
-  border: 1px solid var(--bd0);
+  border: 1px solid var(--bd1);
   border-radius: var(--radius-lg);
   padding: 14px 16px;
   transition: border-color .15s;
 }
-.card:hover { border-color: var(--bd1); }
+.card:hover { border-color: var(--bd2); }
 .card h3 {
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 700;
-  color: var(--tx3);
+  color: var(--tx2);
   margin-bottom: 10px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .stat {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.25fr);
   align-items: baseline;
-  justify-content: space-between;
   gap: 8px;
-  padding: 5px 0;
+  padding: 6px 0;
   border-bottom: 1px solid var(--bd0);
   font-size: 12px;
 }
 .stat:last-child { border-bottom: none; }
-.stat .k { color: var(--tx2); }
-.stat .v { color: var(--tx0); font-weight: 600; text-align: right; word-break: break-all; }
+.stat .k { color: var(--tx2); min-width: 0; }
+.stat .v { color: var(--tx0); font-weight: 600; text-align: right; min-width: 0; overflow-wrap: anywhere; word-break: normal; }
 .stat .v.mono { font-family: var(--ff-mono); font-weight: 500; font-size: 11.5px; }
+.stat-detail { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+.stat-detail .v { text-align: left; }
 .big { font-size: 24px; font-weight: 700; line-height: 1.2; margin-bottom: 10px; }
 .big small { font-size: 12px; font-weight: 500; color: var(--tx2); margin-left: 5px; }
 .sub { color: var(--tx2); font-size: 11px; }
@@ -257,13 +267,12 @@ th {
 th:first-child { border-radius: var(--radius-lg) 0 0 0; }
 th:last-child { border-radius: 0 var(--radius-lg) 0 0; }
 tbody tr:last-child td { border-bottom: none; }
-tbody tr:hover { background: rgba(255,255,255,0.03); }
-[data-theme="light"] tbody tr:hover { background: var(--bg2); }
-td.wrap-cell { white-space: normal; word-break: break-all; }
+tbody tr:hover { background: var(--bg-hover); }
+td.wrap-cell { white-space: normal; overflow-wrap: anywhere; word-break: normal; }
 .empty {
   padding: 22px;
   text-align: center;
-  color: var(--tx3);
+  color: var(--tx2);
   font-size: 12px;
 }
 
@@ -295,9 +304,87 @@ td.wrap-cell { white-space: normal; word-break: break-all; }
   transition: border-color .15s, box-shadow .15s;
 }
 .input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(14,165,168,0.14); }
-select.input { cursor: pointer; }
-.filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.filters .grow { flex: 1 1 200px; max-width: 360px; }
+.filters { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; }
+.filters .grow { flex: 1 1 240px; min-width: 160px; max-width: none; }
+.admin-select { position: relative; flex: 0 0 auto; min-width: 148px; }
+.admin-select-native { display: none !important; }
+.admin-select-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 11px;
+  border: 1px solid var(--bd1);
+  border-radius: var(--radius);
+  background: var(--bg-input);
+  color: var(--tx0);
+  text-align: left;
+  transition: border-color .15s, box-shadow .15s, background .15s;
+}
+.admin-select-btn:hover { border-color: var(--bd2); }
+.admin-select-btn:focus-visible,
+.admin-select-btn[aria-expanded="true"] {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(14,165,168,0.14);
+}
+.admin-select-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-select-chevron {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-right: 1.5px solid var(--tx2);
+  border-bottom: 1.5px solid var(--tx2);
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform .15s;
+}
+.admin-select-btn[aria-expanded="true"] .admin-select-chevron { transform: translateY(2px) rotate(225deg); }
+#admin-select-pop {
+  position: fixed;
+  z-index: 999;
+  display: none;
+  min-width: 160px;
+  max-width: min(320px, calc(100vw - 16px));
+  max-height: min(260px, calc(100vh - 16px));
+  overflow-y: auto;
+  pointer-events: none;
+  padding: 4px;
+  border: 1px solid var(--bd2);
+  border-radius: var(--radius-lg);
+  background: var(--bg-modal);
+  color: var(--tx0);
+  box-shadow: var(--sh-lg);
+  opacity: 0;
+  transform: translateY(-5px);
+  transition: opacity .14s, transform .14s;
+}
+#admin-select-pop.show { opacity: 1; pointer-events: auto; transform: none; }
+.admin-select-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  color: var(--tx0);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .08s;
+}
+.admin-select-option:hover,
+.admin-select-option.active { background: var(--bg3); }
+.admin-select-option[aria-selected="true"] { color: var(--teal-link); font-weight: 600; }
+.admin-select-option::before { content: ''; width: 12px; height: 12px; flex: none; }
+.admin-select-option[aria-selected="true"]::before { content: '✓'; font-size: 12px; line-height: 12px; }
+.token-secret { display: flex; align-items: center; gap: 6px; min-width: 320px; }
+.token-secret input { flex: 1; width: 180px; min-width: 0; font-family: var(--ff-mono); font-size: 11px; }
+.token-secret .btn { flex: none; }
+.token-setting { display: flex; align-items: flex-start; gap: 12px; }
+.token-setting input { width: 16px; height: 16px; margin-top: 3px; accent-color: var(--teal); }
+.token-setting-copy { min-width: 0; }
+.token-setting-copy strong { display: block; margin-bottom: 3px; }
+.token-setting-copy .sub { display: block; max-width: 760px; line-height: 1.6; }
+.token-setting-actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
 
 /* ---- 棒グラフ ---- */
 .bars {
@@ -465,7 +552,7 @@ footer {
       <label class="btn btn-ghost btn-sm" style="cursor:pointer">
         <input type="checkbox" id="auto-refresh" checked style="accent-color:var(--teal-lt)"> 自動更新
       </label>
-      <button class="btn btn-sm" id="btn-reload">更新</button>
+      <button class="btn btn-sm" id="btn-reload" title="サーバー状態と利用履歴を更新" aria-label="サーバー状態と利用履歴を更新">更新</button>
       <button class="btn btn-sm" id="btn-theme">表示切替</button>
       <button class="btn btn-sm" id="btn-logout">ログアウト</button>
     </div>
@@ -494,10 +581,10 @@ footer {
         <div class="card">
           <h3>arduino-cli</h3>
           <div class="big" id="cli-status">-</div>
-          <div class="stat"><span class="k">バージョン</span><span class="v mono" id="cli-version">-</span></div>
+          <div class="stat stat-detail"><span class="k">バージョン</span><span class="v mono" id="cli-version">-</span></div>
           <div class="stat"><span class="k">実行中</span><span class="v" id="cli-busy">-</span></div>
-          <div class="stat"><span class="k">実行ユーザー</span><span class="v" id="cli-user">-</span></div>
-          <div class="stat"><span class="k">ラッパー</span><span class="v mono" id="cli-wrapper">-</span></div>
+          <div class="stat stat-detail"><span class="k">実行ユーザー</span><span class="v" id="cli-user">-</span></div>
+          <div class="stat stat-detail"><span class="k">ラッパー</span><span class="v mono" id="cli-wrapper">-</span></div>
         </div>
         <div class="card">
           <h3>コンパイル</h3>
@@ -535,8 +622,8 @@ footer {
     </section>
 
     <section>
-      <div class="sec-head"><h2>トークン</h2>
-        <span class="sec-note">トークン本体は表示されません (マスクと指紋のみ)</span></div>
+      <div class="sec-head"><h2>トークン情報</h2>
+        <span class="sec-note">この一覧はマスク表示です。実トークンは次のセクションで確認できます。</span></div>
       <div class="notice" id="single-token-note" hidden>
         HELPER_SINGLE_TOKEN=1 が有効です。生徒用トークンと管理者用トークンは同一で、どちらも管理操作ができます。
       </div>
@@ -548,6 +635,38 @@ footer {
           </tr></thead>
           <tbody id="tokens-body"></tbody>
         </table>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><h2>アクセストークン</h2><span class="sec-note">管理者のみ表示・コピーできます</span></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>種別</th><th>トークン</th></tr></thead>
+          <tbody id="token-secrets-body">
+            <tr><td colspan="2" class="empty">読み込み中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="sub" id="token-settings-error" role="status" style="margin-top:8px" hidden></div>
+    </section>
+
+    <section>
+      <div class="sec-head"><h2>生徒用トークン配布</h2></div>
+      <div class="card">
+        <label class="token-setting">
+          <input type="checkbox" id="prefill-student-token" disabled>
+          <span class="token-setting-copy">
+            <strong>IDEの生徒用アクセストークンを自動入力する</strong>
+            <span class="sub">有効にすると、このサーバーの生徒用トークンをIDE起動時に取得し、入力欄をロックします。IDE上では表示・変更・コピーできません。</span>
+          </span>
+        </label>
+        <div class="token-setting-actions">
+          <button class="btn btn-sm btn-primary" id="save-token-settings" type="button" disabled>設定を保存</button>
+          <span class="sub" id="token-settings-status" role="status"></span>
+        </div>
+        <div class="sub" id="single-token-prefill-warning" style="margin-top:10px;color:var(--warn)" hidden></div>
+        <div class="sub" style="margin-top:10px">注意: 自動入力を有効にすると、生徒用トークンはIDEのブラウザーに送信されます。画面上の操作を制限する機能であり、IDE利用者や公開エンドポイントにアクセスできる第三者が開発者ツール等で取得することは防げません。</div>
       </div>
     </section>
 
@@ -582,19 +701,18 @@ footer {
         <span class="sec-note" id="hist-note"></span>
         <div class="tb-spacer"></div>
         <div class="filters">
-          <select class="input" id="f-kind">
+          <select class="input" id="f-kind" aria-label="種別で絞り込み">
             <option value="">全種別</option>
             <option value="compile">コンパイル</option>
             <option value="admin">管理作業</option>
           </select>
-          <select class="input" id="f-state">
+          <select class="input" id="f-state" aria-label="状態で絞り込み">
             <option value="">全状態</option>
             <option value="ok">成功のみ</option>
             <option value="ng">失敗のみ</option>
             <option value="cancelled">キャンセルのみ</option>
           </select>
           <input class="input grow" id="f-q" type="search" placeholder="ボード・スケッチ・クライアントで検索">
-          <button class="btn btn-sm" id="btn-hist-reload">更新</button>
         </div>
       </div>
       <div class="tbl-wrap">
@@ -626,6 +744,7 @@ var LS_KEY = 'helperAdminToken';
 var state = {
   token: localStorage.getItem(LS_KEY) || '',
   data: null,
+  settings: null,
   timer: null,
   hist: [],          // 履歴テーブルに積んだ行 (新しい順)
   histTotal: 0,
@@ -678,16 +797,22 @@ function fmtBytes(n) {
   return (n / 1073741824).toFixed(2) + ' GB';
 }
 
-function stat(k, v, cls) {
-  return '<div class="stat"><span class="k">' + esc(k) + '</span>' +
+function stat(k, v, cls, rowCls) {
+  return '<div class="stat' + (rowCls ? ' ' + rowCls : '') + '"><span class="k">' + esc(k) + '</span>' +
          '<span class="v' + (cls ? ' ' + cls : '') + '">' + v + '</span></div>';
 }
 
-function api(path, timeoutMs) {
+function api(path, timeoutMs, method, body) {
+  method = method || 'GET';
   var opts = {
+    method: method,
     headers: { 'Authorization': 'Bearer ' + state.token, 'X-Client-Id': 'admin-console' },
     cache: 'no-store'
   };
+  if (body) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
   if (timeoutMs && window.AbortSignal && AbortSignal.timeout) {
     opts.signal = AbortSignal.timeout(timeoutMs);
   }
@@ -739,6 +864,83 @@ $('#login-form').addEventListener('submit', function (e) {
 });
 
 $('#btn-logout').addEventListener('click', function () { stopAuto(); showLogin('', true); });
+
+function renderTokenSecrets(settings) {
+  var rows = [['生徒用', settings.studentToken], ['管理者用', settings.adminToken]];
+  $('#token-secrets-body').innerHTML = rows.map(function (row, index) {
+    var id = 'token-secret-' + index;
+    return '<tr><td><strong>' + esc(row[0]) + '</strong></td><td><div class="token-secret">' +
+      '<input class="input" id="' + id + '" type="password" value="' + esc(row[1]) +
+      '" readonly autocomplete="off" spellcheck="false" aria-label="' + esc(row[0]) + 'アクセストークン">' +
+      '<button class="btn btn-sm" type="button" data-token-reveal="' + id + '" aria-label="' + esc(row[0]) + 'トークンを表示">表示</button>' +
+      '<button class="btn btn-sm" type="button" data-token-copy="' + id + '">コピー</button>' +
+      '</div></td></tr>';
+  }).join('');
+  $('#prefill-student-token').checked = settings.prefillStudentToken;
+  $('#prefill-student-token').disabled = false;
+  $('#save-token-settings').disabled = false;
+  $('#token-settings-error').hidden = true;
+  $('#token-settings-status').textContent = '';
+}
+
+function loadAdminSettings() {
+  return api('/admin/api/settings', 15000).then(function (settings) {
+    state.settings = settings;
+    renderTokenSecrets(settings);
+  }).catch(function (err) {
+    if (err.auth) throw err;
+    $('#token-settings-error').textContent = 'トークン・配布設定の読み込みに失敗しました: ' + err.message;
+    $('#token-settings-error').hidden = false;
+    throw err;
+  });
+}
+
+$('#token-secrets-body').addEventListener('click', function (event) {
+  var reveal = event.target.closest('[data-token-reveal]');
+  if (reveal) {
+    var input = document.getElementById(reveal.dataset.tokenReveal);
+    var shown = input.type === 'text';
+    input.type = shown ? 'password' : 'text';
+    reveal.textContent = shown ? '表示' : '隠す';
+    reveal.setAttribute('aria-label', (input.getAttribute('aria-label') || 'トークン') +
+      (shown ? 'を表示' : 'を隠す'));
+    return;
+  }
+  var copy = event.target.closest('[data-token-copy]');
+  if (copy) {
+    var value = document.getElementById(copy.dataset.tokenCopy).value;
+    if (!navigator.clipboard || !navigator.clipboard.writeText) {
+      $('#token-settings-error').textContent = 'このページではクリップボード機能を利用できません';
+      $('#token-settings-error').hidden = false;
+      return;
+    }
+    navigator.clipboard.writeText(value).then(function () {
+      $('#token-settings-status').textContent = 'トークンをコピーしました';
+    }).catch(function (err) {
+      $('#token-settings-error').textContent = 'クリップボードにコピーできません: ' + err.message;
+      $('#token-settings-error').hidden = false;
+    });
+  }
+});
+
+$('#save-token-settings').addEventListener('click', function () {
+  var button = this;
+  var enabled = $('#prefill-student-token').checked;
+  button.disabled = true;
+  $('#token-settings-status').textContent = '保存中...';
+  api('/admin/api/settings', 15000, 'POST', { prefillStudentToken: enabled }).then(function (settings) {
+    state.settings.prefillStudentToken = settings.prefillStudentToken;
+    $('#token-settings-status').textContent = '保存しました。IDEを再読み込みすると反映されます。';
+    $('#token-settings-error').hidden = true;
+  }).catch(function (err) {
+    if (err.auth) { stopAuto(); showLogin(err.message, true); return; }
+    $('#token-settings-status').textContent = '';
+    $('#token-settings-error').textContent = '設定を保存できませんでした: ' + err.message;
+    $('#token-settings-error').hidden = false;
+  }).finally(function () {
+    button.disabled = false;
+  });
+});
 
 /* ---------------- テーマ ---------------- */
 (function () {
@@ -834,6 +1036,10 @@ function render(d) {
   /* トークン */
   var tk = d.tokens || {};
   $('#single-token-note').hidden = !tk.singleToken;
+  $('#single-token-prefill-warning').textContent = tk.singleToken
+    ? '単一トークン設定が有効です。自動入力を有効にすると、生徒にも管理者権限が与えられます。'
+    : '';
+  $('#single-token-prefill-warning').hidden = !tk.singleToken;
   var rows = [['生徒用', tk.user], ['管理者用', tk.admin]];
   $('#tokens-body').innerHTML = rows.map(function (r) {
     var t = r[1] || {};
@@ -852,7 +1058,7 @@ function render(d) {
   /* 設定 */
   var sw = [];
   sw.push(stat('待受', esc(s.host) + ':' + esc(s.port)));
-  sw.push(stat('データ置き場', '<span class="mono" style="font-size:11px">' + esc(s.home) + '</span>'));
+  sw.push(stat('データ置き場', '<span class="mono" style="font-size:11px">' + esc(s.home) + '</span>', '', 'stat-detail'));
   sw.push(stat('実行ユーザー', s.buildUser ? esc(s.buildUser) : '直接実行'));
   sw.push(stat('単一トークン', tk.singleToken ? '有効' : '無効', tk.singleToken ? 'warn' : ''));
   sw.push(stat('アセンブラ許可', s.allowAsm ? '有効' : '無効'));
@@ -898,7 +1104,7 @@ function render(d) {
   var ws = [];
   ws.push(stat('GitHub 自動更新', w.enabled ? '有効' : '無効', w.enabled ? 'ok' : 'muted'));
   if (w.enabled) {
-    ws.push(stat('リポジトリ', '<span class="mono" style="font-size:11px">' + esc(w.repo) + '</span>'));
+    ws.push(stat('リポジトリ', '<span class="mono" style="font-size:11px">' + esc(w.repo) + '</span>', '', 'stat-detail'));
     ws.push(stat('ブランチ', esc(w.branch)));
     ws.push(stat('最終更新', w.last ? fmtTime(w.last) : 'なし'));
   }
@@ -1001,7 +1207,6 @@ function renderHistory() {
 }
 
 $('#btn-hist-more').addEventListener('click', function () { loadHistory('more'); });
-$('#btn-hist-reload').addEventListener('click', function () { loadHistory('reset'); });
 $('#f-kind').addEventListener('change', function () { loadHistory('reset'); });
 $('#f-state').addEventListener('change', function () { loadHistory('reset'); });
 var qTimer = null;
@@ -1009,6 +1214,173 @@ $('#f-q').addEventListener('input', function () {
   clearTimeout(qTimer);
   qTimer = setTimeout(function () { loadHistory('reset'); }, 350);
 });
+
+/* ---------------- 履歴フィルター ---------------- */
+(function () {
+  var pop = document.createElement('div');
+  pop.id = 'admin-select-pop';
+  pop.setAttribute('role', 'listbox');
+  pop.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(pop);
+  var current = null;
+  var options = [];
+  var active = -1;
+
+  function close(restoreFocus) {
+    if (!current) return;
+    var item = current;
+    current = null;
+    item.button.setAttribute('aria-expanded', 'false');
+    item.button.removeAttribute('aria-activedescendant');
+    pop.setAttribute('aria-hidden', 'true');
+    pop.classList.remove('show');
+    setTimeout(function () {
+      if (!current) pop.style.display = 'none';
+    }, 140);
+    if (restoreFocus) item.button.focus();
+  }
+
+  function setActive(index, scroll) {
+    active = index;
+    options.forEach(function (option, i) {
+      option.element.classList.toggle('active', i === index);
+    });
+    if (options[index]) {
+      current.button.setAttribute('aria-activedescendant', options[index].element.id);
+      if (scroll) options[index].element.scrollIntoView({ block: 'nearest' });
+    } else {
+      current.button.removeAttribute('aria-activedescendant');
+    }
+  }
+
+  function moveActive(direction) {
+    if (!options.length) return;
+    setActive((active + direction + options.length) % options.length, true);
+  }
+
+  function choose(index) {
+    if (!current || !options[index]) return;
+    var item = current;
+    var option = options[index].option;
+    var changed = item.select.selectedIndex !== option.index;
+    close(true);
+    if (changed) {
+      item.select.selectedIndex = option.index;
+      item.select.dispatchEvent(new Event('input', { bubbles: true }));
+      item.select.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+
+  function open(select, button, wrapper) {
+    if (current) close(false);
+    current = { select: select, button: button, wrapper: wrapper };
+    pop.setAttribute('aria-hidden', 'false');
+    options = [];
+    active = -1;
+    pop.innerHTML = '';
+    Array.prototype.forEach.call(select.options, function (option, index) {
+      var element = document.createElement('div');
+      element.id = 'admin-select-option-' + select.id + '-' + index;
+      element.className = 'admin-select-option';
+      element.setAttribute('role', 'option');
+      element.setAttribute('aria-selected', String(index === select.selectedIndex));
+      element.textContent = option.textContent;
+      element.addEventListener('pointerenter', function () {
+        setActive(index, false);
+      });
+      element.addEventListener('click', function () {
+        choose(index);
+      });
+      options.push({ option: option, element: element });
+      pop.appendChild(element);
+    });
+
+    var rect = button.getBoundingClientRect();
+    pop.style.display = 'block';
+    pop.style.width = Math.max(rect.width, 160) + 'px';
+    var height = pop.offsetHeight;
+    var below = innerHeight - rect.bottom - 8;
+    var above = rect.top - 8;
+    var openAbove = below < height && above > below;
+    pop.style.maxHeight = Math.max(100, Math.min(height, openAbove ? above : below)) + 'px';
+    var left = Math.min(Math.max(8, rect.left), innerWidth - pop.offsetWidth - 8);
+    pop.style.left = left + 'px';
+    pop.style.top = (openAbove ? rect.top - pop.offsetHeight - 4 : rect.bottom + 4) + 'px';
+    button.setAttribute('aria-expanded', 'true');
+    requestAnimationFrame(function () { pop.classList.add('show'); });
+    var selected = options.findIndex(function (option) {
+      return option.option.index === select.selectedIndex;
+    });
+    setActive(selected < 0 ? 0 : selected, true);
+  }
+
+  ['f-kind', 'f-state'].forEach(function (id) {
+    var select = document.getElementById(id);
+    var wrapper = document.createElement('div');
+    wrapper.className = 'admin-select';
+    select.parentNode.insertBefore(wrapper, select);
+    wrapper.appendChild(select);
+    select.classList.add('admin-select-native');
+
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'admin-select-btn';
+    button.setAttribute('aria-haspopup', 'listbox');
+    button.setAttribute('aria-expanded', 'false');
+    button.setAttribute('aria-controls', pop.id);
+    button.setAttribute('aria-label', select.getAttribute('aria-label'));
+    button.innerHTML = '<span class="admin-select-label"></span><span class="admin-select-chevron" aria-hidden="true"></span>';
+    wrapper.insertBefore(button, select);
+
+    function sync() {
+      var option = select.options[select.selectedIndex];
+      button.firstElementChild.textContent = option ? option.textContent : '—';
+    }
+    select.addEventListener('change', sync);
+    sync();
+
+    button.addEventListener('click', function () {
+      if (current && current.select === select) close(true);
+      else open(select, button, wrapper);
+    });
+    button.addEventListener('keydown', function (event) {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!current || current.select !== select) open(select, button, wrapper);
+        else moveActive(event.key === 'ArrowDown' ? 1 : -1);
+      } else if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!current || current.select !== select) open(select, button, wrapper);
+        else choose(active);
+      }
+    });
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (!current) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      moveActive(event.key === 'ArrowDown' ? 1 : -1);
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      choose(active);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      close(true);
+    } else if (event.key === 'Tab') {
+      close(false);
+    }
+  });
+  document.addEventListener('pointerdown', function (event) {
+    if (current && !pop.contains(event.target) && !current.wrapper.contains(event.target)) close(false);
+  }, true);
+  window.addEventListener('resize', function () { close(false); });
+  document.addEventListener('scroll', function (event) {
+    if (current && !pop.contains(event.target)) close(false);
+  }, true);
+})();
 
 /* ---------------- 更新ループ ---------------- */
 function refresh(withHistory) {
@@ -1019,6 +1391,11 @@ function refresh(withHistory) {
     render(d);
     $('#global-err').hidden = true;
     if (withHistory || !state.histPaged) loadHistory('reset');
+    if (withHistory) {
+      loadAdminSettings().catch(function (err) {
+        if (err.auth) { stopAuto(); showLogin(err.message, true); }
+      });
+    }
   }).catch(function (err) {
     if (err.auth) { stopAuto(); showLogin(err.message, true); return; }
     var el = $('#global-err');

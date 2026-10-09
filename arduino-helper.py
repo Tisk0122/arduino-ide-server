@@ -43,6 +43,9 @@ Python 3.8+ の標準ライブラリだけで動きます。arduino-cli が必�
   --- 以下は管理者トークンが必要 ---
   GET  /admin/api/overview        サーバー状態・トークン詳細・統計・アクティブジョブ (JSON)
   GET  /admin/api/history         利用履歴 (JSON。offset/limit/kind/state/q で絞り込み)
+  GET  /admin/api/settings        アクセストークン・生徒用トークン配布設定 (JSON)
+  POST /admin/api/settings        生徒用トークン配布設定を保存
+  GET  /public-config             生徒用トークン自動入力設定 (有効時のみトークンを返す)
   POST /cores/install   {id}      -> {job}
   POST /cores/uninstall {id}      -> {job}
   POST /libs/install    {name, version?} -> {job}
@@ -67,6 +70,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import traceback
@@ -88,6 +92,8 @@ def env_int(name, default, lo=0, hi=10 ** 9):
 
 
 HOME = Path(os.environ.get("HELPER_HOME") or (Path.home() / ".arduino-helper"))
+ADMIN_SETTINGS_FILE = HOME / "admin-settings.json"
+ADMIN_SETTINGS_LOCK = threading.Lock()
 WORK_DIR = HOME / "work"
 HOST = os.environ.get("HELPER_HOST", "127.0.0.1")
 PORT = env_int("HELPER_PORT", 8765, 1, 65535)
@@ -721,6 +727,43 @@ def token_infos():
         "user": _token_file_info("token", "HELPER_TOKEN", TOKEN or ""),
         "admin": _token_file_info("admin-token", "HELPER_ADMIN_TOKEN", ADMIN_TOKEN or ""),
     }
+
+
+def load_admin_settings():
+    with ADMIN_SETTINGS_LOCK:
+        try:
+            with ADMIN_SETTINGS_FILE.open("r", encoding="utf-8") as f:
+                settings = json.load(f)
+        except FileNotFoundError:
+            return {"prefillStudentToken": False}
+        except (OSError, ValueError) as e:
+            raise ApiError(500, "管理者設定を読み込めません: %s" % e)
+    if not isinstance(settings, dict) or not isinstance(settings.get("prefillStudentToken", False), bool):
+        raise ApiError(500, "管理者設定の形式が正しくありません")
+    return {"prefillStudentToken": settings.get("prefillStudentToken", False)}
+
+
+def save_admin_settings(settings):
+    with ADMIN_SETTINGS_LOCK:
+        HOME.mkdir(parents=True, exist_ok=True)
+        raw = json.dumps(settings, ensure_ascii=False, separators=(",", ":")) + "\n"
+        fd, temp_path = tempfile.mkstemp(prefix=".admin-settings-", dir=str(HOME))
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(raw)
+            os.chmod(temp_path, 0o600)
+            os.replace(temp_path, str(ADMIN_SETTINGS_FILE))
+            os.chmod(str(ADMIN_SETTINGS_FILE), 0o600)
+        except Exception:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
+            raise
 
 
 def process_rss_mb():
@@ -1587,6 +1630,13 @@ class Handler(BaseHTTPRequestHandler):
         if method == "GET" and path in ("/admin", "/admin.html"):
             return self._send_html(Path(__file__).resolve().parent / "www" / "admin.html")
 
+        if method == "GET" and path == "/public-config":
+            settings = load_admin_settings()
+            config = {"prefillStudentToken": settings["prefillStudentToken"]}
+            if settings["prefillStudentToken"]:
+                config["studentToken"] = TOKEN
+            return self._send(200, config)
+
         if method == "GET" and path == "/ping":
             role = role_for(self._token())
             d = {"ok": True, "version": "arduino-helper %s" % VERSION, "cliFound": cli_available(),
@@ -1614,7 +1664,22 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, admin_overview())
             if path == "/admin/api/history":
                 return self._send(200, admin_history(q))
+            if path == "/admin/api/settings":
+                return self._send(200, {
+                    "ok": True,
+                    "studentToken": TOKEN,
+                    "adminToken": ADMIN_TOKEN,
+                    "prefillStudentToken": load_admin_settings()["prefillStudentToken"],
+                })
             raise ApiError(404, "不明なエンドポイント: %s %s" % (method, path[:80]))
+        if method == "POST" and path == "/admin/api/settings":
+            self._need(role, True)
+            body = self._body()
+            if not isinstance(body, dict) or not isinstance(body.get("prefillStudentToken"), bool):
+                raise ApiError(400, "prefillStudentToken は true または false を指定してください")
+            settings = {"prefillStudentToken": body["prefillStudentToken"]}
+            save_admin_settings(settings)
+            return self._send(200, {"ok": True, **settings})
         if not cli_available():
             return self._send(500, {"success": False, "error": "arduino-cli を実行できません (arduino-build-run が見つかりません)"})
 
