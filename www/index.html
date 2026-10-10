@@ -2,7 +2,6 @@
 <html lang="ja" data-theme="dark">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Arduino Web IDE - ブラウザで動作するArduino開発環境">
 <meta name="theme-color" content="#005F61">
 <title>Arduino Web IDE</title>
@@ -312,10 +311,6 @@ svg { display: block; flex-shrink: 0; }
   align-items: center;
   padding: 0 8px;
   gap: 2px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  overscroll-behavior-x: contain;
-  scroll-padding-inline: 8px;
   z-index: 100;
 }
 
@@ -333,7 +328,6 @@ svg { display: block; flex-shrink: 0; }
   white-space: nowrap;
   transition: background .15s, border-color .15s, transform .08s;
   height: 32px;
-  flex-shrink: 0;
 }
 .tool-btn svg { width: 14px; height: 14px; }
 .tool-btn:hover {
@@ -362,8 +356,8 @@ svg { display: block; flex-shrink: 0; }
   background: rgba(255,255,255,0.28);
   border-color: rgba(255,255,255,0.35);
 }
-.tool-sep { width: 1px; height: 22px; background: rgba(255,255,255,0.18); margin: 0 4px; flex-shrink: 0; }
-#toolbar .t-space { flex: 1 0 8px; }
+.tool-sep { width: 1px; height: 22px; background: rgba(255,255,255,0.18); margin: 0 4px; }
+#toolbar .t-space { flex: 1; }
 
 /* ==============================================================
    メイン3カラム
@@ -471,7 +465,6 @@ svg { display: block; flex-shrink: 0; }
   gap: 1px;
 }
 .sk-item:hover .sk-actions { display: flex; }
-@media (hover: none) { .sk-actions { display: flex; } }
 .sk-act-btn {
   display: flex; align-items: center; justify-content: center;
   width: 24px; height: 24px;
@@ -824,7 +817,6 @@ svg { display: block; flex-shrink: 0; }
 .panel-icon-btn svg { width: 13px; height: 13px; }
 #console-clear-btn { width: auto; padding: 0 8px; gap: 5px; }
 #console-clear-label { font-size: 11px; white-space: nowrap; }
-@media (max-width: 760px) { #console-clear-label { display: none; } }
 .log-empty {
   padding: 20px 14px;
   color: var(--panel-muted);
@@ -1075,24 +1067,6 @@ svg { display: block; flex-shrink: 0; }
   padding: 12px 20px 16px;
   border-top: 1px solid var(--bd0);
   flex-shrink: 0;
-}
-@media (max-width: 600px) {
-  .modal-foot {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: stretch;
-  }
-  .modal-foot > .btn,
-  .modal-foot > a {
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
-    justify-content: center;
-    text-align: center;
-    white-space: normal;
-  }
-  #m-helper .modal-foot > :last-child { grid-column: 1 / -1; }
-  #m-flash .modal-foot { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* フォーム */
@@ -1558,20 +1532,11 @@ svg { display: block; flex-shrink: 0; }
 .jc-log{display:none;margin:6px 0 0;max-height:140px;overflow:auto;background:var(--co-bg);border:1px solid var(--bd1);border-radius:var(--radius);padding:7px 9px;font-family:var(--ff-mono);font-size:11px;white-space:pre-wrap;word-break:break-all}
 .jc-log.show{display:block}
 .jc-cancel{margin-left:10px;color:var(--co-err)}
-@media(max-width:600px){#toast-wrap{right:12px;width:calc(100vw - 24px)}#job-card-stack{right:12px;width:calc(100vw - 24px)}}
 .btn.is-loading{opacity:1!important;display:inline-flex;align-items:center}
 .skel{display:flex;gap:12px;padding:13px;border-bottom:1px solid var(--bd1)}
 .skel b{width:34px;height:34px;border-radius:var(--radius-lg);flex:none}.skel div{flex:1;display:grid;gap:7px}.skel u{height:10px;border-radius:5px;display:block}
 .skel b,.skel u{background:linear-gradient(90deg,var(--bg3) 25%,var(--bd2) 50%,var(--bg3) 75%);background-size:200% 100%;animation:skl 1.4s linear infinite}
 @keyframes skl{to{background-position:-200% 0}}
-@media(max-width:600px){
-  #statusbar{overflow-x:auto;overscroll-behavior-x:contain}
-  #status-msg{min-width:112px}
-  .sb-item{padding-left:6px;padding-right:6px}
-  #job-card-stack{max-height:38vh;bottom:calc(var(--statusbar-h) + 8px + env(safe-area-inset-bottom))}
-  .jc{max-height:34vh;padding:11px 12px}
-  .jc-step{white-space:normal;overflow-wrap:anywhere}
-}
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }

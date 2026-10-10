@@ -2,7 +2,6 @@
 <html lang="ja" data-theme="dark">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Arduino Web IDEの使い方、画面構成、コンパイルサーバーについて説明します。">
 <meta name="theme-color" content="#005F61">
 <title>使い方・しくみ - Arduino Web IDE</title>
@@ -97,20 +96,6 @@ details { margin: 10px 0; padding: 12px 15px; border: 1px solid var(--border); b
 summary { color: var(--text); cursor: pointer; font-weight: 650; }
 details p { margin-bottom: 0; color: var(--muted); }
 .footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--subtle); font-size: 14px; }
-@media (max-width: 780px) {
-  .layout { display: block; width: min(100% - 28px, 720px); margin-top: 24px; }
-  .toc { position: static; max-height: none; margin-bottom: 28px; }
-  .toc ul { columns: 2; }
-  .cards { grid-template-columns: 1fr; }
-  .topbar { padding: 0 12px; }
-}
-@media (max-width: 480px) {
-  body { font-size: 15px; }
-  .topbar { gap: 8px; }
-  .top-actions { gap: 10px; }
-  .toc ul { columns: 1; }
-  th, td { padding: 8px; }
-}
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
 }
@@ -173,6 +158,7 @@ details p { margin-bottom: 0; color: var(--muted); }
 
     <section id="requirements">
       <h2>使う前に</h2>
+      <div class="warning"><strong>対応画面:</strong> このIDEはパソコン（デスクトップ／ノートPC）の画面での利用を前提としています。スマートフォンなどモバイル端末での表示・操作は最適化および動作保証の対象外です。パソコンから利用してください。</div>
       <ul>
         <li>IDEを開くためのURLと、必要に応じて先生・管理者から配布されたコンパイルサーバーURL／生徒用アクセストークンを用意します。配布リンクがある場合は、それを開くと設定が入力されます。</li>
         <li>コンパイルにはコンパイルサーバーへの接続が必要です。サーバーのURLやトークンがわからない場合は、管理者に確認してください。</li>
