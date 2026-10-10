@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Arduino Web IDEの使い方、画面構成、コンパイルサーバーについて説明します。">
+<meta name="theme-color" content="#005F61">
+<title>使い方・しくみ - Arduino Web IDE</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0d1117;
+  --surface: #141b26;
+  --surface-raised: #1a2333;
+  --text: #eef2f8;
+  --muted: #b8c4d4;
+  --subtle: #8a9bb0;
+  --border: rgba(255,255,255,.1);
+  --teal: #2dd4d8;
+  --teal-dark: #063a3c;
+  --code-bg: #090d12;
+  --note-bg: rgba(14,165,168,.1);
+  --warn-bg: rgba(240,128,64,.1);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+}
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f0f4f8;
+  --surface: #fff;
+  --surface-raised: #f5f8fb;
+  --text: #1a2535;
+  --muted: #3a4e66;
+  --subtle: #52677f;
+  --border: rgba(0,0,0,.12);
+  --teal: #076d70;
+  --teal-dark: #063a3c;
+  --code-bg: #ebf0f6;
+  --note-bg: rgba(14,165,168,.09);
+  --warn-bg: rgba(240,128,64,.12);
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 82px; }
+body { margin: 0; background: var(--bg); color: var(--text); font-size: 16px; line-height: 1.8; }
+a { color: var(--teal); text-underline-offset: .2em; }
+a:hover { text-decoration-thickness: 2px; }
+a:focus-visible, button:focus-visible { outline: 3px solid var(--teal); outline-offset: 3px; }
+.skip-link { position: absolute; left: 12px; top: -60px; z-index: 2; padding: 8px 12px; color: var(--text); background: var(--surface); }
+.skip-link:focus { top: 8px; }
+.topbar { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 58px; padding: 8px max(20px, calc((100vw - 1180px) / 2)); background: var(--teal-dark); color: #fff; border-bottom: 1px solid rgba(45,212,216,.2); }
+.brand { color: #fff; font-weight: 700; text-decoration: none; }
+.top-actions { display: flex; align-items: center; gap: 16px; }
+.top-actions a { color: #d5ffff; }
+.theme-button { padding: 7px 10px; border: 1px solid rgba(255,255,255,.35); border-radius: 6px; color: #fff; background: transparent; font: inherit; cursor: pointer; }
+.layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 48px; width: min(1180px, calc(100% - 40px)); margin: 36px auto 80px; }
+.toc { position: sticky; top: 88px; align-self: start; max-height: calc(100vh - 110px); overflow: auto; padding: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.toc h2 { margin: 0 0 10px; font-size: 14px; }
+.toc ul { margin: 0; padding-left: 18px; }
+.toc li { margin: 5px 0; color: var(--subtle); }
+.toc a { font-size: 14px; }
+main { min-width: 0; max-width: 820px; }
+.hero { margin: 4px 0 32px; }
+.eyebrow { color: var(--teal); font-size: 13px; font-weight: 700; letter-spacing: .08em; }
+h1 { margin: 8px 0 12px; font-size: clamp(30px, 5vw, 46px); line-height: 1.3; letter-spacing: -.03em; }
+.lead { max-width: 700px; margin: 0; color: var(--muted); font-size: 18px; }
+.hero-note { margin-top: 22px; padding: 14px 18px; border-left: 4px solid var(--teal); border-radius: 6px; background: var(--note-bg); }
+section { margin: 40px 0; scroll-margin-top: 82px; }
+h2 { margin: 0 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); font-size: 25px; line-height: 1.4; }
+h3 { margin: 25px 0 8px; font-size: 18px; }
+p { margin: 10px 0; }
+ul, ol { padding-left: 1.5em; }
+li { margin: 5px 0; }
+.steps { display: grid; gap: 12px; padding: 0; list-style: none; counter-reset: step; }
+.steps li { position: relative; min-height: 54px; padding: 14px 16px 14px 58px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); counter-increment: step; }
+.steps li::before { position: absolute; left: 16px; top: 13px; display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; color: #071719; background: var(--teal); content: counter(step); font-weight: 800; line-height: 1; }
+.cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.card { padding: 16px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
+.card h3 { margin: 0 0 6px; }
+.card p { margin: 0; color: var(--muted); }
+.flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 16px; border-radius: 9px; background: var(--surface); }
+.flow span { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-raised); }
+.flow b { color: var(--teal); }
+.note, .warning { margin: 16px 0; padding: 14px 16px; border-radius: 8px; background: var(--note-bg); }
+.warning { background: var(--warn-bg); }
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; background: var(--surface); }
+th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+th { color: var(--muted); background: var(--surface-raised); }
+tr:last-child td { border-bottom: 0; }
+code, kbd { padding: .12em .38em; border: 1px solid var(--border); border-radius: 4px; background: var(--code-bg); font-family: Consolas, "SFMono-Regular", monospace; font-size: .9em; }
+details { margin: 10px 0; padding: 12px 15px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+summary { color: var(--text); cursor: pointer; font-weight: 650; }
+details p { margin-bottom: 0; color: var(--muted); }
+.footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--subtle); font-size: 14px; }
+@media (max-width: 780px) {
+  .layout { display: block; width: min(100% - 28px, 720px); margin-top: 24px; }
+  .toc { position: static; max-height: none; margin-bottom: 28px; }
+  .toc ul { columns: 2; }
+  .cards { grid-template-columns: 1fr; }
+  .topbar { padding: 8px 14px; }
+}
+@media (max-width: 480px) {
+  body { font-size: 15px; }
+  .topbar { align-items: flex-start; }
+  .top-actions { gap: 10px; }
+  .toc ul { columns: 1; }
+  th, td { padding: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+@media print {
+  :root { color-scheme: light; --bg: #fff; --surface: #fff; --surface-raised: #f2f2f2; --text: #111; --muted: #333; --subtle: #444; --border: #ccc; --teal: #075f61; --code-bg: #f2f2f2; }
+  body { font-size: 11pt; }
+  .topbar, .toc, .theme-button, .skip-link { display: none; }
+  .layout { display: block; width: 100%; margin: 0; }
+  main { max-width: none; }
+  section { break-inside: avoid; }
+  a { color: inherit; }
+}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main-content">本文へ移動</a>
+<header class="topbar">
+  <a class="brand" href="/">Arduino Web IDE</a>
+  <div class="top-actions">
+    <a href="/">IDEに戻る</a>
+    <button class="theme-button" id="theme-toggle" type="button" aria-label="テーマを切り替え">テーマ切替</button>
+  </div>
+</header>
+<div class="layout">
+  <nav class="toc" aria-label="ページ内目次">
+    <h2>このページの内容</h2>
+    <ul>
+      <li><a href="#overview">このIDEについて</a></li>
+      <li><a href="#requirements">使う前に</a></li>
+      <li><a href="#quick-start">基本の使い方</a></li>
+      <li><a href="#screen">画面の見方</a></li>
+      <li><a href="#architecture">しくみと保存先</a></li>
+      <li><a href="#accounts">トークンと権限</a></li>
+      <li><a href="#troubleshooting">困ったとき</a></li>
+      <li><a href="#glossary">用語集</a></li>
+    </ul>
+  </nav>
+  <main id="main-content">
+    <div class="hero">
+      <div class="eyebrow">はじめての方向けガイド</div>
+      <h1>Arduino Web IDE<br>使い方・しくみ</h1>
+      <p class="lead">ブラウザーでArduinoのプログラムを書き、コンパイルして、対応するボードに書き込むためのIDEです。画面の操作方法から、コンパイルサーバーとの関係まで順番に説明します。</p>
+      <div class="hero-note">このページは一般利用者向けの案内です。サーバーの設置・ネットワーク公開・トークン発行は、管理者や先生の案内に従ってください。</div>
+    </div>
+
+    <section id="overview">
+      <h2>このIDEについて</h2>
+      <p>Arduino Web IDEは、ブラウザー上のエディターと、Arduino CLIを動かすコンパイルサーバーを組み合わせて動作します。アプリのインストールをせずにコードを編集できますが、すべての処理がブラウザーだけで完結するわけではありません。</p>
+      <div class="cards">
+        <article class="card">
+          <h3>ブラウザーで行うこと</h3>
+          <p>コード編集、スケッチ管理、バックアップ、対応ブラウザーでのシリアル通信とボードへの書き込みを行います。</p>
+        </article>
+        <article class="card">
+          <h3>コンパイルサーバーで行うこと</h3>
+          <p>コードのコンパイル、ボード情報の取得、ボードパッケージやライブラリの検索・管理を行います。</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="requirements">
+      <h2>使う前に</h2>
+      <ul>
+        <li>IDEを開くためのURLと、必要に応じて先生・管理者から配布されたコンパイルサーバーURL／生徒用アクセストークンを用意します。配布リンクがある場合は、それを開くと設定が入力されます。</li>
+        <li>コンパイルにはコンパイルサーバーへの接続が必要です。サーバーのURLやトークンがわからない場合は、管理者に確認してください。</li>
+        <li>ボードへの直接書き込みとシリアルモニターには、Web Serial APIに対応したブラウザー（ChromeまたはEdge）と安全な接続（通常はHTTPS）が必要です。</li>
+        <li>ボードをUSBでコンピューターにつなぎ、OS側で認識される状態にします。ブラウザーがポート選択を求めたら、対象のボードを選びます。</li>
+        <li>書き込み対応はボードによって異なります。IDEに「ブラウザー書き込み未対応」と表示されるボードは、コンパイル結果をダウンロードして別の書き込み方法を使います。</li>
+      </ul>
+      <div class="warning"><strong>安全上の注意:</strong> 管理者用トークンはボードパッケージやライブラリの変更に使えるため、他の人に共有しないでください。通常の利用では生徒用トークンを使います。</div>
+    </section>
+
+    <section id="quick-start">
+      <h2>基本の使い方</h2>
+      <ol class="steps">
+        <li><strong>サーバーに接続する</strong><br>先生から配布された設定リンクを開くか、左側の「ヘルパー設定」でサーバーURLと生徒用トークンを入力して保存します。接続状態は画面下のステータスバーで確認できます。</li>
+        <li><strong>ボードを選ぶ</strong><br>画面上部の「ボード」から、実際に使用するArduinoボードを選びます。コンパイル結果は選択中のボード向けに作られます。</li>
+        <li><strong>スケッチを作成・編集する</strong><br>「新規」からスケッチを作成し、テンプレートを選びます。エディターにプログラムを書き、必要ならタブの「＋」からヘッダーや追加のソースファイルを作成します。</li>
+        <li><strong>コンパイルして確認する</strong><br>「検証」を押すか <kbd>Ctrl</kbd>+<kbd>Enter</kbd> を押します。進捗やエラーは下部の「コンソール」に表示されます。エラーが出た場合は、表示されたファイル名・行番号とメッセージを確認します。</li>
+        <li><strong>ボードに書き込む</strong><br>対応ボードをUSB接続し、「書き込み」を押します。コンパイル後にポートを選び、処理が完了するまでケーブルを抜かないでください。ボードが未対応の場合は、画面に案内されるダウンロード結果を使ってください。</li>
+        <li><strong>必要に応じてシリアルを確認する</strong><br>「シリアル」または接続状態の表示を押し、ポートとボーレートを設定します。スケッチ側の <code>Serial.begin(...)</code> と同じボーレートを選ぶと、送受信内容を確認できます。</li>
+        <li><strong>作品をバックアップする</strong><br>「バックアップ」からスケッチをZIP形式で書き出せます。別のブラウザーや端末で使う場合、ブラウザー内の保存データは自動で移らないため、定期的なバックアップをおすすめします。</li>
+      </ol>
+      <div class="note">コンパイルと書き込みは別の段階です。コンパイルが成功しても、ポート選択・USB接続・書き込み対応などの理由で書き込みが失敗することがあります。</div>
+    </section>
+
+    <section id="screen">
+      <h2>画面の見方</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>場所・ボタン</th><th>できること</th></tr></thead>
+          <tbody>
+            <tr><td>上部「ボード」</td><td>対象のボードを選択します。選択したボード名は下部ステータスにも表示されます。</td></tr>
+            <tr><td>「検証」</td><td>現在のスケッチをサーバーでコンパイルし、結果をコンソールに表示します。</td></tr>
+            <tr><td>「書き込み」</td><td>コンパイル後、対応するボードへブラウザーから書き込みます。</td></tr>
+            <tr><td>「新規」「開く」「保存」</td><td>スケッチ作成、ファイルの読み込み、現在の編集内容の保存を行います。</td></tr>
+            <tr><td>左側「スケッチブック」</td><td>このブラウザーに保存されたスケッチを切り替えます。名前変更・複製・書き出しなどはスケッチの操作メニューから行います。</td></tr>
+            <tr><td>「ボード管理」「ライブラリ」</td><td>サーバーにあるボードパッケージやライブラリを管理します。検索・追加・削除には管理者権限が必要です。</td></tr>
+            <tr><td>下部「コンソール」</td><td>コンパイルや書き込みの進捗、成功・エラーの詳細を確認します。</td></tr>
+            <tr><td>下部「シリアルモニター」</td><td>ボードとシリアル通信を行います。ブラウザーのポート許可が必要です。</td></tr>
+            <tr><td>下部ステータスバー</td><td>処理状態、選択中のボード、シリアル接続、カーソル位置などを確認します。「ヘルパー」の表示から接続設定を開けます。</td></tr>
+            <tr><td>右上の設定・テーマ</td><td>エディターの表示設定や自動保存間隔を調整し、ライト／ダークテーマを切り替えます。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>よく使うキーボード操作</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>操作</th><th>内容</th></tr></thead>
+          <tbody>
+            <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>保存</td></tr>
+            <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td>検証・コンパイル</td></tr>
+            <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Enter</kbd></td><td>書き込み</td></tr>
+            <tr><td><kbd>Ctrl</kbd>+<kbd>N</kbd> / <kbd>Ctrl</kbd>+<kbd>O</kbd></td><td>新規スケッチ / ファイルを開く</td></tr>
+            <tr><td><kbd>Ctrl</kbd>+<kbd>F</kbd></td><td>検索・置換</td></tr>
+            <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd></td><td>シリアルモニター</td></tr>
+            <tr><td><kbd>F1</kbd></td><td>IDE内のショートカット・対応状況を表示</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="architecture">
+      <h2>しくみと保存先</h2>
+      <p>画面とコンパイルサーバーは別々に動作し、ブラウザーからネットワーク越しに必要な処理を依頼します。</p>
+      <div class="flow" aria-label="処理の流れ">
+        <span>ブラウザーで編集</span><b aria-hidden="true">→</b><span>サーバーへコンパイル依頼</span><b aria-hidden="true">→</b><span>結果をブラウザーで確認</span><b aria-hidden="true">→</b><span>USB経由で書き込み</span>
+      </div>
+      <h3>どこに何が保存されるか</h3>
+      <ul>
+        <li><strong>スケッチとIDE設定:</strong> 現在のブラウザーのIndexedDBに保存されます。同じ端末でも、別ブラウザー・別ブラウザープロファイル・別サイトURLとは共有されません。ブラウザーのデータを消すと失われる場合があります。</li>
+        <li><strong>コンパイル処理:</strong> サーバーが受け取り、コンパイル用の作業領域で処理します。コンパイルしたソースはサーバーへ送信されるため、組織や管理者の利用ルールに従ってください。</li>
+        <li><strong>ボードパッケージとライブラリ:</strong> コンパイルサーバー側で共有管理されます。個々の利用者のブラウザーだけにインストールされるものではありません。</li>
+        <li><strong>物理ボードへの書き込み・シリアル通信:</strong> 対応ブラウザーからUSBポートを直接利用します。コンパイルサーバーがUSB機器に接続するわけではありません。</li>
+        <li><strong>バックアップ:</strong> スケッチをZIPに書き出し、端末のダウンロード領域などに保管できます。大切なコードはIDE内の自動保存だけに頼らず、別の場所にも保存してください。</li>
+      </ul>
+    </section>
+
+    <section id="accounts">
+      <h2>トークンと権限</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>種類</th><th>主な用途</th><th>取り扱い</th></tr></thead>
+          <tbody>
+            <tr><td>生徒用トークン</td><td>コンパイル、ボードやライブラリ情報の閲覧など</td><td>配布された範囲で使用し、公開掲示板やソースコードに貼り付けないでください。</td></tr>
+            <tr><td>管理者用トークン</td><td>ボードパッケージやライブラリの追加・削除、管理画面の利用</td><td>管理者だけが使用します。生徒や一般利用者に配布しないでください。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>サーバーのURLや利用可能な機能は、設置者の構成によって異なります。配布リンクや接続先に変更があった場合は、管理者から最新の案内を受け取ってください。</p>
+    </section>
+
+    <section id="troubleshooting">
+      <h2>困ったとき</h2>
+      <details>
+        <summary>コンパイルサーバーに接続できない</summary>
+        <p>ヘルパー設定でURLとトークンを確認します。ネットワークに接続できるか、サーバーが起動しているか、URLの変更がないかを管理者に確認してください。HTTPSのIDEから一般のHTTPサーバーへ接続すると、ブラウザーに拒否されることがあります。</p>
+      </details>
+      <details>
+        <summary>認証エラー・トークンが正しくないと表示される</summary>
+        <p>トークンの種類と入力ミスを確認してください。期限切れや再発行後の古いトークンは使えません。管理者用トークンが必要な操作を行っている場合は、管理者に相談してください。管理者トークンを生徒用の欄に入力して共有しないでください。</p>
+      </details>
+      <details>
+        <summary>コンパイルは成功するが、書き込みができない</summary>
+        <p>USBケーブルがデータ通信に対応しているか、ボードが接続されているか、書き込み対象のボードが選ばれているかを確認します。ChromeまたはEdgeでHTTPSページを開き、ポート選択ダイアログで正しい機器を選んでください。ボードによってはブラウザーからの直接書き込みに対応していません。</p>
+      </details>
+      <details>
+        <summary>シリアルモニターが使えない</summary>
+        <p>Web Serial対応ブラウザーを使っているか、ページをHTTPSまたはlocalhostで開いているかを確認します。ポートの許可が必要です。ボーレートはスケッチ側の設定と一致させてください。</p>
+      </details>
+      <details>
+        <summary>ライブラリが見つからない、または追加できない</summary>
+        <p>ライブラリ管理で検索し、表示された対象を確認します。ライブラリの追加・削除は管理者権限が必要なため、生徒用トークンでは操作できない場合があります。利用したいライブラリ名を管理者に伝えてください。</p>
+      </details>
+      <details>
+        <summary>以前のスケッチが表示されない</summary>
+        <p>正しいブラウザー、ブラウザープロファイル、IDEのURLを使っているか確認します。スケッチはそのブラウザーのローカル保存領域にあります。別端末に移行する場合は、事前にZIPバックアップを書き出して読み込んでください。</p>
+      </details>
+      <details>
+        <summary>コンパイルエラーが出る</summary>
+        <p>コンソールに表示されたエラーの行番号とメッセージを確認し、選択したボードや必要なライブラリが正しいか調べます。問題が続く場合は、エラー全文、ボード名、行った操作を添えて管理者やサポート担当者に相談してください。トークンや秘密情報は共有しないでください。</p>
+      </details>
+    </section>
+
+    <section id="glossary">
+      <h2>用語集</h2>
+      <div class="cards">
+        <article class="card"><h3>スケッチ</h3><p>Arduinoのプログラムと、そのプログラムに付属するファイルをまとめたものです。</p></article>
+        <article class="card"><h3>コンパイル</h3><p>プログラムを、選択したボードが実行できる形式へ変換する処理です。</p></article>
+        <article class="card"><h3>書き込み</h3><p>コンパイルしたプログラムをUSBなどを通じてボードへ転送する処理です。</p></article>
+        <article class="card"><h3>コンパイルサーバー（ヘルパー）</h3><p>Arduino CLIを動かし、コンパイルや共有パッケージ管理を行うサーバーです。</p></article>
+        <article class="card"><h3>ボードパッケージ（コア）</h3><p>特定のボード向けにコンパイルするための定義やツールの一式です。</p></article>
+        <article class="card"><h3>シリアルモニター</h3><p>USBシリアル通信を使って、ボードとの文字データの送受信を確認する画面です。</p></article>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <p>このガイドはIDEの一般的な使い方を説明しています。ボード、ネットワーク、権限、書き込み方式によって利用できる範囲は異なります。</p>
+      <p><a href="/">Arduino Web IDEに戻る</a></p>
+    </footer>
+  </main>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var button = document.getElementById('theme-toggle');
+  var theme = 'dark';
+  try {
+    var saved = localStorage.getItem('arduino_docs_theme');
+    if (saved === 'light' || saved === 'dark') theme = saved;
+  } catch (_) {}
+  root.dataset.theme = theme;
+  button.setAttribute('aria-pressed', String(theme === 'light'));
+  button.addEventListener('click', function () {
+    theme = theme === 'dark' ? 'light' : 'dark';
+    root.dataset.theme = theme;
+    button.setAttribute('aria-pressed', String(theme === 'light'));
+    try { localStorage.setItem('arduino_docs_theme', theme); } catch (_) {}
+  });
+}());
+</script>
+</body>
+</html>

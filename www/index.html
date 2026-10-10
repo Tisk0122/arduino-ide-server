@@ -2216,6 +2216,7 @@ svg { display: block; flex-shrink: 0; }
       </div>
     </div>
     <div class="modal-foot">
+      <a class="btn btn-secondary" href="/docs" target="_blank" rel="noopener">使い方・しくみを見る</a>
       <button class="btn btn-secondary" data-close="m-help">閉じる</button>
     </div>
   </div>
@@ -2248,7 +2249,7 @@ const S = {
     theme: 'dark', lineNums: true, curLine: true, syntax: true,
   },
   serial: { port: null, reader: null, writer: null, connected: false, supported: true },
-  helper: { url: IDE_DEFAULTS.url, fallback: IDE_DEFAULTS.fallbackUrl, token: IDE_DEFAULTS.token, adminToken: '', active: '', userSet: false, prefillStudentToken: false, publicConfigError: '', ok: false, authed: false, admin: false, adminBad: false, gen: 0, info: null },
+  helper: { url: IDE_DEFAULTS.url, fallback: IDE_DEFAULTS.fallbackUrl, token: IDE_DEFAULTS.token, adminToken: '', adminTokenTarget: '', active: '', userSet: false, prefillStudentToken: false, publicConfigError: '', ok: false, authed: false, admin: false, adminBad: false, gen: 0, info: null },
   editor: { lineH: 22, padTop: 10 },
   _autosaveTimer: null,
   _ctxTarget: null,
@@ -2373,6 +2374,9 @@ function normalizeUrl(u) {
     if (!/^https?:$/.test(x.protocol) || !x.hostname) return '';
     return (x.origin + x.pathname).replace(/\/+$/, '');
   } catch (_) { return ''; }
+}
+function helperEndpointKey(url, fallback) {
+  return JSON.stringify([normalizeUrl(url), normalizeUrl(fallback)]);
 }
 const SVG_BOARD = '<i data-lucide="cpu" aria-hidden="true"></i>';
 
@@ -3377,7 +3381,12 @@ const Helper = {
     const u = this.urls(), a = S.helper.active;
     return a && u.includes(a) ? [a].concat(u.filter(x => x !== a)) : u;
   },
-  tokenFor(admin) { return admin ? (S.helper.adminToken || S.helper.token) : (S.helper.token || S.helper.adminToken); },
+  tokenFor(admin) {
+    if (!admin) return S.helper.token;
+    const target = helperEndpointKey(S.helper.url, S.helper.fallback);
+    const adminToken = S.helper.adminTokenTarget === target ? S.helper.adminToken : '';
+    return adminToken || S.helper.token;
+  },
   headers(json, admin) {
     const h = { 'X-Client-Id': this.clientId };
     if (json) h['Content-Type'] = 'application/json';
@@ -4672,7 +4681,8 @@ const Cfg = {
   /** サーバー設定: 既定値 → (利用者が編集していれば) 保存値。保存値は「利用者が編集したときだけ」書く */
   async loadHelper() {
     const D = IDE_DEFAULTS;
-    S.helper.url = D.url; S.helper.fallback = D.fallbackUrl; S.helper.token = D.token; S.helper.adminToken = '';
+    S.helper.url = D.url; S.helper.fallback = D.fallbackUrl; S.helper.token = D.token;
+    S.helper.adminToken = ''; S.helper.adminTokenTarget = '';
     S.helper.userSet = false; S.helper.active = '';
     try {
       const userSet = (await IDB.getKV(S.db, 'helperUserSet')) === '1';
@@ -4683,6 +4693,17 @@ const Cfg = {
         S.helper.fallback = (await IDB.getKV(S.db, 'helperFallback')) || '';
         S.helper.token = (await IDB.getKV(S.db, 'helperToken')) || '';
         S.helper.adminToken = (await IDB.getKV(S.db, 'helperAdminToken')) || '';
+        S.helper.adminTokenTarget = (await IDB.getKV(S.db, 'helperAdminTokenTarget')) || '';
+        if (S.helper.adminToken && !S.helper.adminTokenTarget) {
+          S.helper.adminTokenTarget = helperEndpointKey(S.helper.url, S.helper.fallback);
+          try {
+            await IDB.setKV(S.db, 'helperAdminTokenTarget', S.helper.adminTokenTarget);
+          } catch (e) {
+            S.helper.adminToken = '';
+            S.helper.adminTokenTarget = '';
+            console.warn('Stored admin token could not be bound to its server:', e);
+          }
+        }
       }
     } catch(_) {}
   },
@@ -4695,6 +4716,8 @@ const Cfg = {
       await IDB.setKV(S.db, 'helperFallback', S.helper.fallback);
       await IDB.setKV(S.db, 'helperToken', S.helper.prefillStudentToken ? '' : S.helper.token);
       await IDB.setKV(S.db, 'helperAdminToken', S.helper.adminToken);
+      await IDB.setKV(S.db, 'helperAdminTokenTarget',
+        S.helper.adminToken ? S.helper.adminTokenTarget : '');
       await IDB.setKV(S.db, 'helperRev', String(IDE_DEFAULTS.rev));
       await IDB.setKV(S.db, 'helperUserSet', '1');
     } catch(_) {}
@@ -5288,11 +5311,14 @@ function initEvents() {
     const nf = normalizeUrl(fRaw);
     if (!nu) { toast('サーバーURLの形式が正しくありません (例: https://xxxx.example.com)', 'err', 5000); return false; }
     if (fRaw && !nf) { toast('予備URLの形式が正しくありません', 'err', 5000); return false; }
+    const endpointChanged = helperEndpointKey(S.helper.url, S.helper.fallback) !== helperEndpointKey(nu, nf);
     S.helper.url = nu; S.helper.fallback = nf; S.helper.active = '';
     if (!S.helper.prefillStudentToken) {
       S.helper.token = document.getElementById('helper-token-input').value.trim();
     }
-    S.helper.adminToken = document.getElementById('helper-admin-input').value.trim();
+    S.helper.adminToken = endpointChanged ? '' : document.getElementById('helper-admin-input').value.trim();
+    S.helper.adminTokenTarget = S.helper.adminToken ? helperEndpointKey(nu, nf) : '';
+    if (endpointChanged) document.getElementById('helper-admin-input').value = '';
     document.getElementById('helper-url-input').value = nu;
     document.getElementById('helper-fallback-input').value = nf;
     return true;
@@ -5514,7 +5540,12 @@ async function importConfigFromHash() {
     const o = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b), c => c.charCodeAt(0))));
     const u = normalizeUrl(o.u);
     if (!u) throw new Error('url');
-    S.helper.url = u; S.helper.fallback = normalizeUrl(o.f) || ''; S.helper.token = String(o.t || '').trim(); S.helper.active = '';
+    const fallback = normalizeUrl(o.f) || '';
+    if (helperEndpointKey(S.helper.url, S.helper.fallback) !== helperEndpointKey(u, fallback)) {
+      S.helper.adminToken = '';
+      S.helper.adminTokenTarget = '';
+    }
+    S.helper.url = u; S.helper.fallback = fallback; S.helper.token = String(o.t || '').trim(); S.helper.active = '';
     await Cfg.saveHelper();
     toast('サーバー設定を取り込みました', 'ok', 4000);
   } catch (_) {

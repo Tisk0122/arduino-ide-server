@@ -17,10 +17,13 @@ branch="${branch:-main}"
 printf 'Webhook Secret: '
 read -r secret
 
-case "$repo" in
-  https://github.com/*/*|git@github.com:*/*) ;;
-  *) echo 'リポジトリURLが不正です' >&2; exit 2 ;;
-esac
+if [[ "$repo" =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\.git)?$ ]] ||
+   [[ "$repo" =~ ^git@github\.com:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\.git)?$ ]]; then
+  :
+else
+  echo 'リポジトリURLが不正です' >&2
+  exit 2
+fi
 case "$branch" in
   ''|*[^A-Za-z0-9._/-]*) echo 'ブランチ名が不正です' >&2; exit 2 ;;
 esac
@@ -37,11 +40,14 @@ case "$full_name" in
   *) echo 'GitHub owner/repo を取得できません' >&2; exit 2 ;;
 esac
 
-# 更新スクリプトが読む設定。
+# 更新スクリプトが読む設定。source しても値がシェルコードにならないよう引用する。
+printf -v repo_quoted '%q' "$repo"
+printf -v full_name_quoted '%q' "$full_name"
+printf -v branch_quoted '%q' "$branch"
 cat > "$ENV_FILE" <<EOF2
-GITHUB_REPO=$repo
-GITHUB_WEBHOOK_REPO=$full_name
-GITHUB_BRANCH=$branch
+GITHUB_REPO=$repo_quoted
+GITHUB_WEBHOOK_REPO=$full_name_quoted
+GITHUB_BRANCH=$branch_quoted
 EOF2
 chown root:root "$ENV_FILE"
 chmod 0600 "$ENV_FILE"

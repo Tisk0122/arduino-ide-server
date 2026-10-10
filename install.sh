@@ -41,7 +41,7 @@ warn() { printf '警告: %s\n' "$*" >&2; }
 die()  { printf 'エラー: %s\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || die "root 権限で実行してください:  sudo bash install.sh"
-for f in arduino-helper.py arduino-build-run github-update.sh configure-github-webhook.sh www/index.html www/admin.html; do
+for f in arduino-helper.py arduino-build-run github-update.sh configure-github-webhook.sh www/index.html www/admin.html www/docs.html; do
   [ -f "$HERE/$f" ] || die "$HERE/$f がありません。アーカイブを展開したフォルダで実行してください"
 done
 command -v systemctl >/dev/null || die "systemd が必要です"
@@ -138,6 +138,7 @@ install -m 0755 -o root -g root "$HERE/arduino-build-run" "$WRAP"
 install -d -o root -g root -m 0755 "$APP_DIR/www"
 install -m 0644 -o root -g root "$HERE/www/index.html" "$APP_DIR/www/index.html"
 install -m 0644 -o root -g root "$HERE/www/admin.html" "$APP_DIR/www/admin.html"
+install -m 0644 -o root -g root "$HERE/www/docs.html" "$APP_DIR/www/docs.html"
 install -m 0700 -o root -g root "$HERE/github-update.sh" /usr/local/libexec/arduino-helper-update
 install -m 0700 -o root -g root "$HERE/configure-github-webhook.sh" /usr/local/libexec/arduino-helper-configure-github-webhook
 cat > "$CONF_DIR/build-run.conf" <<EOF

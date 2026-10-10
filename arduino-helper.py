@@ -1630,6 +1630,9 @@ class Handler(BaseHTTPRequestHandler):
         if method == "GET" and path in ("/admin", "/admin.html"):
             return self._send_html(Path(__file__).resolve().parent / "www" / "admin.html")
 
+        if method == "GET" and path in ("/docs", "/docs.html"):
+            return self._send_html(Path(__file__).resolve().parent / "www" / "docs.html")
+
         if method == "GET" and path == "/public-config":
             settings = load_admin_settings()
             config = {"prefillStudentToken": settings["prefillStudentToken"]}
