@@ -133,6 +133,21 @@ code,.mono { font-family: var(--ff-mono); }
   flex-wrap: wrap;
 }
 .tb-spacer { flex: 1 1 auto; }
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius);
+  color: rgba(255,255,255,0.6);
+  transition: background .15s, color .15s;
+}
+.theme-toggle:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.theme-toggle svg { width: 16px; height: 16px; }
+.theme-toggle .icon-moon { display: none; }
+[data-theme="light"] .theme-toggle .icon-sun { display: none; }
+[data-theme="light"] .theme-toggle .icon-moon { display: block; }
 .dot {
   display: inline-block;
   width: 8px; height: 8px;
@@ -553,7 +568,10 @@ footer {
         <input type="checkbox" id="auto-refresh" checked style="accent-color:var(--teal-lt)"> 自動更新
       </label>
       <button class="btn btn-sm" id="btn-reload" title="サーバー状態と利用履歴を更新" aria-label="サーバー状態と利用履歴を更新">更新</button>
-      <button class="btn btn-sm" id="btn-theme">表示切替</button>
+      <button class="theme-toggle" id="btn-theme" type="button" title="ライトテーマに切り替え" aria-label="ライトテーマに切り替え" aria-pressed="false">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6.5 6.5 0 0 0 8.268 8.268c.344-.215.825-.003.803.401"/></svg>
+      </button>
       <button class="btn btn-sm" id="btn-logout">ログアウト</button>
     </div>
   </header>
@@ -944,14 +962,39 @@ $('#save-token-settings').addEventListener('click', function () {
 
 /* ---------------- テーマ ---------------- */
 (function () {
-  var t = localStorage.getItem('helperAdminTheme');
-  if (t) document.documentElement.setAttribute('data-theme', t);
+  var storageKey = 'arduino_ide_theme';
+  var button = $('#btn-theme');
+  var theme = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  try {
+    var savedTheme = localStorage.getItem(storageKey);
+    if (savedTheme !== 'light' && savedTheme !== 'dark') {
+      savedTheme = localStorage.getItem('helperAdminTheme') || localStorage.getItem('arduino_docs_theme');
+    }
+    if (savedTheme === 'light' || savedTheme === 'dark') theme = savedTheme;
+    localStorage.setItem(storageKey, theme);
+  } catch (err) {
+    console.warn('Shared theme preference is unavailable:', err);
+  }
+  function applyTheme(nextTheme) {
+    theme = nextTheme;
+    document.documentElement.setAttribute('data-theme', theme);
+    button.setAttribute('aria-pressed', String(theme === 'light'));
+    var label = theme === 'dark' ? 'ライトテーマに切り替え' : 'ダークテーマに切り替え';
+    button.setAttribute('aria-label', label);
+    button.title = label;
+  }
+  applyTheme(theme);
+  button.addEventListener('click', function () {
+    applyTheme(theme === 'dark' ? 'light' : 'dark');
+    try { localStorage.setItem(storageKey, theme); }
+    catch (err) { console.warn('Shared theme preference could not be saved:', err); }
+  });
+  window.addEventListener('storage', function (event) {
+    if (event.key === storageKey && (event.newValue === 'light' || event.newValue === 'dark')) {
+      applyTheme(event.newValue);
+    }
+  });
 })();
-$('#btn-theme').addEventListener('click', function () {
-  var cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-  document.documentElement.setAttribute('data-theme', cur);
-  localStorage.setItem('helperAdminTheme', cur);
-});
 
 /* ---------------- 自動更新 ---------------- */
 function stopAuto() { if (state.timer) { clearInterval(state.timer); state.timer = null; } }

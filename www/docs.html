@@ -54,8 +54,12 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--teal-link); out
 .brand { color: #fff; font-weight: 700; text-decoration: none; }
 .top-actions { display: flex; align-items: center; gap: 12px; }
 .top-actions a { color: #d5ffff; text-underline-offset: 3px; }
-.theme-button { padding: 6px 10px; border: 1px solid rgba(255,255,255,.25); border-radius: 5px; color: rgba(255,255,255,.92); background: rgba(0,0,0,.12); font: inherit; font-size: 13px; cursor: pointer; }
+.theme-button { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 0; border-radius: 5px; color: rgba(255,255,255,.6); background: transparent; cursor: pointer; transition: background .15s, color .15s; }
 .theme-button:hover { background: rgba(255,255,255,.12); color: #fff; }
+.theme-button svg { width: 16px; height: 16px; }
+.theme-button .icon-moon { display: none; }
+[data-theme="light"] .theme-button .icon-sun { display: none; }
+[data-theme="light"] .theme-button .icon-moon { display: block; }
 .layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 48px; width: min(1180px, calc(100% - 40px)); margin: 36px auto 80px; }
 .toc { position: sticky; top: 88px; align-self: start; max-height: calc(100vh - 110px); overflow: auto; padding: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
 .toc h2 { margin: 0 0 10px; font-size: 14px; }
@@ -116,7 +120,10 @@ details p { margin-bottom: 0; color: var(--muted); }
   <a class="brand" href="/">Arduino Web IDE</a>
   <div class="top-actions">
     <a href="/">IDEに戻る</a>
-    <button class="theme-button" id="theme-toggle" type="button" aria-label="テーマを切り替え">テーマ切替</button>
+    <button class="theme-button" id="theme-toggle" type="button" title="テーマ切替" aria-label="ライトテーマに切り替え" aria-pressed="false">
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6.5 6.5 0 0 0 8.268 8.268c.344-.215.825-.003.803.401"/></svg>
+    </button>
   </div>
 </header>
 <div class="layout">
@@ -315,6 +322,8 @@ details p { margin-bottom: 0; color: var(--muted); }
     theme = nextTheme;
     root.dataset.theme = theme;
     button.setAttribute('aria-pressed', String(theme === 'light'));
+    button.setAttribute('aria-label', theme === 'dark' ? 'ライトテーマに切り替え' : 'ダークテーマに切り替え');
+    button.title = theme === 'dark' ? 'ライトテーマに切り替え' : 'ダークテーマに切り替え';
   }
   applyTheme(theme);
   button.addEventListener('click', function () {
