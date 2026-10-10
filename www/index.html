@@ -312,6 +312,10 @@ svg { display: block; flex-shrink: 0; }
   align-items: center;
   padding: 0 8px;
   gap: 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: 8px;
   z-index: 100;
 }
 
@@ -329,6 +333,7 @@ svg { display: block; flex-shrink: 0; }
   white-space: nowrap;
   transition: background .15s, border-color .15s, transform .08s;
   height: 32px;
+  flex-shrink: 0;
 }
 .tool-btn svg { width: 14px; height: 14px; }
 .tool-btn:hover {
@@ -357,8 +362,8 @@ svg { display: block; flex-shrink: 0; }
   background: rgba(255,255,255,0.28);
   border-color: rgba(255,255,255,0.35);
 }
-.tool-sep { width: 1px; height: 22px; background: rgba(255,255,255,0.18); margin: 0 4px; }
-#toolbar .t-space { flex: 1; }
+.tool-sep { width: 1px; height: 22px; background: rgba(255,255,255,0.18); margin: 0 4px; flex-shrink: 0; }
+#toolbar .t-space { flex: 1 0 8px; }
 
 /* ==============================================================
    メイン3カラム
@@ -1071,6 +1076,24 @@ svg { display: block; flex-shrink: 0; }
   border-top: 1px solid var(--bd0);
   flex-shrink: 0;
 }
+@media (max-width: 600px) {
+  .modal-foot {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+  .modal-foot > .btn,
+  .modal-foot > a {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+  }
+  #m-helper .modal-foot > :last-child { grid-column: 1 / -1; }
+  #m-flash .modal-foot { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* フォーム */
 .form-group { margin-bottom: 16px; }
@@ -1229,6 +1252,15 @@ svg { display: block; flex-shrink: 0; }
 #helper-status-box.ok { color: var(--co-ok); }
 #helper-status-box.warn { color: var(--orange); }
 #helper-status-box.err { color: var(--red); }
+.welcome-copy { color: var(--tx1); line-height: 1.7; }
+.welcome-steps { display: grid; gap: 10px; margin: 16px 0; padding: 0; list-style: none; counter-reset: welcome; }
+.welcome-steps li { display: flex; gap: 10px; align-items: flex-start; counter-increment: welcome; }
+.welcome-steps li::before { content: counter(welcome); display: grid; place-items: center; flex: 0 0 23px; height: 23px; border-radius: 50%; color: #071719; background: var(--teal-lt); font-weight: 700; line-height: 1; }
+.jc-advice { display: none; margin-top: 8px; padding: 8px 10px; border-left: 2px solid var(--orange); border-radius: 3px; background: var(--bg-hover); color: var(--tx1); line-height: 1.55; white-space: normal; overflow-wrap: anywhere; }
+.jc-advice.show { display: block; }
+.jc-action { display: none; margin-top: 8px; padding: 5px 9px; border: 1px solid var(--bd2); border-radius: var(--radius); color: var(--teal-link); background: var(--bg2); font: inherit; cursor: pointer; }
+.jc-action.show { display: inline-flex; }
+.jc-action:hover { background: var(--bg3); }
 .helper-steps {
   background: var(--bg2);
   border-radius: var(--radius);
@@ -1409,6 +1441,9 @@ svg { display: block; flex-shrink: 0; }
 }
 .loading-logo svg { width: 36px; height: 36px; }
 .loading-msg { color: var(--tx3); font-size: 12px; }
+.loading-recovery { max-width: min(420px, calc(100vw - 36px)); padding: 14px 16px; border: 1px solid var(--bd2); border-radius: var(--radius-lg); background: var(--bg1); color: var(--tx1); text-align: center; }
+.loading-recovery[hidden] { display: none; }
+.loading-recovery button { margin-top: 10px; padding: 7px 14px; border: 1px solid var(--teal); border-radius: var(--radius); color: #fff; background: var(--teal-dk); }
 .spinner {
   width: 32px; height: 32px;
   border: 2.5px solid rgba(14,165,168,0.15);
@@ -1454,6 +1489,9 @@ svg { display: block; flex-shrink: 0; }
 #status-helper.ok{color:#A6F6C0}
 #status-helper.warn{color:#FFE08A}
 #status-helper.err{color:#FFC4BA}
+#status-helper.checking{color:#B8E0FF}
+#status-helper::before{content:"";display:none;width:9px;height:9px;flex:0 0 9px;border:2px solid rgba(255,255,255,.3);border-top-color:currentColor;border-radius:50%}
+#status-helper.checking::before{display:inline-block;animation:spin .9s linear infinite}
 .pill{display:inline-block;font-size:10px;padding:1px 7px;border-radius:10px;background:var(--bg3);color:var(--tx1);margin-left:6px;vertical-align:middle}
 .pill.ok{background:rgba(52,201,122,.15);color:var(--co-ok)}
 .empty-note{padding:24px 12px;text-align:center;color:var(--panel-muted);font-size:12px;line-height:1.7}
@@ -1526,6 +1564,20 @@ svg { display: block; flex-shrink: 0; }
 .skel b{width:34px;height:34px;border-radius:var(--radius-lg);flex:none}.skel div{flex:1;display:grid;gap:7px}.skel u{height:10px;border-radius:5px;display:block}
 .skel b,.skel u{background:linear-gradient(90deg,var(--bg3) 25%,var(--bd2) 50%,var(--bg3) 75%);background-size:200% 100%;animation:skl 1.4s linear infinite}
 @keyframes skl{to{background-position:-200% 0}}
+@media(max-width:600px){
+  #statusbar{overflow-x:auto;overscroll-behavior-x:contain}
+  #status-msg{min-width:112px}
+  .sb-item{padding-left:6px;padding-right:6px}
+  #job-card-stack{max-height:38vh;bottom:calc(var(--statusbar-h) + 8px + env(safe-area-inset-bottom))}
+  .jc{max-height:34vh;padding:11px 12px}
+  .jc-step{white-space:normal;overflow-wrap:anywhere}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html[data-reduce-motion="true"] *::after{
+  scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important
+}
 </style>
 <script id="lucide-icons" src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
 </head>
@@ -1539,7 +1591,11 @@ svg { display: block; flex-shrink: 0; }
     Arduino Web IDE
   </div>
   <div class="spinner"></div>
-  <div class="loading-msg" id="load-msg">初期化中...</div>
+  <div class="loading-msg" id="load-msg" role="status" aria-live="polite">初期化中...</div>
+  <div class="loading-recovery" id="loading-recovery" role="alert" hidden>
+    <div>初期化に時間がかかっています。ページを再読み込みしてもう一度お試しください。</div>
+    <button type="button" id="loading-retry-btn">ページを再読み込み</button>
+  </div>
 </div>
 
 <!-- ========== トップバー ========== -->
@@ -1786,7 +1842,7 @@ svg { display: block; flex-shrink: 0; }
 
 <!-- ステータスバー -->
 <div id="statusbar">
-  <span id="status-msg" role="status" aria-live="polite">準備完了</span>
+  <span id="status-msg" role="status" aria-live="polite">IDEを準備しています…</span>
   <div class="sb-div"></div>
   <span class="sb-item" id="status-board">
     <i data-lucide="cpu" aria-hidden="true"></i>
@@ -1798,7 +1854,7 @@ svg { display: block; flex-shrink: 0; }
     シリアル未接続
   </span>
   <div class="sb-div"></div>
-  <span class="sb-item" id="status-helper" role="button" tabindex="0" title="ヘルパー設定を開く">ヘルパー: 未確認<i data-lucide="chevron-right" aria-hidden="true"></i></span>
+  <span class="sb-item pending" id="status-helper" role="button" tabindex="0" aria-live="polite" aria-busy="true" aria-label="コンパイルサーバー: 起動確認前。クリックして設定を開く" title="IDEとコンパイルサーバーの状態。クリックして接続設定を開く"><span id="status-helper-label">サーバー: 起動確認中…</span><i data-lucide="chevron-right" aria-hidden="true"></i></span>
   <div class="sb-div"></div>
   <span class="sb-item">UTF-8</span>
   <div class="sb-div"></div>
@@ -2015,6 +2071,30 @@ svg { display: block; flex-shrink: 0; }
   </div>
 </div>
 
+<!-- 初回ガイド -->
+<div class="modal-overlay" id="m-welcome">
+  <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="welcome-title" aria-describedby="welcome-description">
+    <div class="modal-head">
+      <span class="modal-title" id="welcome-title">Arduino Web IDEへようこそ</span>
+      <button class="modal-x" data-close="m-welcome" title="閉じる" aria-label="閉じる"><i data-lucide="x"></i></button>
+    </div>
+    <div class="modal-body">
+      <p class="welcome-copy" id="welcome-description">まずはサーバー接続を確認し、スケッチをコンパイルしてみましょう。</p>
+      <ol class="welcome-steps">
+        <li>先生から配布リンクを受け取っている場合は、そのリンクからIDEを開きます。</li>
+        <li>サーバー接続が必要な場合は、先生から受け取ったURLと生徒用トークンを設定します。</li>
+        <li>「新規」でスケッチを作成し、「検証」でコンパイルします。</li>
+      </ol>
+      <p class="welcome-copy">スケッチはこのブラウザー内に保存されます。別の端末へ移すときは「バックアップ」でZIPを書き出してください。</p>
+      <p><a href="/docs" target="_blank" rel="noopener">使い方と画面のしくみを読む</a></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" id="welcome-dismiss-btn">エディターを開く</button>
+      <button class="btn btn-primary" id="welcome-helper-btn">接続設定をする</button>
+    </div>
+  </div>
+</div>
+
 <!-- ヘルパー設定 -->
 <div class="modal-overlay" id="m-helper">
   <div class="modal">
@@ -2145,6 +2225,13 @@ svg { display: block; flex-shrink: 0; }
           シンタックスハイライト
         </label>
       </div>
+      <div class="form-group">
+        <label class="form-label" style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:13px;font-weight:normal;">
+          <input type="checkbox" id="cfg-reduce-motion" style="accent-color:var(--teal);width:14px;height:14px;">
+          アニメーションを減らす
+        </label>
+        <div class="form-hint">OSの「視差効果を減らす」設定も自動で反映されます。</div>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-secondary" data-close="m-settings">キャンセル</button>
@@ -2236,6 +2323,7 @@ svg { display: block; flex-shrink: 0; }
                        無視して、ここの値に切り替わる (url が空のときは無効)
 ---------------------------------------------------------------------------- */
 const IDE_DEFAULTS = { rev: 2, url: 'https://sabakan.tail97b5d3.ts.net', fallbackUrl: '', token: '' };
+const IDE_THEME_STORAGE_KEY = 'arduino_ide_theme';
 
 /* ---- グローバル状態 ---- */
 const S = {
@@ -2246,7 +2334,7 @@ const S = {
   dirty: new Set(),   // 'sketchId:tabIndex'
   cfg: {
     fontSize: 13, tabSize: 2, autosave: 5,
-    theme: 'dark', lineNums: true, curLine: true, syntax: true,
+    theme: 'dark', lineNums: true, curLine: true, syntax: true, reduceMotion: false,
   },
   serial: { port: null, reader: null, writer: null, connected: false, supported: true },
   helper: { url: IDE_DEFAULTS.url, fallback: IDE_DEFAULTS.fallbackUrl, token: IDE_DEFAULTS.token, adminToken: '', adminTokenTarget: '', active: '', userSet: false, prefillStudentToken: false, publicConfigError: '', ok: false, authed: false, admin: false, adminBad: false, gen: 0, info: null },
@@ -2550,10 +2638,18 @@ function setHelperStatus(kind, text) {
   document.getElementById('helper-status-text').textContent = text;
 }
 
-function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function openModal(id)  {
+  const modal = document.getElementById(id);
+  modal.classList.add('open');
+  if (id === 'm-welcome') {
+    const focusTarget = modal.querySelector('#welcome-helper-btn');
+    if (focusTarget) focusTarget.focus();
+  }
+}
 function closeModal(id) {
   if (id === 'm-flash' && typeof Flash !== 'undefined' && Flash.busy) { toast('書き込み中は閉じられません。終わるまでお待ちください', 'warn', 3000); return; }
   document.getElementById(id).classList.remove('open');
+  if (id === 'm-welcome') rememberWelcomeDismissal();
 }
 
 /* ================================================================
@@ -3303,13 +3399,15 @@ class JobCard {
     if (this.el) return;
     const el = this.el = document.createElement('div');
     el.className = 'jc ' + this.cls;
-    el.innerHTML = '<div class="jc-h"><span class="jc-ic run" aria-hidden="true"></span><span class="jc-t"></span><span class="jc-time"></span><button class="jc-x" type="button" title="閉じる" aria-label="処理カードを閉じる"><i data-lucide="x" aria-hidden="true"></i></button></div><div class="jc-step"></div><div class="jc-bar"><i></i></div><div class="jc-meta"><span class="jc-cnt"></span><span class="jc-hint"></span></div><button class="jc-tg" style="display:none">詳細ログを表示</button> <button class="jc-tg jc-cancel" style="display:none">キャンセル</button><pre class="jc-log"></pre>';
+    el.setAttribute('role', 'group');
+    el.innerHTML = '<div class="jc-h"><span class="jc-ic run" aria-hidden="true"></span><span class="jc-t"></span><span class="jc-time"></span><button class="jc-x" type="button" title="閉じる" aria-label="処理カードを閉じる"><i data-lucide="x" aria-hidden="true"></i></button></div><div class="jc-step" role="status" aria-live="polite"></div><div class="jc-bar" role="progressbar" aria-label="処理の進捗" aria-valuetext="処理中"><i></i></div><div class="jc-meta"><span class="jc-cnt"></span><span class="jc-hint"></span></div><div class="jc-advice" role="status" aria-live="polite"></div><button class="jc-action" type="button"></button><button class="jc-tg" style="display:none">詳細ログを表示</button> <button class="jc-tg jc-cancel" style="display:none">キャンセル</button><pre class="jc-log"></pre>';
     document.getElementById('job-card-stack').appendChild(el);
     renderLucideIcons(el);
     this.q = s => el.querySelector(s);
     this.q('.jc-x').addEventListener('click', () => this.hide());
     this.q('.jc-tg:not(.jc-cancel)').addEventListener('click', e => { const l = this.q('.jc-log'); const s = l.classList.toggle('show'); e.target.textContent = s ? '詳細ログを隠す' : '詳細ログを表示'; });
     this.q('.jc-cancel').addEventListener('click', e => { if (this.run && this.onCancel) { e.target.disabled = true; e.target.textContent = 'キャンセル中…'; this.onCancel(); } });
+    this.q('.jc-action').addEventListener('click', () => { if (this.onAdviceAction) this.onAdviceAction(); });
   }
   _tick() { const s = Math.floor((Date.now() - this.t0) / 1000); this.q('.jc-time').textContent = s >= 60 ? Math.floor(s / 60) + '分' + (s % 60) + '秒' : s + '秒'; }
   _cnt() { this.q('.jc-cnt').textContent = this.pkg ? 'ダウンロード ' + this.d + ' 件 / インストール ' + this.n + ' 件' : ''; }
@@ -3322,6 +3420,14 @@ class JobCard {
     const ic = this.q('.jc-ic'); ic.className = 'jc-ic run'; ic.replaceChildren();
     this.q('.jc-t').textContent = title;
     this.q('.jc-step').textContent = this.pkg ? 'サーバーに依頼しています…' : 'サーバーに送信しています…';
+    this.q('.jc-step').setAttribute('aria-label', title + 'の状態');
+    this.q('.jc-bar').removeAttribute('aria-valuenow');
+    this.q('.jc-bar').setAttribute('aria-valuetext', '処理中');
+    this.q('.jc-advice').textContent = '';
+    this.q('.jc-advice').classList.remove('show');
+    this.q('.jc-action').textContent = '';
+    this.q('.jc-action').classList.remove('show');
+    this.onAdviceAction = null;
     const lg = this.q('.jc-log'); lg.textContent = ''; lg.classList.remove('show');
     const tg = this.q('.jc-tg:not(.jc-cancel)'); tg.style.display = this.pkg ? '' : 'none'; tg.textContent = '詳細ログを表示';
     const cc = this.q('.jc-cancel'); cc.style.display = this.onCancel ? '' : 'none'; cc.disabled = false; cc.textContent = 'キャンセル';
@@ -3338,7 +3444,7 @@ class JobCard {
     if (/downloaded\s*$/i.test(l)) this.d++; else if (/installed\s*$/i.test(l)) this.n++;
     this.q('.jc-step').textContent = l.slice(0, 90); this._cnt();
   }
-  end(t, ok, msg) {
+  end(t, ok, msg, advice, actionLabel, onAction) {
     if (t !== this.t || !this.run) return;
     this.run = false; clearInterval(this.tm); this._tick();
     this.el.classList.add(ok ? 'done' : 'fail');
@@ -3349,6 +3455,19 @@ class JobCard {
     this.q('.jc-cancel').style.display = 'none';
     if (!this.pkg) this.q('.jc-t').textContent = ok ? 'コンパイル完了' : 'コンパイル失敗';
     this.q('.jc-step').textContent = msg || (ok ? '完了しました' : '失敗しました');
+    if (ok) this.q('.jc-bar').setAttribute('aria-valuenow', '100');
+    else this.q('.jc-bar').removeAttribute('aria-valuenow');
+    this.q('.jc-bar').setAttribute('aria-valuetext', ok ? '完了' : '失敗');
+    if (advice) {
+      this.q('.jc-advice').textContent = advice;
+      this.q('.jc-advice').classList.add('show');
+    }
+    if (actionLabel && onAction) {
+      const action = this.q('.jc-action');
+      action.textContent = actionLabel;
+      action.classList.add('show');
+      this.onAdviceAction = onAction;
+    }
     if (!ok && this.pkg) { const l = this.q('.jc-log'); l.classList.add('show'); this.q('.jc-tg:not(.jc-cancel)').textContent = '詳細ログを隠す'; }
     this.hd = ok ? setTimeout(() => this.hide(), 4000) : null;
   }
@@ -3448,8 +3567,12 @@ const Helper = {
 
   setBadge(text, cls) {
     const el = document.getElementById('status-helper');
-    el.textContent = 'ヘルパー: ' + text;
+    const label = document.getElementById('status-helper-label');
+    label.textContent = 'サーバー: ' + text;
     el.className = 'sb-item ' + (cls || '');
+    el.setAttribute('aria-busy', String(cls === 'checking' || cls === 'pending'));
+    el.setAttribute('aria-label', 'コンパイルサーバー: ' + text + '。クリックして接続設定を開く');
+    el.title = 'IDEの準備状態とは別に、コンパイルサーバーの接続状態を表示します。クリックして接続設定を開く';
   },
 
   async _ping(admin) {
@@ -3468,6 +3591,7 @@ const Helper = {
   },
 
   async connect() {
+    this.setBadge('接続確認中…', 'checking');
     try {
       const d = await this._ping(false);
       S.helper.ok = true; S.helper.authed = !!d.authed; S.helper.admin = !!d.admin; S.helper.adminBad = false; S.helper.info = d;
@@ -3476,14 +3600,14 @@ const Helper = {
       }
       if (d.gen && S.helper.gen && d.gen !== S.helper.gen) CCache.clear();
       S.helper.gen = d.gen || 0;
-      if (!d.cliFound) this.setBadge('arduino-cli なし', 'err');
-      else if (!d.authed) this.setBadge('トークン不正', 'warn');
-      else this.setBadge('接続OK' + (S.helper.admin ? ' (管理者)' : ''), 'ok');
+      if (!d.cliFound) this.setBadge('サーバー接続済み・CLI未準備', 'err');
+      else if (!d.authed) this.setBadge('接続済み・トークン要確認', 'warn');
+      else this.setBadge('接続OK' + (S.helper.admin ? ' (管理者)' : ' (生徒用)'), 'ok');
       if (d.authed && d.cliFound) { try { await Boards.refresh(); } catch (_) {} }
       return d;
     } catch (e) {
       S.helper.ok = false; S.helper.authed = false; S.helper.admin = false; S.helper.info = null;
-      this.setBadge('未接続', '');
+      this.setBadge(e && e.kind === 'config' ? 'URL未設定' : '未接続・設定を確認', e && e.kind === 'config' ? 'warn' : 'err');
       throw e;
     }
   },
@@ -3812,6 +3936,45 @@ const Flash = {
 /* ================================================================
    ビルド (コンパイル / 書き込み)
 ================================================================ */
+function showConsoleFromAdvice() {
+  Build._showPanel();
+  const log = document.getElementById('console-log');
+  log.scrollTop = log.scrollHeight;
+}
+
+function helperErrorGuidance(err, adminJob) {
+  if (err && (err.kind === 'config' || err.status === 401 || err.status === 403)) {
+    return {
+      text: err.status === 403
+        ? 'この操作の権限があるか、先生・管理者に確認してください。'
+        : 'サーバーURLと生徒用トークンを確認してください。',
+      label: '接続設定を開く',
+      action: () => document.getElementById('helper-cfg-btn').click(),
+    };
+  }
+  if (err && err.status === 429) {
+    return { text: 'サーバーが混み合っています。少し待ってからもう一度お試しください。' };
+  }
+  if (err && (err.kind === 'network' || err.kind === 'timeout' || err instanceof TypeError)) {
+    return {
+      text: 'ネットワーク接続とコンパイルサーバーの稼働状態を確認してください。',
+      label: '接続設定を開く',
+      action: () => document.getElementById('helper-cfg-btn').click(),
+    };
+  }
+  if (err && err.kind === 'lost') {
+    return { text: 'サーバー再起動後はジョブの状態を復元できません。管理操作の場合は一覧で状態を確認してから再試行してください。' };
+  }
+  if (adminJob) {
+    return { text: '詳細ログを確認してください。解決しない場合は、エラー内容をサーバー管理者に伝えてください。' };
+  }
+  return {
+    text: 'コンソールの詳細ログを確認してください。解決しない場合は、エラー内容と選択中のボードを管理者に伝えてください。',
+    label: 'コンソールを確認',
+    action: showConsoleFromAdvice,
+  };
+}
+
 const Build = {
   busy: false,
   COMPILE_EXT: /\.(ino|h|hpp|cpp|c)$/i,
@@ -3915,7 +4078,9 @@ const Build = {
       if (skipped.length) this._log('コンパイル対象外のファイルは送信しません: ' + skipped.join(', '), 'info');
       if (!payload.files.some(f => /\.ino$/i.test(f.name))) {
         this._log('.ino ファイルがありません', 'err');
-        JC.compile.end(tk, false, '.ino ファイルがありません');
+        JC.compile.end(tk, false, '.ino ファイルがありません',
+          'コンパイル対象のファイルに .ino ファイルを1つ以上含めてください。',
+          'コンソールを確認', showConsoleFromAdvice);
         setStatus('コンパイル失敗', 'err');
         return { success: false, serverError: true, boardUsed: board };
       }
@@ -3947,7 +4112,9 @@ const Build = {
           }
           if (j.state === 'error' && !j.result) {
             this._log('サーバーでエラーが発生しました: ' + (j.error || '不明'), 'err');
-            JC.compile.end(tk, false, 'サーバーでエラーが発生しました');
+            const guidance = helperErrorGuidance();
+            JC.compile.end(tk, false, 'サーバーでエラーが発生しました',
+              guidance.text, guidance.label, guidance.action);
             setStatus('コンパイル失敗', 'err');
             toast('サーバーでエラーが発生しました', 'err');
             return { success: false, serverError: true, boardUsed: board };
@@ -3960,11 +4127,15 @@ const Build = {
         } catch (err) {
           if (Helper.isNetwork(err)) {
             this._log(Helper.explain(err), 'warn');
-            JC.compile.end(tk, false, 'サーバーに接続できません');
+            const guidance = helperErrorGuidance(err);
+            JC.compile.end(tk, false, 'サーバーに接続できません',
+              guidance.text, guidance.label, guidance.action);
             return { offline: true, boardUsed: board };
           }
           this._log(Helper.explain(err), 'err');
-          JC.compile.end(tk, false, Helper.explain(err));
+          const guidance = helperErrorGuidance(err);
+          JC.compile.end(tk, false, Helper.explain(err),
+            guidance.text, guidance.label, guidance.action);
           setStatus('コンパイル失敗', 'err');
           return { success: false, serverError: true, boardUsed: board, error: Helper.explain(err) };
         }
@@ -3983,13 +4154,17 @@ const Build = {
         this._log('コンパイル失敗', 'err');
         setStatus('コンパイル失敗', 'err');
         toast('コンパイルエラーがあります', 'err');
-        JC.compile.end(tk, false, 'コンパイルに失敗しました。出力を確認してください');
+        JC.compile.end(tk, false, 'コンパイルに失敗しました。出力を確認してください',
+          'エラー行とファイル名を確認し、選択中のボードや必要なライブラリが正しいか確認してください。',
+          'コンソールを確認', showConsoleFromAdvice);
       }
       r.boardUsed = board;
       return r;
     } catch (e) {
       this._log('予期しないエラー: ' + ((e && e.message) || e), 'err');
-      JC.compile.end(tk, false, String((e && e.message) || e));
+      const guidance = helperErrorGuidance(e);
+      JC.compile.end(tk, false, String((e && e.message) || e),
+        guidance.text, guidance.label, guidance.action);
       return { success: false, serverError: true, boardUsed: board };
     } finally {
       this.setBusy(false);
@@ -4675,8 +4850,21 @@ const Cfg = {
       const saved = await IDB.getKV(S.db, 'cfg');
       if (saved) Object.assign(S.cfg, saved);
     } catch(_) {}
+    try {
+      const sharedTheme = localStorage.getItem(IDE_THEME_STORAGE_KEY);
+      const legacyTheme = localStorage.getItem('arduino_docs_theme');
+      if (sharedTheme === 'dark' || sharedTheme === 'light') S.cfg.theme = sharedTheme;
+      else if (legacyTheme === 'dark' || legacyTheme === 'light') S.cfg.theme = legacyTheme;
+      localStorage.setItem(IDE_THEME_STORAGE_KEY, S.cfg.theme);
+    } catch (e) {
+      console.warn('Shared theme preference is unavailable:', e);
+    }
     await this.loadHelper();
     this.applyToUI();
+  },
+  saveSharedTheme() {
+    try { localStorage.setItem(IDE_THEME_STORAGE_KEY, S.cfg.theme); }
+    catch (e) { console.warn('Shared theme preference could not be saved:', e); }
   },
   /** サーバー設定: 既定値 → (利用者が編集していれば) 保存値。保存値は「利用者が編集したときだけ」書く */
   async loadHelper() {
@@ -4794,6 +4982,9 @@ const Cfg = {
     if (cl) cl.checked = S.cfg.curLine;
     const sx = document.getElementById('cfg-syntax');
     if (sx) sx.checked = S.cfg.syntax;
+    const rm = document.getElementById('cfg-reduce-motion');
+    if (rm) rm.checked = !!S.cfg.reduceMotion;
+    document.documentElement.setAttribute('data-reduce-motion', String(!!S.cfg.reduceMotion));
   },
   applyToEditor() {
     document.getElementById('app').setAttribute('data-show-linenums', S.cfg.lineNums);
@@ -4941,9 +5132,15 @@ const BoardUI = {
       } else if (j.state === 'cancelled') {
         appendJob(log, 'キャンセルしました'); toast('キャンセルしました', 'warn'); JC.pkg.end(t, false, 'キャンセルしました');
       } else {
-        appendJob(log, '失敗しました'); toast('失敗しました', 'err'); JC.pkg.end(t, false, '失敗しました');
+        appendJob(log, '失敗しました'); toast('失敗しました', 'err');
+        JC.pkg.end(t, false, '失敗しました',
+          '詳細ログを開いてエラー内容を確認してください。権限やネットワークも確認してください。');
       }
-    } catch (e) { const m = Helper.explain(e); appendJob(log, m); toast('失敗しました', 'err'); JC.pkg.end(t, false, m); }
+    } catch (e) {
+      const m = Helper.explain(e), guidance = helperErrorGuidance(e, true);
+      appendJob(log, m); toast('失敗しました', 'err');
+      JC.pkg.end(t, false, m, guidance.text, guidance.label, guidance.action);
+    }
     this.loadCores();
   },
 };
@@ -5024,8 +5221,16 @@ const LibUI = {
       const j = await Helper.runJob(r.job, l => { appendJob(log, l); JC.pkg.line(t, l); }, { admin: true });
       if (j.state === 'done') { appendJob(log, '完了しました'); toast('完了しました', 'ok'); JC.pkg.end(t, true, '完了しました'); }
       else if (j.state === 'cancelled') { appendJob(log, 'キャンセルしました'); toast('キャンセルしました', 'warn'); JC.pkg.end(t, false, 'キャンセルしました'); }
-      else { appendJob(log, '失敗しました'); toast('失敗しました', 'err'); JC.pkg.end(t, false, '失敗しました'); }
-    } catch (e) { const m = Helper.explain(e); appendJob(log, m); toast('失敗しました', 'err'); JC.pkg.end(t, false, m); }
+      else {
+        appendJob(log, '失敗しました'); toast('失敗しました', 'err');
+        JC.pkg.end(t, false, '失敗しました',
+          '詳細ログを開いてエラー内容を確認してください。権限やネットワークも確認してください。');
+      }
+    } catch (e) {
+      const m = Helper.explain(e), guidance = helperErrorGuidance(e, true);
+      appendJob(log, m); toast('失敗しました', 'err');
+      JC.pkg.end(t, false, m, guidance.text, guidance.label, guidance.action);
+    }
     this.load();
   },
   action(act, name, btn) {
@@ -5118,7 +5323,14 @@ function initEvents() {
   // ---- トップバー ----
   document.getElementById('theme-btn').addEventListener('click', () => {
     S.cfg.theme = S.cfg.theme==='dark' ? 'light' : 'dark';
-    Cfg.applyToUI(); Cfg.save();
+    Cfg.applyToUI(); Cfg.save(); Cfg.saveSharedTheme();
+  });
+  window.addEventListener('storage', e => {
+    if (e.key !== IDE_THEME_STORAGE_KEY || (e.newValue !== 'dark' && e.newValue !== 'light')) return;
+    if (S.cfg.theme === e.newValue) return;
+    S.cfg.theme = e.newValue;
+    Cfg.applyToUI();
+    Cfg.save();
   });
   document.getElementById('settings-open-btn').addEventListener('click', () => { Cfg.applyToUI(); openModal('m-settings'); });
   document.getElementById('help-open-btn').addEventListener('click', () => openModal('m-help'));
@@ -5300,9 +5512,16 @@ function initEvents() {
     S.cfg.lineNums  = document.getElementById('cfg-linenums').checked;
     S.cfg.curLine   = document.getElementById('cfg-curline').checked;
     S.cfg.syntax    = document.getElementById('cfg-syntax').checked;
+    S.cfg.reduceMotion = document.getElementById('cfg-reduce-motion').checked;
     Cfg.applyToEditor(); await Cfg.save();
+    Cfg.applyToUI();
     closeModal('m-settings');
     toast('設定を保存しました','ok');
+  });
+  document.getElementById('welcome-dismiss-btn').addEventListener('click', () => closeModal('m-welcome'));
+  document.getElementById('welcome-helper-btn').addEventListener('click', () => {
+    closeModal('m-welcome');
+    document.getElementById('helper-cfg-btn').click();
   });
 
   const readHelperForm = () => {
@@ -5441,6 +5660,37 @@ function fitClearLabel() {
 /* ================================================================
    起動
 ================================================================ */
+let startupWatchdog = null;
+let welcomeDismissedThisSession = false;
+
+function rememberWelcomeDismissal() {
+  if (welcomeDismissedThisSession) return;
+  welcomeDismissedThisSession = true;
+  try { sessionStorage.setItem('ide_welcome_dismissed', '1'); } catch (_) {}
+  if (S.db) {
+    IDB.setKV(S.db, 'welcomeDismissed', '1').catch(e => {
+      console.warn('Welcome dismissal could not be saved:', e);
+      toast('初回案内の設定を保存できませんでした', 'warn', 5000);
+    });
+  }
+}
+
+async function maybeShowWelcome() {
+  if (S.helper.userSet || S.helper.token) return;
+  if (welcomeDismissedThisSession) return;
+  try {
+    if (sessionStorage.getItem('ide_welcome_dismissed') === '1') return;
+  } catch (_) {}
+  if (S.db) {
+    try {
+      if ((await IDB.getKV(S.db, 'welcomeDismissed')) === '1') return;
+    } catch (e) {
+      console.warn('Welcome dismissal could not be read:', e);
+    }
+  }
+  openModal('m-welcome');
+}
+
 async function boot() {
   // file:// で直接開いた場合の警告
   if (location.protocol === 'file:') {
@@ -5465,27 +5715,36 @@ async function boot() {
   await boot_internal();
 }
 async function boot_internal() {
+  const loadingScreen = document.getElementById('loading-screen');
   const loadMsg = document.getElementById('load-msg');
+  const recovery = document.getElementById('loading-recovery');
+  const updateLoadMessage = text => { if (loadMsg) loadMsg.textContent = text; };
+  const retryButton = document.getElementById('loading-retry-btn');
+  if (retryButton) retryButton.addEventListener('click', () => location.reload(), { once: true });
+  startupWatchdog = loadMsg && recovery ? setTimeout(() => {
+    updateLoadMessage('初期化を続けています…');
+    recovery.hidden = false;
+  }, 15000) : null;
   try {
-    loadMsg.textContent = 'データベースを開いています...';
+    updateLoadMessage('データベースを開いています...');
     try { S.db = await IDB.open(); }
     catch (dbErr) { S.db = null; console.warn('IndexedDB unavailable:', dbErr); }
 
-    loadMsg.textContent = '設定を読み込んでいます...';
+    updateLoadMessage('設定を読み込んでいます...');
     await Cfg.load();
     await importConfigFromHash();
     await Cfg.loadPublicHelperConfig();
 
-    loadMsg.textContent = 'スケッチを読み込んでいます...';
+    updateLoadMessage('スケッチを読み込んでいます...');
     S.sketches = await IDB.getAll(S.db);
     S.sketches.sort((a,b) => b.updatedAt - a.updatedAt);
 
-    loadMsg.textContent = 'エディタを初期化しています...';
+    updateLoadMessage('エディタを初期化しています...');
     Ed.init();
     Cfg.applyToEditor();
     Boards.renderSelect();
 
-    loadMsg.textContent = 'イベントを設定しています...';
+    updateLoadMessage('イベントを設定しています...');
     initEvents();
     BoardUI.init();
     LibUI.init();
@@ -5507,26 +5766,37 @@ async function boot_internal() {
     if (!S.db) toast('ストレージが使えないため、保存はこのセッション中のみ有効です', 'warn', 6000);
 
     // コンパイルサーバー接続チェック (バックグラウンド)
+    Helper.setBadge('接続確認中…', 'checking');
     Helper.connect().catch(e => {
       if (e && e.kind === 'config') toast('コンパイルサーバーが未設定です。先生から受け取った配布リンクを開くか、サイドバーの「ヘルパー設定」で入力してください', 'warn', 9000);
     });
 
     // ローディング非表示
-    const ls = document.getElementById('loading-screen');
-    ls.style.transition = 'opacity .3s';
-    ls.style.opacity = '0';
-    setTimeout(()=>ls.remove(), 320);
+    clearTimeout(startupWatchdog);
+    if (loadingScreen) {
+      loadingScreen.style.transition = 'opacity .3s';
+      loadingScreen.style.opacity = '0';
+      setTimeout(()=>loadingScreen.remove(), 320);
+    }
 
-    setStatus('準備完了');
+    setStatus('IDE準備完了');
     Ed.ta.focus();
+    await maybeShowWelcome();
 
   } catch(err) {
-    document.getElementById('loading-screen').innerHTML = `
-      <div style="color:var(--co-err);font-size:18px;font-weight:700;">初期化に失敗しました</div>
-      <div style="color:var(--tx2);margin-top:8px;font-size:13px;">${escHtml(err.message)}</div>
-      <button onclick="location.reload()" style="margin-top:20px;padding:8px 24px;background:var(--teal);color:#fff;border-radius:4px;font-size:13px;border:none;cursor:pointer;">
-        再読み込み
-      </button>`;
+    clearTimeout(startupWatchdog);
+    if (loadingScreen) {
+      loadingScreen.innerHTML = `
+        <div role="alert" style="color:var(--co-err);font-size:18px;font-weight:700;">初期化に失敗しました</div>
+        <div style="color:var(--tx2);margin-top:8px;font-size:13px;">${escHtml(err.message)}</div>
+        <button onclick="location.reload()" style="margin-top:20px;padding:8px 24px;background:var(--teal);color:#fff;border-radius:4px;font-size:13px;border:none;cursor:pointer;">
+          再読み込み
+        </button>`;
+    } else {
+      console.error('IDE initialization failed:', err);
+      setStatus('初期化に失敗しました', 'err');
+      toast('初期化に失敗しました: ' + err.message + '。ページを再読み込みしてください', 'err', 10000);
+    }
   }
 }
 
