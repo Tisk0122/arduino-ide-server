@@ -75,6 +75,7 @@ FILES=(
   "arduino-build-run"
   "www/index.html"
   "www/admin.html"
+  "www/docs.html"
 )
 
 for f in "${FILES[@]}"; do
@@ -122,10 +123,15 @@ install -m 0644 -o root -g root \
   "$repo/www/admin.html" \
   "$APP_DIR/www/admin.html.new"
 
+install -m 0644 -o root -g root \
+  "$repo/www/docs.html" \
+  "$APP_DIR/www/docs.html.new"
+
 mv -f "$APP_DIR/arduino-helper.py.new" "$APP_DIR/arduino-helper.py"
 mv -f "$APP_DIR/arduino-build-run.new" "$APP_DIR/arduino-build-run"
 mv -f "$APP_DIR/www/index.html.new" "$APP_DIR/www/index.html"
 mv -f "$APP_DIR/www/admin.html.new" "$APP_DIR/www/admin.html"
+mv -f "$APP_DIR/www/docs.html.new" "$APP_DIR/www/docs.html"
 
 commit="$(git rev-parse --short HEAD)"
 log "ファイルを $commit に更新しました"
@@ -166,6 +172,20 @@ fi
 # ローカルヘルスチェック
 if ! curl -fsS --max-time 10 "http://127.0.0.1:8765/ping" >/dev/null; then
   log "ヘルスチェック失敗。バックアップから復元します。" >&2
+  for f in "${FILES[@]}"; do
+    if [ -f "$backup/$f" ]; then
+      mode=0644
+      [ "$f" = "arduino-build-run" ] && mode=0755
+      install -D -m "$mode" -o root -g root "$backup/$f" "$APP_DIR/$f"
+    fi
+  done
+  systemctl restart "$SERVICE" || true
+  exit 1
+fi
+
+if ! curl -fsS --max-time 10 -o "$stage/docs-health.html" "http://127.0.0.1:8765/docs" \
+    || ! grep -q "Arduino Web IDE" "$stage/docs-health.html"; then
+  log "ドキュメントページのヘルスチェック失敗。バックアップから復元します。" >&2
   for f in "${FILES[@]}"; do
     if [ -f "$backup/$f" ]; then
       mode=0644
