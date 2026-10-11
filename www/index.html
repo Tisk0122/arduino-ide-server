@@ -1832,7 +1832,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
     Arduino Uno
   </span>
   <div class="sb-div"></div>
-  <span class="sb-item" id="status-port">
+  <span class="sb-item" id="status-port" role="status" aria-live="polite">
     <i data-lucide="usb" aria-hidden="true"></i>
     シリアル未接続
   </span>
@@ -2078,6 +2078,28 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
   </div>
 </div>
 
+<!-- 初回USBポート設定 -->
+<div class="modal-overlay" id="m-usb-setup">
+  <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="usb-setup-title" aria-describedby="usb-setup-description">
+    <div class="modal-head">
+      <span class="modal-title" id="usb-setup-title">USBボードの準備</span>
+      <button class="modal-x" data-close="m-usb-setup" title="閉じる" aria-label="閉じる"><i data-lucide="x"></i></button>
+    </div>
+    <div class="modal-body">
+      <p class="welcome-copy" id="usb-setup-description">接続するボードをブラウザーに許可すると、USB機器の検出やシリアルモニターを使いやすくなります。</p>
+      <div class="info-notice" id="usb-setup-support"></div>
+      <p class="welcome-copy" id="usb-setup-count" role="status" aria-live="polite">許可済みポートを確認しています…</p>
+      <p class="welcome-copy">「USBポートを許可」を押し、ブラウザーの一覧から接続中のボードを選んでください。複数台使う場合は、1台ずつ許可を追加できます。許可はこのサイトに保存され、あとからブラウザーのサイト設定で取り消せます。</p>
+      <p class="welcome-copy">許可しなくてもエディターとコンパイルは利用できます。カメラやマイクなど、このIDEで不要な権限を求めることはありません。</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" id="usb-setup-skip-btn">今はしない</button>
+      <button class="btn btn-secondary" id="usb-setup-allow-btn">USBポートを許可</button>
+      <button class="btn btn-primary" id="usb-setup-done-btn">準備完了</button>
+    </div>
+  </div>
+</div>
+
 <!-- ヘルパー設定 -->
 <div class="modal-overlay" id="m-helper">
   <div class="modal">
@@ -2319,7 +2341,7 @@ const S = {
     fontSize: 13, tabSize: 2, autosave: 5,
     theme: 'dark', lineNums: true, curLine: true, syntax: true, reduceMotion: false,
   },
-  serial: { port: null, reader: null, writer: null, connected: false, supported: true },
+  serial: { port: null, reader: null, writer: null, connected: false, supported: true, detectedLabel: '', detectedBoardId: '', boardDetectionPending: true, detectionGeneration: 0, authorizedPortCount: 0 },
   helper: { url: IDE_DEFAULTS.url, fallback: IDE_DEFAULTS.fallbackUrl, token: IDE_DEFAULTS.token, adminToken: '', adminTokenTarget: '', active: '', userSet: false, prefillStudentToken: false, publicConfigError: '', ok: false, authed: false, admin: false, adminBad: false, gen: 0, info: null },
   editor: { lineH: 22, padTop: 10 },
   _autosaveTimer: null,
@@ -2407,6 +2429,14 @@ const BOARDS = [
   { id:'esp8266:esp8266:nodemcuv2', name:'NodeMCU 1.0 (ESP8266)', fqbn:'esp8266:esp8266:nodemcuv2', flash:{type:'esp'}, desc:'要 esp8266 パッケージ · ブラウザ書き込み対応' },
   { id:'rp2040:rp2040:rpipico', name:'Raspberry Pi Pico', fqbn:'rp2040:rp2040:rpipico', flash:{type:'uf2'}, desc:'要 rp2040 パッケージ · UF2 をダウンロードしてドライブへコピー' },
 ];
+const USB_BOARD_IDS = new Map([
+  ['2341:0042', 'arduino:avr:mega:cpu=atmega2560'],
+  ['2a03:0042', 'arduino:avr:mega:cpu=atmega2560'],
+  ['2341:8036', 'arduino:avr:leonardo'],
+  ['2a03:8036', 'arduino:avr:leonardo'],
+  ['2341:8037', 'arduino:avr:micro'],
+  ['2a03:8037', 'arduino:avr:micro'],
+]);
 const BOARD_ALIAS = {
   uno:'arduino:avr:uno', nano:'arduino:avr:nano:cpu=atmega328', mega:'arduino:avr:mega:cpu=atmega2560',
   leonardo:'arduino:avr:leonardo', micro:'arduino:avr:micro',
@@ -2665,6 +2695,7 @@ function openModal(id)  {
   }
   modal.classList.add('open');
   const focusTarget = id === 'm-welcome' && modal.querySelector('#welcome-helper-btn')
+    || id === 'm-usb-setup' && modal.querySelector('#usb-setup-allow-btn')
     || modal.querySelector('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])');
   (focusTarget || dialog || modal).focus();
 }
@@ -2674,6 +2705,9 @@ function closeModal(id) {
   if (!modal || !modal.classList.contains('open')) return;
   modal.classList.remove('open');
   if (id === 'm-welcome') rememberWelcomeDismissal();
+  if (id === 'm-usb-setup') {
+    try { sessionStorage.setItem('ide_usb_setup_dismissed', '1'); } catch (_) {}
+  }
   const otherModals = Array.from(document.querySelectorAll('.modal-overlay.open'));
   if (otherModals.length) {
     const topDialog = otherModals[otherModals.length - 1].querySelector('.modal');
@@ -3186,6 +3220,11 @@ const Sk = {
     S.curTab = 0;
     const sk = this.cur();
     if (!sk) return;
+    if (S.serial.boardDetectionPending && S.serial.detectedBoardId) {
+      sk.board = S.serial.detectedBoardId;
+      S.serial.boardDetectionPending = false;
+      IDB.put(S.db, sk);
+    }
     Boards.select(sk.board);
     document.title = `${sk.name} — Arduino Web IDE`;
     this.renderTabs();
@@ -3951,6 +3990,7 @@ const Flash = {
     } finally {
       this.busy = false;
       go.disabled = false;
+      Ser.refreshDetection().catch(err => Ser._detectionFailed(err));
       setTimeout(() => setStatus('準備完了'), 6000);
     }
   },
@@ -4347,11 +4387,76 @@ const Ser = {
       return;
     }
     S.serial.supported = true;
-    // USB が抜かれたら状態を戻す
+    navigator.serial.addEventListener('connect', e => {
+      this.refreshDetection(e.port).catch(err => this._detectionFailed(err));
+    });
     navigator.serial.addEventListener('disconnect', e => {
       if (S.serial.port && e.target === S.serial.port) this._lost('USB が抜かれたため、シリアル接続を終了しました');
+      setTimeout(() => this.refreshDetection().catch(err => this._detectionFailed(err)), 250);
     });
     this._updateUI(S.serial.connected);
+    this.refreshDetection().catch(err => this._detectionFailed(err));
+  },
+
+  _detectionFailed(err) {
+    console.warn('USB device detection failed:', err);
+    S.serial.detectedLabel = 'USB機器を確認できません';
+    S.serial.detectedBoardId = '';
+    S.serial.boardDetectionPending = false;
+    this._updateUI(S.serial.connected);
+  },
+
+  async refreshDetection(newPort) {
+    const generation = ++S.serial.detectionGeneration;
+    const ports = await navigator.serial.getPorts();
+    if (generation !== S.serial.detectionGeneration) return;
+    if (newPort && !ports.includes(newPort)) ports.push(newPort);
+    S.serial.authorizedPortCount = ports.length;
+    const devices = ports.map(port => {
+      const info = port.getInfo();
+      const id = info.vendorId == null || info.productId == null
+        ? ''
+        : `${info.vendorId.toString(16).padStart(4, '0')}:${info.productId.toString(16).padStart(4, '0')}`;
+      const boardId = USB_BOARD_IDS.get(id);
+      return { boardId, board: boardId ? boardById(boardId) : null };
+    });
+    const knownBoards = devices.filter(device => device.board);
+    S.serial.detectedBoardId = '';
+    if (ports.length === 0) {
+      S.serial.detectedLabel = '許可済みUSB機器なし';
+    } else if (ports.length > 1) {
+      S.serial.detectedLabel = 'USB機器を複数検出 — ボードを手動選択してください';
+    } else if (knownBoards.length === 1) {
+      S.serial.detectedLabel = `検出: ${knownBoards[0].board.name}`;
+      S.serial.detectedBoardId = knownBoards[0].boardId;
+      const sketch = Sk.cur();
+      if (sketch) {
+        S.serial.boardDetectionPending = false;
+        if (sketch.board !== knownBoards[0].boardId) {
+          sketch.board = knownBoards[0].boardId;
+          await IDB.put(S.db, sketch);
+        }
+        Boards.select(knownBoards[0].boardId);
+      }
+    } else {
+      S.serial.detectedLabel = 'USB機器を検出 — ボードを手動選択してください';
+    }
+    if (S.serial.boardDetectionPending && !S.serial.detectedBoardId) S.serial.boardDetectionPending = false;
+    this._updateUI(S.serial.connected);
+    updateUsbSetupStatus();
+  },
+
+  async authorizePort() {
+    if (!('serial' in navigator)) return;
+    try {
+      const port = await navigator.serial.requestPort();
+      await this.refreshDetection(port);
+      updateUsbSetupStatus();
+    } catch (err) {
+      if (err.name !== 'NotFoundError') {
+        toast('USBポートを許可できませんでした: ' + this._serialErr(err), 'err', 6000);
+      }
+    }
   },
 
   _serialErr(e) {
@@ -4368,6 +4473,7 @@ const Ser = {
     try {
       const port = await navigator.serial.requestPort();
       await this._open(port, baud);
+      this.refreshDetection(port).catch(err => this._detectionFailed(err));
       toast(`シリアル接続しました (${baud}bps)`, 'ok');
     } catch (e) {
       if (e.name !== 'NotFoundError') toast('接続失敗: ' + this._serialErr(e), 'err', 5000);
@@ -4583,11 +4689,13 @@ const Ser = {
         : 'このブラウザーではシリアル通信を利用できません';
     input.disabled = !conn || !supported;
     send.disabled = !conn || !supported;
+    const portLabel = !supported ? 'シリアル非対応'
+      : conn ? 'シリアル接続中'
+        : S.serial.detectedLabel || 'USB機器を確認中';
     document.getElementById('status-port').innerHTML =
-      '<i data-lucide="usb" aria-hidden="true"></i> ' +
-      (!supported ? 'シリアル非対応' : conn ? 'シリアル接続中' : 'シリアル未接続');
+      '<i data-lucide="usb" aria-hidden="true"></i> ' + escHtml(portLabel);
     document.getElementById('status-port').title = supported
-      ? 'Web Serial API のポート状態'
+      ? '許可済みUSB機器の検出状態。未許可のポートはブラウザーの仕様で検出できません'
       : 'このブラウザーではWeb Serial APIを利用できません';
   },
 };
@@ -5604,6 +5712,9 @@ function initEvents() {
     closeModal('m-welcome');
     document.getElementById('helper-cfg-btn').click();
   });
+  document.getElementById('usb-setup-allow-btn').addEventListener('click', () => Ser.authorizePort());
+  document.getElementById('usb-setup-skip-btn').addEventListener('click', () => finishUsbSetup());
+  document.getElementById('usb-setup-done-btn').addEventListener('click', () => finishUsbSetup());
 
   const readHelperForm = () => {
     const nu = normalizeUrl(document.getElementById('helper-url-input').value);
@@ -5772,6 +5883,58 @@ function fitClearLabel() {
 ================================================================ */
 let startupWatchdog = null;
 let welcomeDismissedThisSession = false;
+let usbSetupFinishedThisSession = false;
+const USB_SETUP_STORAGE_KEY = 'ide_usb_setup_dismissed';
+
+function updateUsbSetupStatus() {
+  const count = document.getElementById('usb-setup-count');
+  const allow = document.getElementById('usb-setup-allow-btn');
+  const support = document.getElementById('usb-setup-support');
+  if (!count || !allow || !support) return;
+  const total = S.serial.authorizedPortCount;
+  count.textContent = `このサイトで許可済みのUSBポート: ${total}台`;
+  allow.textContent = total ? '別のUSBポートも許可' : 'USBポートを許可';
+  support.textContent = S.serial.supported
+    ? 'Web Serial API対応のChrome / EdgeとHTTPSが必要です。ポート選択画面は下のボタンを押したときに開きます。'
+    : 'このブラウザーではUSBシリアルを利用できません。Chrome / EdgeでHTTPSのページを開いてください。';
+}
+
+async function finishUsbSetup() {
+  usbSetupFinishedThisSession = true;
+  try { sessionStorage.setItem(USB_SETUP_STORAGE_KEY, '1'); } catch (_) {}
+  if (S.db) {
+    try { await IDB.setKV(S.db, 'usbSetupDismissed', '1'); }
+    catch (err) {
+      console.warn('USB setup dismissal could not be saved:', err);
+      toast('USB設定案内を保存できませんでした。このタブでは再表示しません', 'warn', 5000);
+    }
+  }
+  closeModal('m-usb-setup');
+  await maybeShowWelcome();
+}
+
+async function maybeShowUSBSetup() {
+  if (!S.serial.supported || usbSetupFinishedThisSession) return false;
+  try {
+    if (sessionStorage.getItem(USB_SETUP_STORAGE_KEY) === '1') {
+      usbSetupFinishedThisSession = true;
+      return false;
+    }
+  } catch (_) {}
+  if (S.db) {
+    try {
+      if ((await IDB.getKV(S.db, 'usbSetupDismissed')) === '1') {
+        usbSetupFinishedThisSession = true;
+        return false;
+      }
+    } catch (err) {
+      console.warn('USB setup dismissal could not be read:', err);
+    }
+  }
+  updateUsbSetupStatus();
+  openModal('m-usb-setup');
+  return true;
+}
 
 function rememberWelcomeDismissal() {
   if (welcomeDismissedThisSession) return;
@@ -5786,6 +5949,7 @@ function rememberWelcomeDismissal() {
 }
 
 async function maybeShowWelcome() {
+  if (await maybeShowUSBSetup()) return;
   if (S.helper.userSet || S.helper.token) return;
   if (welcomeDismissedThisSession) return;
   try {
