@@ -3602,15 +3602,6 @@ const JC = { compile: new JobCard(''), pkg: new JobCard('') };
 const SKEL = new Array(5).join('x').split('').map(() => '<div class="skel"><b></b><div><u style="width:40%"></u><u style="width:85%"></u><u style="width:25%"></u></div></div>').join('');
 
 const Helper = {
-  clientId: (function () {
-    let id = '';
-    try { id = localStorage.getItem('ide_client_id') || ''; } catch (_) {}
-    if (!/^[A-Za-z0-9_-]{8,64}$/.test(id)) {
-      id = (window.crypto && crypto.randomUUID ? crypto.randomUUID() : uid() + uid() + uid()).replace(/[^A-Za-z0-9_-]/g, '');
-      try { localStorage.setItem('ide_client_id', id); } catch (_) {}
-    }
-    return id;
-  })(),
   urls() {
     const a = [normalizeUrl(S.helper.url), normalizeUrl(S.helper.fallback)].filter(Boolean);
     return a.filter((x, i) => a.indexOf(x) === i);
@@ -3627,7 +3618,7 @@ const Helper = {
     return adminToken || S.helper.token;
   },
   headers(json, admin) {
-    const h = { 'X-Client-Id': this.clientId };
+    const h = {};
     if (json) h['Content-Type'] = 'application/json';
     const t = this.tokenFor(admin);
     if (t) h['Authorization'] = 'Bearer ' + t;

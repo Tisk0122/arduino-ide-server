@@ -24,9 +24,13 @@ Python 3.8+ の標準ライブラリだけで動きます。arduino-cli が必�
   HELPER_BUILD_USER      指定すると sudo でそのユーザーとして arduino-cli を実行
   HELPER_BUILD_WRAPPER   ラッパーのパス (既定 /usr/local/libexec/arduino-build-run)
   HELPER_MAX_QUEUE       待ち行列の上限 (既定 40)
-  HELPER_PER_CLIENT      1端末が同時に持てるコンパイル数 (既定 2)
+  HELPER_PER_CLIENT      同じ接続元が同時に持てるコンパイル数 (既定 2)
+  HELPER_ADMIN_MAX_QUEUE 管理操作の待ち行列上限 (既定 10)
+  HELPER_CORS_ORIGINS   CORS の許可元。カンマ区切り。未指定は * (互換設定)
+  HELPER_TRUST_CF_CONNECTING_IP=1
+                         loopback の信頼済みプロキシから CF-Connecting-IP を利用
   HELPER_COMPILE_TIMEOUT コンパイルの上限秒 (既定 900)
-  HELPER_MIN_FREE_MB     空きがこれ未満ならコンパイルを断る (既定 1024)
+  HELPER_MIN_FREE_MB     HOME / Arduino CLI データ領域の最小空き容量を下回ると拒否 (既定 1024)
   HELPER_ALLOW_ASM=1     .s / .S ファイルとアセンブラ指令を許可 (既定は不許可)
 
 ■ API (すべて JSON。Authorization: Bearer <トークン>)
@@ -63,11 +67,13 @@ import base64
 import collections
 import hashlib
 import hmac
+import ipaddress
 import json
 import os
 import re
 import secrets
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -92,6 +98,35 @@ def env_int(name, default, lo=0, hi=10 ** 9):
     return max(lo, min(hi, v))
 
 
+def normalize_origin(value):
+    try:
+        parsed = urlparse(value)
+        if (parsed.scheme.lower() not in ("http", "https") or not parsed.hostname
+                or parsed.username is not None or parsed.password is not None
+                or parsed.path not in ("", "/") or parsed.query or parsed.fragment):
+            raise ValueError
+        host = parsed.hostname.lower()
+        if ":" in host:
+            host = "[" + host + "]"
+        port = parsed.port
+        default_port = (parsed.scheme.lower() == "http" and port == 80) or (
+            parsed.scheme.lower() == "https" and port == 443
+        )
+        netloc = host if port is None or default_port else "%s:%d" % (host, port)
+        return parsed.scheme.lower() + "://" + netloc
+    except ValueError:
+        raise ValueError("CORS origin は http(s) の origin 形式で指定してください: %s" % value)
+
+
+def parse_cors_origins(value):
+    origins = [part.strip() for part in value.split(",") if part.strip()]
+    if origins == ["*"]:
+        return ("*",)
+    if not origins or "*" in origins:
+        raise ValueError("HELPER_CORS_ORIGINS は * 単独、または origin のカンマ区切りで指定してください")
+    return tuple(dict.fromkeys(normalize_origin(origin) for origin in origins))
+
+
 HOME = Path(os.environ.get("HELPER_HOME") or (Path.home() / ".arduino-helper"))
 ADMIN_SETTINGS_FILE = HOME / "admin-settings.json"
 ADMIN_SETTINGS_LOCK = threading.Lock()
@@ -109,6 +144,9 @@ MAX_ZIP_BYTES = 8 * 1024 * 1024
 MAX_ARTIFACT = 12 * 1024 * 1024
 MAX_QUEUE = env_int("HELPER_MAX_QUEUE", 40, 1, 1000)
 PER_CLIENT = env_int("HELPER_PER_CLIENT", 2, 1, 50)
+ADMIN_MAX_QUEUE = env_int("HELPER_ADMIN_MAX_QUEUE", 10, 1, 100)
+CORS_ORIGINS = parse_cors_origins(os.environ.get("HELPER_CORS_ORIGINS", "*"))
+TRUST_CF_CONNECTING_IP = os.environ.get("HELPER_TRUST_CF_CONNECTING_IP") == "1"
 COMPILE_TIMEOUT = env_int("HELPER_COMPILE_TIMEOUT", 900, 30, 7200)
 OP_TIMEOUT = 3600
 MIN_FREE_MB = env_int("HELPER_MIN_FREE_MB", 1024, 0, 10 ** 6)
@@ -126,8 +164,9 @@ MAX_JSON_OUTPUT_CHARS = 20000000  # JSON取得コマンド (lib search 等) の�
 JOB_KEEP_SEC = 600
 RESULT_CACHE_ENTRIES = 32
 RESULT_CACHE_BYTES = 96 * 1024 * 1024
+AUTH_STATE_LIMIT = 5000
 HISTORY_FILE = HOME / "history.jsonl"   # 利用履歴 (JSON 1行1件)
-HISTORY_KEEP = 1000                     # メモリに保持する履歴件数
+HISTORY_KEEP = 4000                     # ファイル保持上限まで統計・表示に使う
 HISTORY_TRIM = 4000                     # これを超えたら履歴ファイルを書き直す
 
 ALLOWED_EXT = {".ino", ".h", ".hpp", ".cpp", ".c"} | ({".s", ".S"} if ALLOW_ASM else set())
@@ -138,7 +177,6 @@ RE_CORE = re.compile(r"^[A-Za-z0-9_.\-]+:[A-Za-z0-9_.\-]+(@[0-9A-Za-z.\-+]+)?$")
 RE_LIBNAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 _.+()&'\-]{0,98}$")
 RE_VERSION = re.compile(r"^[0-9A-Za-z][0-9A-Za-z.\-+]{0,40}$")
 RE_FILE = re.compile(r"^[^/\\\x00-\x1f.][^/\\\x00-\x1f]{0,99}$")
-RE_CLIENT = re.compile(r"^[A-Za-z0-9_\-]{8,64}$")
 RE_JOBID = re.compile(r"^[0-9a-f]{24}$")
 
 CLI = None
@@ -210,6 +248,18 @@ def build_cmd(args, timeout, cancel_file=None, cleanup=()):
     return [sys.executable, WRAPPER] + opts + tail
 
 
+def kill_process_tree(process):
+    try:
+        if os.name == "posix":
+            os.killpg(process.pid, signal.SIGKILL)
+        else:
+            process.kill()
+    except ProcessLookupError:
+        return
+    except OSError as e:
+        log("CLI プロセスグループを終了できません: %s" % e)
+
+
 def run_cli(args, timeout=120, on_line=None, cancel_file=None, cleanup=()):
     """arduino-cli を実行して (returncode, output) を返す。"""
     if not cli_available():
@@ -227,10 +277,7 @@ def run_cli(args, timeout=120, on_line=None, cancel_file=None, cleanup=()):
         return 127, str(e)
     # ラッパーが上限時間で止めるはずだが、念のため API 側でも見張る
     def _kill():
-        try:
-            p.kill()
-        except Exception:
-            pass
+        kill_process_tree(p)
     timer = threading.Timer(timeout + 60, _kill)
     timer.daemon = True
     timer.start()
@@ -261,11 +308,26 @@ def run_cli(args, timeout=120, on_line=None, cancel_file=None, cleanup=()):
 
 def run_cli_json(args, timeout=120):
     rc, out = run_cli(list(args) + ["--format", "json"], timeout=timeout)
-    # arduino-cli v1.5+ は lib/core search で結果があっても rc=1 を返すことがある。
-    # JSON がパースできれば rc は無視する。rc=127 (コマンド未発見) だけは即エラー。
+    # arduino-cli v1.5+ は検索結果があっても rc=1 を返すことがあるため、
+    # 有効なJSONを伴う rc=1 のみ許容する。
     if rc == 127:
         log("arduino-cli エラー %s: %s" % (args, out[-500:]))
         raise ApiError(500, "arduino-cli の実行に失敗しました。サーバーのログを確認してください")
+    if rc in (124, 130) or rc < 0:
+        log("arduino-cli が中断されました (rc=%d, args=%s): %s" % (rc, args, out[-200:]))
+        raise ApiError(504 if rc == 124 else 503,
+                       "arduino-cli の処理が時間切れまたは中断になりました")
+    unsupported_flag = "--omit-releases-details" in args and re.search(
+        r"(?:unknown|unrecognized|unsupported|not defined|not recognized).{0,100}--omit-releases-details|"
+        r"--omit-releases-details.{0,100}(?:unknown|unrecognized|unsupported|not defined|not recognized)",
+        out, re.I | re.S)
+    if unsupported_flag:
+        fallback_args = [arg for arg in args if arg != "--omit-releases-details"]
+        return run_cli_json(fallback_args, timeout=timeout)
+    allows_search_rc1 = args[:2] in (["core", "search"], ["lib", "search"])
+    if rc != 0 and not (rc == 1 and allows_search_rc1):
+        log("arduino-cli がエラーを返しました (rc=%d, args=%s): %s" % (rc, args, out[-200:]))
+        raise ApiError(502, "arduino-cli の処理に失敗しました。ネットワークやパッケージインデックスを確認してください")
     if rc != 0:
         log("arduino-cli rc=%d %s (JSON パースを試みます): %s" % (rc, args, out[-200:]))
     # 1) 全体をそのままパース
@@ -307,7 +369,7 @@ def run_cli_json(args, timeout=120):
             except ValueError:
                 continue
     log("arduino-cli JSON 解析失敗 (args=%s) 出力先頭: %r" % (args, out[:300]))
-    raise ApiError(500, "arduino-cli の出力を解析できません")
+    raise ApiError(502, "arduino-cli から有効な応答を取得できません。ネットワークやパッケージインデックスを確認してください")
 
 
 def cli_version():
@@ -488,6 +550,14 @@ def norm_libs_list(data):
     return res
 
 
+def validate_cli_collection(data, key, command):
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict) and isinstance(data.get(key), list):
+        return data
+    raise ApiError(502, "arduino-cli の%s応答形式が不正です。サーバーのログを確認してください" % command)
+
+
 def norm_boards(data):
     # arduino-cli v0.x: {"boards": [...]}  each has "fqbn", "platform" dict
     # arduino-cli v1.0+: same shape; "platform" may have "metadata.id" or direct "id"
@@ -544,12 +614,27 @@ def finish(job, state, error=None):
 def purge_jobs():
     now = time.time()
     with JOBS_LOCK:
-        for k in [k for k, v in JOBS.items()
-                  if (v["state"] in ("done", "error", "cancelled") and now - v["t"] > JOB_KEEP_SEC)
-                  or (v["state"] == "queued" and now - v["created"] > 3 * 3600)]:
-            JOBS.pop(k, None)
-            if k in QUEUE:
-                QUEUE.remove(k)
+        stale_compile_ids = [
+            k for k, v in JOBS.items()
+            if v["kind"] == "compile" and v["state"] == "queued"
+            and now - v["created"] > 3 * 3600
+        ]
+        for jid in stale_compile_ids:
+            job = JOBS[jid]
+            if jid in QUEUE:
+                QUEUE.remove(jid)
+            job["result"] = {"success": False, "output": "",
+                             "errors": ["待機時間が上限を超えたため中断されました"], "time": 0}
+            finish(job, "error", "待機時間が上限を超えたため中断されました")
+        expired_ids = [
+            k for k, v in JOBS.items()
+            if v["state"] in ("done", "error", "cancelled")
+            and now - v["t"] > JOB_KEEP_SEC
+        ]
+        for jid in expired_ids:
+            JOBS.pop(jid, None)
+            if jid in QUEUE:
+                QUEUE.remove(jid)
     # 取り残された作業ディレクトリ
     try:
         for p in WORK_DIR.iterdir():
@@ -584,11 +669,15 @@ def load_history():
     global HISTORY_LINES
     try:
         with open(str(HISTORY_FILE), "r", encoding="utf-8", errors="replace") as f:
-            lines = f.readlines()
+            lines = collections.deque(maxlen=HISTORY_KEEP)
+            line_count = 0
+            for line in f:
+                lines.append(line)
+                line_count += 1
     except OSError:
         return
     recs = []
-    for line in lines[-HISTORY_KEEP:]:
+    for line in lines:
         line = line.strip()
         if not line:
             continue
@@ -601,22 +690,33 @@ def load_history():
     with HISTORY_LOCK:
         HISTORY.clear()
         HISTORY.extend(recs)
-        HISTORY_LINES = len(lines)
-    if len(lines) > HISTORY_TRIM:
+        HISTORY_LINES = line_count
+    if line_count > HISTORY_TRIM:
         trim_history()
 
 
 def trim_history():
-    """履歴ファイルが大きくなったら直近 HISTORY_KEEP*2 件だけ残して書き直す。"""
+    """履歴が上限を超えたら直近半分を残し、メモリ上の履歴も同期する。"""
     global HISTORY_LINES
     with HISTORY_LOCK:
         try:
             with open(str(HISTORY_FILE), "r", encoding="utf-8", errors="replace") as f:
-                lines = [l for l in f.readlines() if l.strip()][-HISTORY_KEEP * 2:]
+                lines = collections.deque((line for line in f if line.strip()),
+                                          maxlen=HISTORY_KEEP // 2)
             tmp = HISTORY_FILE.with_suffix(".tmp")
             with open(str(tmp), "w", encoding="utf-8") as f:
                 f.writelines(lines)
             os.replace(str(tmp), str(HISTORY_FILE))
+            recs = []
+            for line in lines:
+                try:
+                    record = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(record, dict) and isinstance(record.get("t"), (int, float)):
+                    recs.append(record)
+            HISTORY.clear()
+            HISTORY.extend(recs)
             HISTORY_LINES = len(lines)
         except OSError as e:
             log("履歴ファイルを整理できません: %s" % e)
@@ -813,30 +913,44 @@ def process_rss_mb():
 # 管理ジョブ (ボード・ライブラリの変更)
 # ---------------------------------------------------------------
 def start_admin_job(title, args, cleanup=None, client="admin"):
-    job = new_job("admin", client, True)
-    job["title"] = title
+    with JOBS_LOCK:
+        waiting = sum(1 for item in JOBS.values()
+                      if item["kind"] == "admin" and item["state"] == "queued")
+        overloaded = waiting >= ADMIN_MAX_QUEUE
+        if not overloaded:
+            job = new_job("admin", client, True)
+            job["title"] = title
+    if overloaded:
+        if cleanup:
+            cleanup()
+        raise ApiError(429, "管理作業が混み合っています。処理が終わってからもう一度お試しください",
+                       {"retryAfter": 30})
 
     def worker():
         global ADMIN_WAITING
+        waiting = False
+        acquired = False
         try:
             with JOBS_LOCK:
                 ADMIN_WAITING += 1
+                waiting = True
             if CLI_LOCK.locked():
                 job["lines"].append("待機中...(他の処理が終わるまでお待ちください)")
-            CLI_LOCK.acquire()
+            if not CLI_LOCK.acquire(timeout=OP_TIMEOUT):
+                finish(job, "error", "CLI の待機時間が上限を超えました")
+                return
+            acquired = True
             with JOBS_LOCK:
                 ADMIN_WAITING -= 1
-            try:
-                if job["cancel"]:
-                    finish(job, "cancelled")
-                    return
-                job["state"] = "running"
-                def on_line(l):
-                    if len(job["lines"]) < MAX_JOB_LINES:
-                        job["lines"].append(l)
-                rc, _ = run_cli(args, timeout=OP_TIMEOUT, on_line=on_line, cancel_file=cancel_path(job))
-            finally:
-                CLI_LOCK.release()
+                waiting = False
+            if job["cancel"]:
+                finish(job, "cancelled")
+                return
+            job["state"] = "running"
+            def on_line(l):
+                if len(job["lines"]) < MAX_JOB_LINES:
+                    job["lines"].append(l)
+            rc, _ = run_cli(args, timeout=OP_TIMEOUT, on_line=on_line, cancel_file=cancel_path(job))
             job["rc"] = rc
             if job["cancel"]:
                 finish(job, "cancelled")
@@ -849,13 +963,29 @@ def start_admin_job(title, args, cleanup=None, client="admin"):
             job["lines"].append("内部エラーが発生しました")
             finish(job, "error", "内部エラー")
         finally:
+            if acquired:
+                CLI_LOCK.release()
+            if waiting:
+                with JOBS_LOCK:
+                    ADMIN_WAITING -= 1
             if cleanup:
                 try:
                     cleanup()
                 except Exception:
                     pass
 
-    threading.Thread(target=worker, daemon=True).start()
+    thread = threading.Thread(target=worker, daemon=True)
+    try:
+        thread.start()
+    except RuntimeError as e:
+        log("管理ジョブのスレッドを開始できません: %r" % (e,))
+        finish(job, "error", "管理作業を開始できません")
+        if cleanup:
+            try:
+                cleanup()
+            except Exception as cleanup_error:
+                log("管理ジョブの一時データを削除できません: %r" % (cleanup_error,))
+        raise ApiError(503, "管理作業を開始できません")
     return job["id"]
 
 
@@ -1155,10 +1285,30 @@ def submit_compile(req, client):
 
 
 def free_mb():
+    paths = [HOME, WORK_DIR]
+    data_dir = os.environ.get("ARDUINO_DIRECTORIES_DATA")
+    user_dir = os.environ.get("ARDUINO_DIRECTORIES_USER")
+    downloads_dir = os.environ.get("ARDUINO_DIRECTORIES_DOWNLOADS")
+    if data_dir:
+        data_path = Path(data_dir)
+        paths.extend((data_path, data_path / "build-cache"))
+    if user_dir:
+        paths.append(Path(user_dir))
+    if downloads_dir:
+        paths.append(Path(downloads_dir))
+
     try:
-        return shutil.disk_usage(str(HOME)).free // (1024 * 1024)
+        free_bytes = []
+        for path in dict.fromkeys(paths):
+            while not path.exists():
+                parent = path.parent
+                if parent == path:
+                    raise OSError("No existing parent directory for %s" % path)
+                path = parent
+            free_bytes.append(shutil.disk_usage(str(path)).free)
+        return min(free_bytes) // (1024 * 1024)
     except OSError:
-        return 10 ** 9
+        return None
 
 
 def run_compile(job):
@@ -1166,7 +1316,10 @@ def run_compile(job):
     global COMPILES_DONE
     plan = job["plan"]
     fqbn, sketch, main_new = plan["fqbn"], plan["sketch"], plan["main"]
-    if free_mb() < MIN_FREE_MB:
+    available_mb = free_mb()
+    if available_mb is None:
+        raise ApiError(503, "サーバーの空き容量を確認できません。管理者に連絡してください")
+    if available_mb < MIN_FREE_MB:
         raise ApiError(507, "サーバーのディスク空きが不足しています。管理者に連絡してください")
     jobdir = WORK_DIR / ("j_" + job["id"])
     sdir = jobdir / sketch
@@ -1314,8 +1467,9 @@ AUTH_LOCK = threading.Lock()
 
 def auth_blocked(ip):
     with AUTH_LOCK:
+        now = time.time()
         until = AUTH_BLOCK.get(ip, 0)
-        if until > time.time():
+        if until > now:
             return int(until - time.time()) + 1
         AUTH_BLOCK.pop(ip, None)
     return 0
@@ -1324,14 +1478,21 @@ def auth_blocked(ip):
 def auth_failed(ip):
     now = time.time()
     with AUTH_LOCK:
+        for address, until in list(AUTH_BLOCK.items()):
+            if until <= now:
+                AUTH_BLOCK.pop(address, None)
         lst = [t for t in AUTH_FAILS.get(ip, []) if now - t < 60]
         lst.append(now)
         AUTH_FAILS[ip] = lst
         if len(lst) >= 10:
+            if ip not in AUTH_BLOCK and len(AUTH_BLOCK) >= AUTH_STATE_LIMIT:
+                oldest = min(AUTH_BLOCK, key=AUTH_BLOCK.get)
+                AUTH_BLOCK.pop(oldest, None)
             AUTH_BLOCK[ip] = now + 120
             AUTH_FAILS.pop(ip, None)
-        if len(AUTH_FAILS) > 5000:
-            AUTH_FAILS.clear()
+        if len(AUTH_FAILS) > AUTH_STATE_LIMIT:
+            oldest = min(AUTH_FAILS, key=lambda address: AUTH_FAILS[address][-1])
+            AUTH_FAILS.pop(oldest, None)
 
 
 def role_for(token):
@@ -1424,12 +1585,14 @@ def admin_overview():
             "host": HOST, "port": PORT, "home": str(HOME),
             "wrapper": WRAPPER or "", "wrapperFound": cli_available(),
             "buildUser": BUILD_USER or "", "singleToken": SINGLE_TOKEN, "allowAsm": ALLOW_ASM,
+            "corsOrigins": list(CORS_ORIGINS), "trustCfConnectingIp": TRUST_CF_CONNECTING_IP,
             "cliVersion": cli_version() if cli_available() else "",
             "cliBusy": CLI_LOCK.locked(), "gen": gen,
             "freeMb": free_mb(), "rssMb": process_rss_mb(),
         },
         "limits": {
-            "maxQueue": MAX_QUEUE, "perClient": PER_CLIENT, "compileTimeout": COMPILE_TIMEOUT,
+            "maxQueue": MAX_QUEUE, "perClient": PER_CLIENT, "adminMaxQueue": ADMIN_MAX_QUEUE,
+            "compileTimeout": COMPILE_TIMEOUT,
             "minFreeMb": MIN_FREE_MB, "jobKeepSec": JOB_KEEP_SEC, "maxBodyMb": MAX_BODY // (1024 * 1024),
             "maxSourceMb": MAX_SOURCE_TOTAL // (1024 * 1024), "maxFiles": MAX_FILES,
             "resultCacheEntries": RESULT_CACHE_ENTRIES, "resultCacheMb": RESULT_CACHE_BYTES // (1024 * 1024),
@@ -1487,19 +1650,35 @@ class Handler(BaseHTTPRequestHandler):
 
     def _client_ip(self):
         ip = self.client_address[0]
-        if ip in ("127.0.0.1", "::1"):
+        if TRUST_CF_CONNECTING_IP and ip in ("127.0.0.1", "::1"):
             fwd = self.headers.get("CF-Connecting-IP") if self.headers else None
-            if fwd:
-                return fwd.strip()[:64]
+            if fwd and len(fwd) <= 64 and "," not in fwd:
+                try:
+                    return str(ipaddress.ip_address(fwd.strip()))
+                except ValueError:
+                    pass
         return ip
 
     def _client_id(self):
-        cid = self.headers.get("X-Client-Id", "")
-        return cid if RE_CLIENT.match(cid) else "ip-" + self._client_ip()
+        # 偽装可能なリクエスト値ではなく、接続元を管理者トークンで不可逆化して識別する。
+        peer = self._client_ip().encode("utf-8", "replace")
+        key = (ADMIN_TOKEN or TOKEN or "").encode("utf-8", "replace")
+        digest = hmac.new(key, peer, hashlib.sha256).hexdigest()[:32]
+        return "net-" + digest
 
     def _cors(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Helper-Token, X-Client-Id")
+        origin = self.headers.get("Origin", "") if self.headers else ""
+        self.send_header("Vary", "Origin")
+        if CORS_ORIGINS == ("*",):
+            self.send_header("Access-Control-Allow-Origin", "*")
+        elif origin:
+            try:
+                normalized = normalize_origin(origin)
+            except ValueError:
+                normalized = ""
+            if normalized in CORS_ORIGINS:
+                self.send_header("Access-Control-Allow-Origin", normalized)
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Helper-Token")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Private-Network", "true")
         self.send_header("Access-Control-Max-Age", "600")
@@ -1579,8 +1758,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if role == "admin":
             return
-        # 生徒用トークンは全員共通になり得るため、ジョブIDだけ知っている別端末から
-        # 他端末のジョブを操作できないよう X-Client-Id を所有者識別子として使う。
+        # Client-supplied IDs are forgeable; use the server-derived network identity.
         if job["client"] != self._client_id():
             raise ApiError(403, "このジョブを操作する権限がありません")
 
@@ -1734,45 +1912,40 @@ class Handler(BaseHTTPRequestHandler):
                 if len(qq) < 2:
                     return self._send(200, {"cores": []})
                 def _cores_search():
-                    try:
-                        return {"cores": norm_cores(run_cli_json(["core", "search", qq]))[:200]}
-                    except ApiError:
-                        return {"cores": []}
+                    data = validate_cli_collection(run_cli_json(["core", "search", qq]),
+                                                   "platforms", "core search")
+                    return {"cores": norm_cores(data)[:200]}
                 data = read_cached("cs:" + qq, 120, _cores_search)
                 return self._send(200, data)
             if path == "/cores/list":
                 def _cores_list():
-                    try:
-                        return {"cores": norm_cores(run_cli_json(["core", "list"]))}
-                    except ApiError:
-                        return {"cores": []}
-                return self._send(200, read_cached("cl", 20, _cores_list))
+                    data = validate_cli_collection(run_cli_json(["core", "list"]),
+                                                   "platforms", "core list")
+                    return {"cores": norm_cores(data)}
+                data = read_cached("cl", 20, _cores_list)
+                return self._send(200, data)
             if path == "/libs/search":
                 qq = q.get("q", "")[:100]
                 # 2文字未満または特殊クエリは空リストを返す (arduino-cli がエラーを返す場合がある)
                 if len(qq) < 2:
                     return self._send(200, {"libs": []})
                 def _libs_search():
-                    try:
-                        # --omit-releases-details: 最新バージョン以外の詳細を省略 → 出力を大幅削減
-                        # (arduino-cli v0.x にはこのフラグがないためフォールバックする)
-                        try:
-                            data = run_cli_json(["lib", "search", qq, "--omit-releases-details"])
-                        except ApiError:
-                            data = run_cli_json(["lib", "search", qq])
-                        libs = norm_libs_search(data)
-                        return {"libs": sort_libs_by_relevance(libs, qq)[:200]}
-                    except ApiError:
-                        return {"libs": []}
+                    # --omit-releases-details: 最新バージョン以外の詳細を省略 → 出力を大幅削減
+                    # 未対応CLIの場合は run_cli_json がオプションエラーを限定的に検出して再試行する。
+                    data = validate_cli_collection(
+                        run_cli_json(["lib", "search", qq, "--omit-releases-details"]),
+                        "libraries", "lib search")
+                    libs = norm_libs_search(data)
+                    return {"libs": sort_libs_by_relevance(libs, qq)[:200]}
                 data = read_cached("ls:" + qq, 120, _libs_search)
                 return self._send(200, data)
             if path == "/libs/list":
                 def _libs_list():
-                    try:
-                        return {"libs": norm_libs_list(run_cli_json(["lib", "list"]))}
-                    except ApiError:
-                        return {"libs": []}
-                return self._send(200, read_cached("ll", 20, _libs_list))
+                    data = validate_cli_collection(run_cli_json(["lib", "list"]),
+                                                   "installed_libraries", "lib list")
+                    return {"libs": norm_libs_list(data)}
+                data = read_cached("ll", 20, _libs_list)
+                return self._send(200, data)
             m = re.match(r"^/jobs/([0-9a-f]{24})$", path)
             if m:
                 return self._send(200, self._job_view(m.group(1), q))

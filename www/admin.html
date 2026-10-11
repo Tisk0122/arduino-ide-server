@@ -630,7 +630,7 @@ footer {
     </section>
 
     <section>
-      <div class="sec-head"><h2>利用統計</h2><span class="sec-note">履歴ファイルの全件を集計</span></div>
+      <div class="sec-head"><h2>利用統計</h2><span class="sec-note">保存中の履歴を集計（最大4,000件。超過時は直近2,000件を保持）</span></div>
       <div class="grid g4">
         <div class="card"><h3>成功率</h3>
           <div class="big" id="st-rate">-</div>
@@ -845,7 +845,7 @@ function api(path, timeoutMs, method, body) {
   method = method || 'GET';
   var opts = {
     method: method,
-    headers: { 'Authorization': 'Bearer ' + state.token, 'X-Client-Id': 'admin-console' },
+    headers: { 'Authorization': 'Bearer ' + state.token },
     cache: 'no-store'
   };
   if (body) {
@@ -1083,8 +1083,8 @@ function render(d) {
   $('#srv-started').textContent = fmtTime(s.started);
   $('#srv-note').textContent = (s.host || '') + ':' + (s.port || '') + '  ' + (s.home || '');
   var free = s.freeMb;
-  $('#srv-free').innerHTML = (free == null ? '-' : (free >= 1024 ? (free / 1024).toFixed(1) : free)) +
-    '<small>' + (free != null && free >= 1024 ? 'GB' : 'MB') + ' 空き</small>';
+  $('#srv-free').innerHTML = (free == null ? '確認不可' : (free >= 1024 ? (free / 1024).toFixed(1) : free)) +
+    '<small>' + (free == null ? '' : (free >= 1024 ? 'GB' : 'MB') + ' 空き') + '</small>';
   $('#srv-free').className = 'big' + (free != null && free < 2048 ? ' ng' : '');
   $('#srv-free2').textContent = free == null ? '-' : (free + ' MB');
   $('#srv-rss').textContent = s.rssMb == null ? '取得不可' : (s.rssMb + ' MB');
@@ -1156,6 +1156,9 @@ function render(d) {
   sw.push(stat('待受', esc(s.host) + ':' + esc(s.port)));
   sw.push(stat('データ置き場', '<span class="mono" style="font-size:11px">' + esc(s.home) + '</span>', '', 'stat-detail'));
   sw.push(stat('実行ユーザー', s.buildUser ? esc(s.buildUser) : '直接実行'));
+  sw.push(stat('CORS 許可元', esc((s.corsOrigins || ['*']).join(', '))));
+  sw.push(stat('Cloudflare プロキシIP信頼', s.trustCfConnectingIp ? '有効' : '無効',
+               s.trustCfConnectingIp ? 'warn' : ''));
   sw.push(stat('単一トークン', tk.singleToken ? '有効' : '無効', tk.singleToken ? 'warn' : ''));
   sw.push(stat('アセンブラ許可', s.allowAsm ? '有効' : '無効'));
   sw.push(stat('PID', '<span class="mono">' + esc(s.pid) + '</span>'));
@@ -1165,7 +1168,8 @@ function render(d) {
   var lm = d.limits || {};
   var lim = [];
   lim.push(stat('待ち行列の上限', lm.maxQueue));
-  lim.push(stat('端末あたり同時実行', lm.perClient));
+  lim.push(stat('管理作業 待ち行列上限', lm.adminMaxQueue));
+  lim.push(stat('接続元あたり同時実行', lm.perClient));
   lim.push(stat('コンパイル上限', lm.compileTimeout + ' 秒'));
   lim.push(stat('空きディスク下限', lm.minFreeMb + ' MB'));
   lim.push(stat('ジョブ保持時間', lm.jobKeepSec + ' 秒'));

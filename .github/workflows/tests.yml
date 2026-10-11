@@ -1,0 +1,30 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Check Python syntax
+        run: |
+          python -m py_compile arduino-helper.py
+          python -c "import ast, pathlib; ast.parse(pathlib.Path('arduino-build-run').read_text(encoding='utf-8'))"
+      - name: Check shell syntax
+        run: |
+          for script in install.sh github-update.sh configure-github-webhook.sh backup-arduino-helper.sh; do
+            bash -n "$script"
+          done

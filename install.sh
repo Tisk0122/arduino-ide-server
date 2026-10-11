@@ -41,7 +41,7 @@ warn() { printf '警告: %s\n' "$*" >&2; }
 die()  { printf 'エラー: %s\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || die "root 権限で実行してください:  sudo bash install.sh"
-for f in arduino-helper.py arduino-build-run github-update.sh configure-github-webhook.sh www/index.html www/admin.html www/docs.html; do
+for f in arduino-helper.py arduino-build-run github-update.sh configure-github-webhook.sh backup-arduino-helper.sh www/index.html www/admin.html www/docs.html; do
   [ -f "$HERE/$f" ] || die "$HERE/$f がありません。アーカイブを展開したフォルダで実行してください"
 done
 command -v systemctl >/dev/null || die "systemd が必要です"
@@ -141,6 +141,7 @@ install -m 0644 -o root -g root "$HERE/www/admin.html" "$APP_DIR/www/admin.html"
 install -m 0644 -o root -g root "$HERE/www/docs.html" "$APP_DIR/www/docs.html"
 install -m 0700 -o root -g root "$HERE/github-update.sh" /usr/local/libexec/arduino-helper-update
 install -m 0700 -o root -g root "$HERE/configure-github-webhook.sh" /usr/local/libexec/arduino-helper-configure-github-webhook
+install -m 0750 -o root -g root "$HERE/backup-arduino-helper.sh" /usr/local/sbin/arduino-helper-backup
 cat > "$CONF_DIR/build-run.conf" <<EOF
 {"workroot": "$H_HOME", "cli": "$CLI"}
 EOF
@@ -151,6 +152,9 @@ if [ ! -f "$CONF_DIR/helper.env" ]; then
 #HELPER_HOST=127.0.0.1          # Cloudflare Tunnel だけで使うなら 127.0.0.1 のまま
 #HELPER_MAX_QUEUE=40            # 待ち行列の上限
 #HELPER_PER_CLIENT=2            # 1台が同時に持てるコンパイル数
+#HELPER_ADMIN_MAX_QUEUE=10      # 管理作業の待ち行列上限
+#HELPER_CORS_ORIGINS=https://ide.example.org,https://www.example.org
+#HELPER_TRUST_CF_CONNECTING_IP=0 # 信頼できるローカルプロキシを使わない場合
 #HELPER_COMPILE_TIMEOUT=900     # 1回のコンパイルの上限 (秒)
 #HELPER_MIN_FREE_MB=1024        # 空きがこれ未満ならコンパイルを断る
 #HELPER_SINGLE_TOKEN=1          # 1人で使うとき: 生徒用トークンで管理操作もできる
@@ -182,8 +186,47 @@ install -m 0440 -o root -g root "$sudoers_tmp" /etc/sudoers.d/arduino-helper
 rm -f "$sudoers_tmp"
 
 say "7/8 systemd サービス"
-mem_kb="$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)"
-mem_max=$(( mem_kb * 85 / 100 / 1024 )); mem_high=$(( mem_kb * 75 / 100 / 1024 ))
+read -r mem_high mem_max < <(python3 - <<'PY'
+import pathlib
+import re
+import sys
+
+meminfo = pathlib.Path("/proc/meminfo").read_text()
+match = re.search(r"^MemTotal:\s+(\d+)\s+kB$", meminfo, re.M)
+if not match:
+    sys.exit("MemTotal を取得できません")
+host_kb = int(match.group(1))
+limits = []
+cgroups = pathlib.Path("/proc/self/cgroup").read_text().splitlines()
+for entry in cgroups:
+    parts = entry.split(":", 2)
+    if len(parts) != 3:
+        continue
+    controllers, relative = parts[1], parts[2].lstrip("/")
+    if ".." in pathlib.PurePosixPath(relative).parts:
+        continue
+    if not controllers:
+        files = (pathlib.Path("/sys/fs/cgroup") / relative / "memory.max",)
+    elif "memory" in controllers.split(","):
+        files = (pathlib.Path("/sys/fs/cgroup/memory") / relative / "memory.limit_in_bytes",)
+    else:
+        continue
+    for file in files:
+        try:
+            value = file.read_text().strip()
+        except OSError:
+            continue
+        if value.isdigit() and int(value) > 0:
+            limit_kb = int(value) // 1024
+            if 0 < limit_kb < host_kb:
+                limits.append(limit_kb)
+effective_kb = min([host_kb] + limits)
+if effective_kb < 128 * 1024:
+    sys.exit("利用可能メモリが128 MiB未満です。systemd MemoryMax を安全に設定できません")
+budget_mb = effective_kb // 1024
+print(max(1, budget_mb * 75 // 100), max(1, budget_mb * 85 // 100))
+PY
+)
 cat > /etc/systemd/system/arduino-helper.service <<EOF
 [Unit]
 Description=Arduino Web IDE compile server
@@ -198,6 +241,7 @@ UMask=0007
 Environment=HELPER_HOME=$H_HOME
 Environment=HELPER_HOST=127.0.0.1
 Environment=HELPER_PORT=$HELPER_PORT
+Environment=HELPER_TRUST_CF_CONNECTING_IP=1
 Environment=HELPER_BUILD_USER=$B_USER
 Environment=HELPER_BUILD_WRAPPER=$WRAP
 Environment=ARDUINO_CONFIG_FILE=$B_CONFIG
@@ -280,5 +324,6 @@ echo "状態確認   : systemctl status arduino-helper"
 echo "ログ       : journalctl -u arduino-helper -f"
 echo "管理画面   : http://127.0.0.1:$HELPER_PORT/admin  (管理者トークンが必要)"
 echo "再起動     : sudo systemctl restart arduino-helper"
+echo "バックアップ: sudo arduino-helper-backup"
 echo "配布リンク : sudo -u $H_USER env HELPER_HOME=$H_HOME python3 $APP_DIR/arduino-helper.py --share-link https://あなたのURL"
 [ "$fail" -eq 0 ] || { echo; echo "※ [NG] の項目があります。上のメッセージを確認してください。"; exit 1; }
