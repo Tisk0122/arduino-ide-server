@@ -1003,6 +1003,22 @@ svg { display: block; flex-shrink: 0; }
 #status-msg.ok   { color: #A6F6C0; }
 #status-msg.err  { color: #FFC4BA; }
 #status-msg.info { color: #B8E0FF; }
+.save-indicator { color: var(--tx2); }
+.save-indicator[data-state="pending"] { color: var(--warn); }
+.save-indicator[data-state="saving"] { color: #B8E0FF; }
+.save-indicator[data-state="saved"] { color: #A6F6C0; }
+.save-indicator[data-state="error"] { color: #FFC4BA; }
+#status-save-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 /* ==============================================================
    モーダル — より洗練されたデザイン
@@ -1808,6 +1824,8 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
 <!-- ステータスバー -->
 <div id="statusbar">
   <span id="status-msg" role="status" aria-live="polite">IDEを準備しています…</span>
+  <span class="sb-item save-indicator" id="status-save" data-state="saved" role="status" aria-live="off">保存済み</span>
+  <span id="status-save-announcement" role="status" aria-live="polite" aria-atomic="true"></span>
   <div class="sb-div"></div>
   <span class="sb-item" id="status-board">
     <i data-lucide="cpu" aria-hidden="true"></i>
@@ -2305,6 +2323,11 @@ const S = {
   helper: { url: IDE_DEFAULTS.url, fallback: IDE_DEFAULTS.fallbackUrl, token: IDE_DEFAULTS.token, adminToken: '', adminTokenTarget: '', active: '', userSet: false, prefillStudentToken: false, publicConfigError: '', ok: false, authed: false, admin: false, adminBad: false, gen: 0, info: null },
   editor: { lineH: 22, padTop: 10 },
   _autosaveTimer: null,
+  _autosaveCountdownTimer: null,
+  _autosaveAt: 0,
+  _savePromise: null,
+  _saveQueued: false,
+  _modalOpeners: new WeakMap(),
   _ctxTarget: null,
   _renameTarget: null,
   _deleteTarget: null,
@@ -2580,6 +2603,29 @@ function setStatus(msg, cls='') {
   el.className = cls;
 }
 
+function setSaveIndicator(msg, state) {
+  const el = document.getElementById('status-save');
+  if (!el) return;
+  const changed = el.textContent !== msg;
+  el.textContent = msg;
+  el.dataset.state = state;
+  const announcement = document.getElementById('status-save-announcement');
+  if (changed && announcement && !msg.startsWith('自動保存まで ')) announcement.textContent = msg;
+}
+
+function updateAutosaveIndicator() {
+  if (!S.dirty.size) {
+    setSaveIndicator('保存済み', 'saved');
+    return;
+  }
+  if (S._autosaveAt) {
+    const seconds = Math.max(1, Math.ceil((S._autosaveAt - Date.now()) / 1000));
+    setSaveIndicator(`自動保存まで ${seconds} 秒`, 'pending');
+    return;
+  }
+  setSaveIndicator(S.cfg.autosave ? '未保存の変更があります' : '未保存の変更・自動保存OFF', 'pending');
+}
+
 function updateToastPosition() {
   const topbar = document.getElementById('topbar');
   const toolbar = document.getElementById('toolbar');
@@ -2605,16 +2651,37 @@ function setHelperStatus(kind, text) {
 
 function openModal(id)  {
   const modal = document.getElementById(id);
-  modal.classList.add('open');
-  if (id === 'm-welcome') {
-    const focusTarget = modal.querySelector('#welcome-helper-btn');
-    if (focusTarget) focusTarget.focus();
+  if (!modal.classList.contains('open')) S._modalOpeners.set(modal, document.activeElement);
+  const dialog = modal.querySelector('.modal');
+  if (dialog) {
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    if (!dialog.hasAttribute('tabindex')) dialog.setAttribute('tabindex', '-1');
+    const title = dialog.querySelector('.modal-title');
+    if (title) {
+      if (!title.id) title.id = id + '-title';
+      dialog.setAttribute('aria-labelledby', title.id);
+    }
   }
+  modal.classList.add('open');
+  const focusTarget = id === 'm-welcome' && modal.querySelector('#welcome-helper-btn')
+    || modal.querySelector('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])');
+  (focusTarget || dialog || modal).focus();
 }
 function closeModal(id) {
+  const modal = document.getElementById(id);
   if (id === 'm-flash' && typeof Flash !== 'undefined' && Flash.busy) { toast('書き込み中は閉じられません。終わるまでお待ちください', 'warn', 3000); return; }
-  document.getElementById(id).classList.remove('open');
+  if (!modal || !modal.classList.contains('open')) return;
+  modal.classList.remove('open');
   if (id === 'm-welcome') rememberWelcomeDismissal();
+  const otherModals = Array.from(document.querySelectorAll('.modal-overlay.open'));
+  if (otherModals.length) {
+    const topDialog = otherModals[otherModals.length - 1].querySelector('.modal');
+    if (topDialog) topDialog.focus();
+  } else {
+    const opener = S._modalOpeners.get(modal);
+    if (opener && opener.isConnected) opener.focus();
+  }
 }
 
 /* ================================================================
@@ -3134,7 +3201,6 @@ const Sk = {
   _loadTab() {
     const f = this.curFile();
     if (f) Ed.setValue(f.content);
-    S.dirty.delete(`${S.curId}:${S.curTab}`);
     this.renderTabs();
   },
 
@@ -3166,37 +3232,84 @@ const Sk = {
     if (!sk || sk.files.length <= 1) { toast('最後のファイルは削除できません', 'warn'); return; }
     if (idx === S.curTab) this._flushCurrent();
     sk.files.splice(idx, 1);
-    if (S.curTab >= sk.files.length) S.curTab = sk.files.length - 1;
+    const prefix = `${sk.id}:`;
+    const shiftedDirty = new Set();
+    S.dirty.forEach(key => {
+      if (!key.startsWith(prefix)) { shiftedDirty.add(key); return; }
+      const dirtyIndex = Number(key.slice(prefix.length));
+      if (dirtyIndex < idx) shiftedDirty.add(key);
+      else if (dirtyIndex > idx) shiftedDirty.add(`${sk.id}:${dirtyIndex - 1}`);
+    });
+    S.dirty = shiftedDirty;
+    if (idx < S.curTab) S.curTab--;
+    else if (S.curTab >= sk.files.length) S.curTab = sk.files.length - 1;
     IDB.put(S.db, sk);
     this.renderTabs();
     this._loadTab();
+    updateAutosaveIndicator();
   },
 
   markDirty() {
     const key = `${S.curId}:${S.curTab}`;
-    if (S.dirty.has(key)) return;
-    S.dirty.add(key);
-    this.renderTabs();
-    this.renderList();
+    if (!S.dirty.has(key)) {
+      S.dirty.add(key);
+      this.renderTabs();
+      this.renderList();
+    }
+    updateAutosaveIndicator();
   },
 
   scheduleAutosave() {
-    if (!S.cfg.autosave) return;
+    clearTimeout(S._autosaveTimer);
+    clearInterval(S._autosaveCountdownTimer);
+    S._autosaveAt = 0;
+    if (!S.cfg.autosave) { updateAutosaveIndicator(); return; }
+    S._autosaveAt = Date.now() + S.cfg.autosave * 1000;
+    updateAutosaveIndicator();
+    S._autosaveCountdownTimer = setInterval(updateAutosaveIndicator, 1000);
     clearTimeout(S._autosaveTimer);
     S._autosaveTimer = setTimeout(() => this.saveAll(), S.cfg.autosave * 1000);
   },
 
   async saveAll() {
-    const sk = this.cur();
-    if (!sk) return;
+    if (S._savePromise) {
+      S._saveQueued = true;
+      return S._savePromise;
+    }
     this._flushCurrent();
-    for (let i = 0; i < sk.files.length; i++) S.dirty.delete(`${sk.id}:${i}`);
-    const ok = await IDB.put(S.db, sk);
-    if (!ok) sk.files.forEach((_, i) => S.dirty.add(`${sk.id}:${i}`));
-    this.renderTabs();
-    this.renderList();
-    setStatus(ok ? '保存しました' : '保存に失敗しました', ok ? 'ok' : 'err');
-    setTimeout(() => setStatus('準備完了'), 2000);
+    const dirtyKeys = Array.from(S.dirty);
+    const sketches = S.sketches.filter(sk => sk.id === S.curId || dirtyKeys.some(key => key.startsWith(`${sk.id}:`)));
+    if (!sketches.length) return;
+    clearTimeout(S._autosaveTimer);
+    clearInterval(S._autosaveCountdownTimer);
+    S._autosaveAt = 0;
+    setSaveIndicator('保存中…', 'saving');
+    S._savePromise = (async () => {
+      let ok = true;
+      for (const sk of sketches) {
+        if (!S.sketches.includes(sk)) continue;
+        const sketchDirtyKeys = dirtyKeys.filter(key => key.startsWith(`${sk.id}:`));
+        sketchDirtyKeys.forEach(key => S.dirty.delete(key));
+        if (!await IDB.put(S.db, sk)) {
+          ok = false;
+          sketchDirtyKeys.forEach(key => S.dirty.add(key));
+        }
+      }
+      this.renderTabs();
+      this.renderList();
+      if (!ok) setSaveIndicator('保存に失敗しました', 'error');
+      else if (S.dirty.size) updateAutosaveIndicator();
+      else setSaveIndicator(S.db ? '保存済み' : 'セッション内に保存済み', 'saved');
+    })();
+    try {
+      await S._savePromise;
+    } finally {
+      S._savePromise = null;
+      if (S._saveQueued) {
+        S._saveQueued = false;
+        await this.saveAll();
+      }
+    }
   },
 
   async rename(id, newName) {
@@ -3236,6 +3349,8 @@ const Sk = {
     if (!sk) return;
     await IDB.del(S.db, id);
     S.sketches = S.sketches.filter(s=>s.id!==id);
+    S.dirty.forEach(key => { if (key.startsWith(`${id}:`)) S.dirty.delete(key); });
+    updateAutosaveIndicator();
     this.renderList();
     if (id === S.curId) {
       if (S.sketches.length) this.open(S.sketches[0].id);
@@ -5480,6 +5595,7 @@ function initEvents() {
     S.cfg.reduceMotion = document.getElementById('cfg-reduce-motion').checked;
     Cfg.applyToEditor(); await Cfg.save();
     Cfg.applyToUI();
+    if (S.dirty.size) Sk.scheduleAutosave();
     closeModal('m-settings');
     toast('設定を保存しました','ok');
   });
@@ -5570,6 +5686,36 @@ function initEvents() {
 
   // ---- キーボードショートカット ----
   document.addEventListener('keydown', async e => {
+    const openModals = Array.from(document.querySelectorAll('.modal-overlay.open'));
+    if (openModals.length) {
+      const topModal = openModals[openModals.length - 1];
+      const dialog = topModal.querySelector('.modal');
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeModal(topModal.id);
+        Ctx.hide();
+        return;
+      }
+      if (e.key === 'Tab' && dialog) {
+        const focusable = Array.from(dialog.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'))
+          .filter(el => el.getClientRects().length && el.getAttribute('aria-hidden') !== 'true');
+        if (!focusable.length) {
+          e.preventDefault();
+          dialog.focus();
+          return;
+        }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+      return;
+    }
     const ctrl = e.ctrlKey||e.metaKey;
     if (ctrl && e.key==='s')          { e.preventDefault(); await Sk.saveAll(); }
     else if (ctrl && e.key==='n')     { e.preventDefault(); document.getElementById('new-btn').click(); }
@@ -5583,7 +5729,6 @@ function initEvents() {
     else if (e.key==='F1')            { e.preventDefault(); openModal('m-help'); }
     else if (e.key==='Escape') {
       document.getElementById('find-bar').classList.remove('open');
-      document.querySelectorAll('.modal-overlay.open').forEach(m=>closeModal(m.id));
       Ctx.hide();
     }
   });

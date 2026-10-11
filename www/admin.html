@@ -56,6 +56,7 @@
   --sh-md:     0 4px 20px rgba(0,0,0,0.6);
   --sh-lg:     0 8px 40px rgba(0,0,0,0.7);
 }
+#btn-reload:disabled { opacity: .65; cursor: wait; }
 
 [data-theme="light"] {
   --teal-link:     #076D70;
@@ -561,6 +562,7 @@ footer {
       <span>v<span id="st-version">-</span></span>
       <span id="st-uptime">稼働時間 -</span>
       <span id="st-updated" class="muted">-</span>
+      <span id="refresh-state" role="status" aria-live="polite"></span>
     </div>
     <div class="tb-spacer"></div>
     <div class="tb-meta">
@@ -577,7 +579,7 @@ footer {
   </header>
 
   <main>
-    <div id="global-err" class="notice err" hidden></div>
+    <div id="global-err" class="notice err" role="alert" aria-live="assertive" hidden></div>
 
     <section>
       <div class="sec-head"><h2>サーバー状態</h2><span class="sec-note" id="srv-note"></span></div>
@@ -768,7 +770,8 @@ var state = {
   histTotal: 0,
   histKept: 0,
   histPaged: false,  // 「さらに読み込む」で積んだ状態なら自動更新ではリセットしない
-  busy: false
+  busy: false,
+  refreshQueued: false
 };
 
 function esc(v) {
@@ -1000,12 +1003,31 @@ $('#save-token-settings').addEventListener('click', function () {
 function stopAuto() { if (state.timer) { clearInterval(state.timer); state.timer = null; } }
 function startAuto() {
   stopAuto();
-  if ($('#auto-refresh').checked) {
+  if ($('#auto-refresh').checked && document.visibilityState !== 'hidden' && state.token) {
     state.timer = setInterval(function () { refresh(false); }, 5000);
   }
 }
 $('#auto-refresh').addEventListener('change', startAuto);
 $('#btn-reload').addEventListener('click', function () { refresh(true); });
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'hidden') {
+    stopAuto();
+    return;
+  }
+  if ($('#auto-refresh').checked) {
+    refresh(false);
+    startAuto();
+  }
+});
+
+function setRefreshFeedback(message, busy) {
+  var button = $('#btn-reload');
+  button.disabled = Boolean(busy);
+  button.setAttribute('aria-busy', String(Boolean(busy)));
+  button.textContent = busy ? '更新中…' : '更新';
+  button.setAttribute('aria-label', busy ? 'サーバー状態と利用履歴を更新中' : 'サーバー状態と利用履歴を更新');
+  $('#refresh-state').textContent = message || '';
+}
 
 /* ---------------- 描画 ---------------- */
 function render(d) {
@@ -1427,12 +1449,21 @@ $('#f-q').addEventListener('input', function () {
 
 /* ---------------- 更新ループ ---------------- */
 function refresh(withHistory) {
-  if (state.busy || !state.token) return;
+  if (!state.token) return;
+  if (state.busy) {
+    if (withHistory) {
+      state.refreshQueued = true;
+      setRefreshFeedback('更新を待機中…', true);
+    }
+    return;
+  }
   state.busy = true;
+  if (withHistory) setRefreshFeedback('更新中…', true);
   api('/admin/api/overview', 20000).then(function (d) {
     state.data = d;
     render(d);
     $('#global-err').hidden = true;
+    if (withHistory) setRefreshFeedback('更新完了', false);
     if (withHistory || !state.histPaged) loadHistory('reset');
     if (withHistory) {
       loadAdminSettings().catch(function (err) {
@@ -1444,7 +1475,18 @@ function refresh(withHistory) {
     var el = $('#global-err');
     el.textContent = '取得に失敗しました: ' + err.message + ' (5秒後に再試行します)';
     el.hidden = false;
-  }).finally(function () { state.busy = false; });
+    if (withHistory) setRefreshFeedback('更新に失敗しました', false);
+  }).finally(function () {
+    state.busy = false;
+    if (state.refreshQueued && state.token) {
+      state.refreshQueued = false;
+      refresh(true);
+    } else if (withHistory) {
+      $('#btn-reload').disabled = false;
+      $('#btn-reload').setAttribute('aria-busy', 'false');
+      $('#btn-reload').textContent = '更新';
+    }
+  });
 }
 
 function boot() {
