@@ -241,6 +241,17 @@ svg { display: block; flex-shrink: 0; }
   padding: 0;
 }
 .bp-select option { background: #141B26; color: #fff; }
+.bp-detect-btn {
+  padding: 4px 8px;
+  border: 1px solid var(--teal-link);
+  border-radius: 4px;
+  background: var(--teal-glow);
+  color: var(--teal-link);
+  font-size: 10px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.bp-detect-btn:hover { background: rgba(14,165,168,0.24); }
 .bp-icon-btn {
   display: flex;
   align-items: center;
@@ -1592,6 +1603,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
     <div class="bp-segment">
       <span class="bp-label">ボード</span>
       <select class="bp-select" id="board-select"></select>
+      <button type="button" class="bp-detect-btn" id="apply-detected-board-btn" hidden>検出したボードを適用</button>
     </div>
   </div>
 
@@ -1603,14 +1615,14 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
   <div class="topbar-spacer"></div>
 
   <div id="topbar-right">
-    <button class="tb-icon-btn" id="theme-btn" title="テーマ切替">
+    <button class="tb-icon-btn" id="theme-btn" title="テーマ切替" aria-label="ライトテーマに切り替え" aria-pressed="false">
       <span id="theme-icon" aria-hidden="true"><i data-lucide="sun"></i></span>
     </button>
-    <button class="tb-icon-btn" id="settings-open-btn" title="設定 (Ctrl+,)">
-      <i data-lucide="settings"></i>
+    <button class="tb-icon-btn" id="settings-open-btn" title="設定 (Ctrl+,)" aria-label="設定を開く">
+      <i data-lucide="settings" aria-hidden="true"></i>
     </button>
-    <button class="tb-icon-btn" id="help-open-btn" title="ヘルプ (F1)">
-      <i data-lucide="circle-help"></i>
+    <button class="tb-icon-btn" id="help-open-btn" title="ヘルプ (F1)" aria-label="ヘルプを開く">
+      <i data-lucide="circle-help" aria-hidden="true"></i>
     </button>
   </div>
 </div>
@@ -1657,8 +1669,8 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
 
   <div class="t-space"></div>
 
-  <button class="tool-btn" id="sidebar-toggle-btn" title="サイドバー切替 (Ctrl+B)">
-    <i data-lucide="panel-left"></i>
+  <button class="tool-btn" id="sidebar-toggle-btn" title="サイドバー切替 (Ctrl+B)" aria-label="サイドバーを閉じる" aria-controls="sidebar" aria-expanded="true">
+    <i data-lucide="panel-left" aria-hidden="true"></i>
   </button>
 
   <div class="tool-sep"></div>
@@ -1702,7 +1714,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
   <div id="main">
     <!-- タブバー -->
     <div id="tabbar">
-      <button id="tab-add-btn" title="ファイルを追加">+</button>
+      <button id="tab-add-btn" title="ファイルを追加" aria-label="ファイルを追加">+</button>
     </div>
 
     <!-- エディタ -->
@@ -1724,15 +1736,15 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
       <div id="find-bar">
         <div class="find-row">
           <input class="find-input" id="find-input" placeholder="検索..." autocomplete="off">
-          <button class="find-btn" id="find-prev-btn" title="前を検索 (Shift+Enter)">
-            <i data-lucide="arrow-up"></i>
+          <button class="find-btn" id="find-prev-btn" title="前を検索 (Shift+Enter)" aria-label="前の検索結果へ移動">
+            <i data-lucide="arrow-up" aria-hidden="true"></i>
           </button>
-          <button class="find-btn" id="find-next-btn" title="次を検索 (Enter)">
-            <i data-lucide="arrow-down"></i>
+          <button class="find-btn" id="find-next-btn" title="次を検索 (Enter)" aria-label="次の検索結果へ移動">
+            <i data-lucide="arrow-down" aria-hidden="true"></i>
           </button>
           <span id="find-count"></span>
-          <button class="find-btn" id="find-close-btn" title="閉じる (Esc)">
-            <i data-lucide="x"></i>
+          <button class="find-btn" id="find-close-btn" title="閉じる (Esc)" aria-label="検索バーを閉じる">
+            <i data-lucide="x" aria-hidden="true"></i>
           </button>
         </div>
         <div class="find-row">
@@ -1760,7 +1772,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
             <i data-lucide="trash-2"></i>
             <span id="console-clear-label">コンソールをクリア</span>
           </button>
-          <button class="panel-icon-btn" id="panel-toggle-btn" title="パネル最小化">
+          <button class="panel-icon-btn" id="panel-toggle-btn" title="パネルを最小化" aria-label="パネルを最小化" aria-controls="bottom-panel" aria-expanded="true">
             <span id="panel-toggle-icon" aria-hidden="true"><i data-lucide="chevron-down"></i></span>
           </button>
         </div>
@@ -2054,48 +2066,30 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
   </div>
 </div>
 
-<!-- 初回ガイド -->
-<div class="modal-overlay" id="m-welcome">
-  <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="welcome-title" aria-describedby="welcome-description">
-    <div class="modal-head">
-      <span class="modal-title" id="welcome-title">Arduino Web IDEへようこそ</span>
-      <button class="modal-x" data-close="m-welcome" title="閉じる" aria-label="閉じる"><i data-lucide="x"></i></button>
-    </div>
-    <div class="modal-body">
-      <p class="welcome-copy" id="welcome-description">まずはサーバー接続を確認し、スケッチをコンパイルしてみましょう。</p>
-      <ol class="welcome-steps">
-        <li>先生から配布リンクを受け取っている場合は、そのリンクからIDEを開きます。</li>
-        <li>サーバー接続が必要な場合は、先生から受け取ったURLと生徒用トークンを設定します。</li>
-        <li>「新規」でスケッチを作成し、「検証」でコンパイルします。</li>
-      </ol>
-      <p class="welcome-copy">スケッチはこのブラウザー内に保存されます。別の端末へ移すときは「バックアップ」でZIPを書き出してください。</p>
-      <p><a href="/docs" target="_blank" rel="noopener">使い方と画面のしくみを読む</a></p>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-secondary" id="welcome-dismiss-btn">エディターを開く</button>
-      <button class="btn btn-primary" id="welcome-helper-btn">接続設定をする</button>
-    </div>
-  </div>
-</div>
-
-<!-- 初回USBポート設定 -->
+<!-- 初回ガイドとUSBポート設定 -->
 <div class="modal-overlay" id="m-usb-setup">
   <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="usb-setup-title" aria-describedby="usb-setup-description">
     <div class="modal-head">
-      <span class="modal-title" id="usb-setup-title">USBボードの準備</span>
+      <span class="modal-title" id="usb-setup-title">Arduino Web IDEへようこそ</span>
       <button class="modal-x" data-close="m-usb-setup" title="閉じる" aria-label="閉じる"><i data-lucide="x"></i></button>
     </div>
     <div class="modal-body">
-      <p class="welcome-copy" id="usb-setup-description">接続するボードをブラウザーに許可すると、USB機器の検出やシリアルモニターを使いやすくなります。</p>
+      <p class="welcome-copy" id="usb-setup-description">まずはスケッチを作成して「検証」でコンパイルできます。サーバー接続が必要な場合は、先生から受け取った配布リンクまたは接続設定をご利用ください。</p>
+      <ol class="welcome-steps">
+        <li>「新規」でスケッチを作成し、「検証」でコンパイルします。</li>
+        <li>スケッチはこのブラウザー内に保存されます。別の端末へ移すときは「バックアップ」でZIPを書き出してください。</li>
+      </ol>
+      <p><a href="/docs" target="_blank" rel="noopener">使い方と画面のしくみを読む</a></p>
+      <p class="welcome-copy">USBボードの検出やシリアルモニターには、ブラウザーでポートを許可してください。許可しなくてもエディターとコンパイルは利用できます。</p>
       <div class="info-notice" id="usb-setup-support"></div>
       <p class="welcome-copy" id="usb-setup-count" role="status" aria-live="polite">許可済みポートを確認しています…</p>
       <p class="welcome-copy">「USBポートを許可」を押し、ブラウザーの一覧から接続中のボードを選んでください。複数台使う場合は、1台ずつ許可を追加できます。許可はこのサイトに保存され、あとからブラウザーのサイト設定で取り消せます。</p>
-      <p class="welcome-copy">許可しなくてもエディターとコンパイルは利用できます。カメラやマイクなど、このIDEで不要な権限を求めることはありません。</p>
+      <p class="welcome-copy">カメラやマイクなど、このIDEで不要な権限を求めることはありません。</p>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-secondary" id="usb-setup-skip-btn">今はしない</button>
+      <button class="btn btn-secondary" id="welcome-helper-btn">接続設定をする</button>
       <button class="btn btn-secondary" id="usb-setup-allow-btn">USBポートを許可</button>
-      <button class="btn btn-primary" id="usb-setup-done-btn">準備完了</button>
+      <button class="btn btn-primary" id="usb-setup-done-btn">エディターを開く</button>
     </div>
   </div>
 </div>
@@ -2341,7 +2335,7 @@ const S = {
     fontSize: 13, tabSize: 2, autosave: 5,
     theme: 'dark', lineNums: true, curLine: true, syntax: true, reduceMotion: false,
   },
-  serial: { port: null, reader: null, writer: null, connected: false, supported: true, detectedLabel: '', detectedBoardId: '', boardDetectionPending: true, detectionGeneration: 0, authorizedPortCount: 0 },
+  serial: { port: null, reader: null, writer: null, connected: false, supported: true, detectedLabel: '', detectedBoardId: '', detectionGeneration: 0, authorizedPortCount: 0 },
   helper: { url: IDE_DEFAULTS.url, fallback: IDE_DEFAULTS.fallbackUrl, token: IDE_DEFAULTS.token, adminToken: '', adminTokenTarget: '', active: '', userSet: false, prefillStudentToken: false, publicConfigError: '', ok: false, authed: false, admin: false, adminBad: false, gen: 0, info: null },
   editor: { lineH: 22, padTop: 10 },
   _autosaveTimer: null,
@@ -2355,6 +2349,19 @@ const S = {
   _deleteTarget: null,
   saveFailed: false,
 };
+
+function updateDetectedBoardSuggestion() {
+  const button = document.getElementById('apply-detected-board-btn');
+  if (!button) return;
+  const detectedId = S.serial.detectedBoardId;
+  const detected = detectedId ? boardById(detectedId) : null;
+  const selectedId = (Sk.cur() || {}).board || document.getElementById('board-select').value;
+  button.hidden = !detected || detected.id === selectedId;
+  if (detected) {
+    button.textContent = `${detected.name}を適用`;
+    button.setAttribute('aria-label', `検出した${detected.name}を現在のスケッチに適用`);
+  }
+}
 
 /* ---- テンプレート ---- */
 const TMPLS = {
@@ -2694,8 +2701,7 @@ function openModal(id)  {
     }
   }
   modal.classList.add('open');
-  const focusTarget = id === 'm-welcome' && modal.querySelector('#welcome-helper-btn')
-    || id === 'm-usb-setup' && modal.querySelector('#usb-setup-allow-btn')
+  const focusTarget = id === 'm-usb-setup' && modal.querySelector('#usb-setup-allow-btn')
     || modal.querySelector('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])');
   (focusTarget || dialog || modal).focus();
 }
@@ -2704,10 +2710,7 @@ function closeModal(id) {
   if (id === 'm-flash' && typeof Flash !== 'undefined' && Flash.busy) { toast('書き込み中は閉じられません。終わるまでお待ちください', 'warn', 3000); return; }
   if (!modal || !modal.classList.contains('open')) return;
   modal.classList.remove('open');
-  if (id === 'm-welcome') rememberWelcomeDismissal();
-  if (id === 'm-usb-setup') {
-    try { sessionStorage.setItem('ide_usb_setup_dismissed', '1'); } catch (_) {}
-  }
+  if (id === 'm-usb-setup') rememberOnboardingDismissal();
   const otherModals = Array.from(document.querySelectorAll('.modal-overlay.open'));
   if (otherModals.length) {
     const topDialog = otherModals[otherModals.length - 1].querySelector('.modal');
@@ -3220,12 +3223,8 @@ const Sk = {
     S.curTab = 0;
     const sk = this.cur();
     if (!sk) return;
-    if (S.serial.boardDetectionPending && S.serial.detectedBoardId) {
-      sk.board = S.serial.detectedBoardId;
-      S.serial.boardDetectionPending = false;
-      IDB.put(S.db, sk);
-    }
     Boards.select(sk.board);
+    updateDetectedBoardSuggestion();
     document.title = `${sk.name} — Arduino Web IDE`;
     this.renderTabs();
     this._loadTab();
@@ -3269,6 +3268,7 @@ const Sk = {
   closeTab(idx) {
     const sk = this.cur();
     if (!sk || sk.files.length <= 1) { toast('最後のファイルは削除できません', 'warn'); return; }
+    if (S.dirty.has(`${sk.id}:${idx}`) && !window.confirm(`「${sk.files[idx].name}」には未保存の変更があります。閉じるとこのファイルはスケッチから削除されます。続けますか？`)) return;
     if (idx === S.curTab) this._flushCurrent();
     sk.files.splice(idx, 1);
     const prefix = `${sk.id}:`;
@@ -3312,7 +3312,7 @@ const Sk = {
 
   async saveAll() {
     if (S._savePromise) {
-      S._saveQueued = true;
+      if (S.dirty.size || S.saveFailed) S._saveQueued = true;
       return S._savePromise;
     }
     this._flushCurrent();
@@ -3334,6 +3334,7 @@ const Sk = {
           sketchDirtyKeys.forEach(key => S.dirty.add(key));
         }
       }
+      S.saveFailed = !ok;
       this.renderTabs();
       this.renderList();
       if (!ok) setSaveIndicator('保存に失敗しました', 'error');
@@ -3495,7 +3496,7 @@ const Sk = {
       t.dataset.idx = i;
       t.innerHTML = `<span class="tab-name">${escHtml(f.name)}</span>
         ${dirty ? '<span class="tab-dirty-dot"></span>' : ''}
-        ${sk.files.length>1 ? `<button class="tab-close-btn" data-idx="${i}" title="閉じる">
+        ${sk.files.length>1 ? `<button class="tab-close-btn" data-idx="${i}" title="閉じる" aria-label="${escHtml(f.name)}を閉じる">
           <i data-lucide="x" aria-hidden="true"></i>
         </button>` : ''}`;
       t.addEventListener('click', e => {
@@ -4158,10 +4159,7 @@ const Build = {
   _showPanel() {
     setActivePanel('console');
     const panel = document.getElementById('bottom-panel');
-    if (panel.classList.contains('minimized')) {
-      panel.classList.remove('minimized');
-      panel.style.height = '210px';
-    }
+    if (panel.classList.contains('minimized')) expandBottomPanel();
   },
 
   _getPayload() {
@@ -4402,7 +4400,7 @@ const Ser = {
     console.warn('USB device detection failed:', err);
     S.serial.detectedLabel = 'USB機器を確認できません';
     S.serial.detectedBoardId = '';
-    S.serial.boardDetectionPending = false;
+    updateDetectedBoardSuggestion();
     this._updateUI(S.serial.connected);
   },
 
@@ -4429,19 +4427,10 @@ const Ser = {
     } else if (knownBoards.length === 1) {
       S.serial.detectedLabel = `検出: ${knownBoards[0].board.name}`;
       S.serial.detectedBoardId = knownBoards[0].boardId;
-      const sketch = Sk.cur();
-      if (sketch) {
-        S.serial.boardDetectionPending = false;
-        if (sketch.board !== knownBoards[0].boardId) {
-          sketch.board = knownBoards[0].boardId;
-          await IDB.put(S.db, sketch);
-        }
-        Boards.select(knownBoards[0].boardId);
-      }
     } else {
       S.serial.detectedLabel = 'USB機器を検出 — ボードを手動選択してください';
     }
-    if (S.serial.boardDetectionPending && !S.serial.detectedBoardId) S.serial.boardDetectionPending = false;
+    updateDetectedBoardSuggestion();
     this._updateUI(S.serial.connected);
     updateUsbSetupStatus();
   },
@@ -4959,6 +4948,7 @@ function initPanelResize() {
       const h = Math.max(36, Math.min(window.innerHeight*0.7, startH+(startY-e.clientY)));
       panel.style.height = h+'px';
       panel.classList.toggle('minimized', h<=40);
+      updatePanelToggleA11y();
     };
     const up = () => {
       document.body.style.userSelect='';
@@ -4968,6 +4958,23 @@ function initPanelResize() {
     document.addEventListener('mousemove', move);
     document.addEventListener('mouseup', up);
   });
+}
+
+function updatePanelToggleA11y() {
+  const panel = document.getElementById('bottom-panel');
+  const button = document.getElementById('panel-toggle-btn');
+  if (!panel || !button) return;
+  const expanded = !panel.classList.contains('minimized');
+  button.setAttribute('aria-expanded', String(expanded));
+  button.setAttribute('aria-label', expanded ? 'パネルを最小化' : 'パネルを展開');
+  button.title = expanded ? 'パネルを最小化' : 'パネルを展開';
+}
+
+function expandBottomPanel() {
+  const panel = document.getElementById('bottom-panel');
+  panel.classList.remove('minimized');
+  panel.style.height = '210px';
+  updatePanelToggleA11y();
 }
 
 /* ================================================================
@@ -5157,6 +5164,9 @@ const Cfg = {
     document.querySelector('html').setAttribute('data-theme', S.cfg.theme);
     const icon = document.getElementById('theme-icon');
     setLucideIcon(icon, S.cfg.theme === 'dark' ? 'sun' : 'moon');
+    const themeButton = document.getElementById('theme-btn');
+    themeButton.setAttribute('aria-label', S.cfg.theme === 'dark' ? 'ライトテーマに切り替え' : 'ダークテーマに切り替え');
+    themeButton.setAttribute('aria-pressed', String(S.cfg.theme === 'light'));
     // 設定モーダル反映
     const sz = document.getElementById('cfg-fontsize');
     if (sz) sz.value = S.cfg.fontSize;
@@ -5480,6 +5490,16 @@ function toggleFind() {
 /* ================================================================
    イベント初期化
 ================================================================ */
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  sidebar.classList.toggle('hidden');
+  const expanded = !sidebar.classList.contains('hidden');
+  const button = document.getElementById('sidebar-toggle-btn');
+  button.setAttribute('aria-expanded', String(expanded));
+  button.setAttribute('aria-label', expanded ? 'サイドバーを閉じる' : 'サイドバーを開く');
+  setTimeout(fitClearLabel, 0);
+}
+
 function initEvents() {
   // ---- ツールバー ----
   document.getElementById('verify-btn').addEventListener('click', () => Build.verify());
@@ -5496,16 +5516,34 @@ function initEvents() {
   document.getElementById('serial-open-btn').addEventListener('click', () => {
     setActivePanel('serial');
     const panel = document.getElementById('bottom-panel');
-    if (panel.classList.contains('minimized')) { panel.classList.remove('minimized'); panel.style.height='210px'; }
+    if (panel.classList.contains('minimized')) expandBottomPanel();
   });
   document.getElementById('conn-badge').addEventListener('click', () => {
     document.getElementById('serial-open-btn').click();
   });
   document.getElementById('lib-open-btn').addEventListener('click', () => { renderLibs(); openModal('m-libs'); });
   document.getElementById('find-open-btn').addEventListener('click', toggleFind);
-  document.getElementById('sidebar-toggle-btn').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.toggle('hidden');
-    setTimeout(fitClearLabel, 0);
+  document.getElementById('sidebar-toggle-btn').addEventListener('click', toggleSidebar);
+  document.getElementById('apply-detected-board-btn').addEventListener('click', async () => {
+    const boardId = S.serial.detectedBoardId;
+    if (!boardId || !BOARDS.some(board => board.id === boardId)) return;
+    const sketch = Sk.cur();
+    if (!sketch) return;
+    const previousBoard = sketch.board;
+    sketch.board = boardId;
+    try {
+      if (!(await IDB.put(S.db, sketch))) {
+        sketch.board = previousBoard;
+        return;
+      }
+      Boards.select(boardId);
+      updateDetectedBoardSuggestion();
+      toast(`検出した ${boardById(boardId).name} を適用しました`, 'ok');
+    } catch (err) {
+      sketch.board = previousBoard;
+      console.error('Detected board could not be applied:', err);
+      toast('検出したボードを保存できませんでした', 'err');
+    }
   });
 
   // ---- トップバー ----
@@ -5526,6 +5564,7 @@ function initEvents() {
     const sk = Sk.cur();
     if (sk) { sk.board = e.target.value; IDB.put(S.db, sk); }
     Boards.updateStatus(e.target.value);
+    updateDetectedBoardSuggestion();
   });
   window.addEventListener('resize', fitClearLabel);
   fitClearLabel();
@@ -5567,6 +5606,7 @@ function initEvents() {
           `「${S.sketches.find(s=>s.id===id)?.name}」を削除しますか？この操作は元に戻せません。`;
         openModal('m-delete');
       }
+
       return;
     }
     const item = e.target.closest('.sk-item');
@@ -5616,7 +5656,9 @@ function initEvents() {
       setLucideIcon(icon, 'chevron-down');
       if (panel.style.height === '36px' || panel.offsetHeight <= 40) panel.style.height='210px';
     }
+    updatePanelToggleA11y();
   });
+  updatePanelToggleA11y();
   updateToastPosition();
   if (window.ResizeObserver) new ResizeObserver(updateToastPosition).observe(document.getElementById('bottom-panel'));
   window.addEventListener('resize', updateToastPosition);
@@ -5707,14 +5749,12 @@ function initEvents() {
     closeModal('m-settings');
     toast('設定を保存しました','ok');
   });
-  document.getElementById('welcome-dismiss-btn').addEventListener('click', () => closeModal('m-welcome'));
   document.getElementById('welcome-helper-btn').addEventListener('click', () => {
-    closeModal('m-welcome');
+    closeModal('m-usb-setup');
     document.getElementById('helper-cfg-btn').click();
   });
   document.getElementById('usb-setup-allow-btn').addEventListener('click', () => Ser.authorizePort());
-  document.getElementById('usb-setup-skip-btn').addEventListener('click', () => finishUsbSetup());
-  document.getElementById('usb-setup-done-btn').addEventListener('click', () => finishUsbSetup());
+  document.getElementById('usb-setup-done-btn').addEventListener('click', () => closeModal('m-usb-setup'));
 
   const readHelperForm = () => {
     const nu = normalizeUrl(document.getElementById('helper-url-input').value);
@@ -5834,7 +5874,7 @@ function initEvents() {
     else if (ctrl && e.key==='f')     { e.preventDefault(); toggleFind(); }
     else if (ctrl && e.shiftKey && e.key==='Enter') { e.preventDefault(); Build.upload(); }
     else if (ctrl && e.key==='Enter') { e.preventDefault(); Build.verify(); }
-    else if (ctrl && e.key==='b')     { e.preventDefault(); document.getElementById('sidebar').classList.toggle('hidden'); }
+    else if (ctrl && e.key==='b')     { e.preventDefault(); toggleSidebar(); }
     else if (ctrl && e.key===',')     { e.preventDefault(); Cfg.applyToUI(); openModal('m-settings'); }
     else if (ctrl && e.shiftKey && e.key==='M') { e.preventDefault(); document.getElementById('serial-open-btn').click(); }
     else if (e.key==='F1')            { e.preventDefault(); openModal('m-help'); }
@@ -5882,9 +5922,9 @@ function fitClearLabel() {
    起動
 ================================================================ */
 let startupWatchdog = null;
-let welcomeDismissedThisSession = false;
-let usbSetupFinishedThisSession = false;
+let onboardingDismissedThisSession = false;
 const USB_SETUP_STORAGE_KEY = 'ide_usb_setup_dismissed';
+const WELCOME_STORAGE_KEY = 'ide_welcome_dismissed';
 
 function updateUsbSetupStatus() {
   const count = document.getElementById('usb-setup-count');
@@ -5894,38 +5934,42 @@ function updateUsbSetupStatus() {
   const total = S.serial.authorizedPortCount;
   count.textContent = `このサイトで許可済みのUSBポート: ${total}台`;
   allow.textContent = total ? '別のUSBポートも許可' : 'USBポートを許可';
+  allow.disabled = !S.serial.supported;
   support.textContent = S.serial.supported
     ? 'Web Serial API対応のChrome / EdgeとHTTPSが必要です。ポート選択画面は下のボタンを押したときに開きます。'
     : 'このブラウザーではUSBシリアルを利用できません。Chrome / EdgeでHTTPSのページを開いてください。';
 }
 
-async function finishUsbSetup() {
-  usbSetupFinishedThisSession = true;
-  try { sessionStorage.setItem(USB_SETUP_STORAGE_KEY, '1'); } catch (_) {}
-  if (S.db) {
-    try { await IDB.setKV(S.db, 'usbSetupDismissed', '1'); }
-    catch (err) {
-      console.warn('USB setup dismissal could not be saved:', err);
-      toast('USB設定案内を保存できませんでした。このタブでは再表示しません', 'warn', 5000);
-    }
+function rememberOnboardingDismissal() {
+  if (onboardingDismissedThisSession) return;
+  onboardingDismissedThisSession = true;
+  for (const key of [USB_SETUP_STORAGE_KEY, WELCOME_STORAGE_KEY]) {
+    try { sessionStorage.setItem(key, '1'); } catch (_) {}
   }
-  closeModal('m-usb-setup');
-  await maybeShowWelcome();
+  if (S.db) {
+    Promise.all([
+      IDB.setKV(S.db, 'usbSetupDismissed', '1'),
+      IDB.setKV(S.db, 'welcomeDismissed', '1')
+    ]).catch(err => {
+      console.warn('First-run guidance dismissal could not be saved:', err);
+      toast('初回案内の終了状態を保存できませんでした。このタブでは再表示しません', 'warn', 5000);
+    });
+  }
 }
 
-async function maybeShowUSBSetup() {
-  if (!S.serial.supported || usbSetupFinishedThisSession) return false;
+async function maybeShowWelcome() {
+  if (onboardingDismissedThisSession) return;
   try {
     if (sessionStorage.getItem(USB_SETUP_STORAGE_KEY) === '1') {
-      usbSetupFinishedThisSession = true;
-      return false;
+      onboardingDismissedThisSession = true;
+      return;
     }
   } catch (_) {}
   if (S.db) {
     try {
       if ((await IDB.getKV(S.db, 'usbSetupDismissed')) === '1') {
-        usbSetupFinishedThisSession = true;
-        return false;
+        onboardingDismissedThisSession = true;
+        return;
       }
     } catch (err) {
       console.warn('USB setup dismissal could not be read:', err);
@@ -5933,36 +5977,6 @@ async function maybeShowUSBSetup() {
   }
   updateUsbSetupStatus();
   openModal('m-usb-setup');
-  return true;
-}
-
-function rememberWelcomeDismissal() {
-  if (welcomeDismissedThisSession) return;
-  welcomeDismissedThisSession = true;
-  try { sessionStorage.setItem('ide_welcome_dismissed', '1'); } catch (_) {}
-  if (S.db) {
-    IDB.setKV(S.db, 'welcomeDismissed', '1').catch(e => {
-      console.warn('Welcome dismissal could not be saved:', e);
-      toast('初回案内の設定を保存できませんでした', 'warn', 5000);
-    });
-  }
-}
-
-async function maybeShowWelcome() {
-  if (await maybeShowUSBSetup()) return;
-  if (S.helper.userSet || S.helper.token) return;
-  if (welcomeDismissedThisSession) return;
-  try {
-    if (sessionStorage.getItem('ide_welcome_dismissed') === '1') return;
-  } catch (_) {}
-  if (S.db) {
-    try {
-      if ((await IDB.getKV(S.db, 'welcomeDismissed')) === '1') return;
-    } catch (e) {
-      console.warn('Welcome dismissal could not be read:', e);
-    }
-  }
-  openModal('m-welcome');
 }
 
 async function boot() {
@@ -6099,10 +6113,24 @@ async function importConfigFromHash() {
   }
 }
 
-/* 閉じる・タブを隠す・スリープ直前に保存。保存に失敗している間だけ、閉じる前に確認する */
-window.addEventListener('pagehide', () => { try { Sk.saveAll(); } catch (_) {} });
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { try { Sk.saveAll(); } catch (_) {} } });
-window.addEventListener('beforeunload', e => { if (S.saveFailed) { e.preventDefault(); e.returnValue = ''; } });
+/* タブを隠す・ページを離れる前に保存を試み、未保存・保存中・保存失敗時は離脱確認を出す */
+function saveOnPageHide() {
+  Sk.saveAll().catch(err => {
+    S.saveFailed = true;
+    setSaveIndicator('保存に失敗しました', 'error');
+    console.error('Sketches could not be saved while leaving the page:', err);
+  });
+}
+window.addEventListener('pagehide', saveOnPageHide);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveOnPageHide();
+});
+window.addEventListener('beforeunload', e => {
+  if (S.dirty.size || S.saveFailed || S._savePromise) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
 
 document.addEventListener('DOMContentLoaded', boot);
 </script>

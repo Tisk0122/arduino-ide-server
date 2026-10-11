@@ -186,6 +186,11 @@ code,.mono { font-family: var(--ff-mono); }
 [data-theme="light"] .btn:hover { background: var(--bg3); border-color: var(--bd2); }
 .btn-primary { background: var(--teal); border-color: var(--teal); color: #fff; }
 .btn-primary:hover { background: var(--teal-lt); border-color: var(--teal-lt); color: #063A3C; box-shadow: 0 0 12px rgba(14,165,168,0.35); }
+.btn-danger { background: rgba(224,82,82,0.14); border-color: rgba(224,82,82,0.45); color: var(--err); }
+.btn-danger:hover { background: rgba(224,82,82,0.24); border-color: var(--err); }
+.btn-danger:disabled { opacity: .65; cursor: wait; }
+.history-action-state { flex: 1 1 100%; min-height: 18px; color: var(--ok); font-size: 11px; }
+.history-action-state.error { color: var(--err); }
 .btn-ghost { background: transparent; border-color: transparent; }
 .btn-ghost:hover { background: rgba(255,255,255,0.10); }
 [data-theme="light"] .btn-ghost:hover { background: var(--bg3); }
@@ -392,9 +397,11 @@ td.wrap-cell { white-space: normal; overflow-wrap: anywhere; word-break: normal;
 .admin-select-option[aria-selected="true"] { color: var(--teal-link); font-weight: 600; }
 .admin-select-option::before { content: ''; width: 12px; height: 12px; flex: none; }
 .admin-select-option[aria-selected="true"]::before { content: '✓'; font-size: 12px; line-height: 12px; }
-.token-secret { display: flex; align-items: center; gap: 6px; min-width: 320px; }
+.token-secret { display: flex; align-items: center; gap: 6px; min-width: 320px; flex-wrap: wrap; }
 .token-secret input { flex: 1; width: 180px; min-width: 0; font-family: var(--ff-mono); font-size: 11px; }
 .token-secret .btn { flex: none; }
+.token-copy-feedback { flex: 1 0 100%; color: var(--ok); font-size: 11px; }
+.token-copy-feedback.error { color: var(--err); }
 .token-setting { display: flex; align-items: flex-start; gap: 12px; }
 .token-setting input { width: 16px; height: 16px; margin-top: 3px; accent-color: var(--teal); }
 .token-setting-copy { min-width: 0; }
@@ -467,6 +474,10 @@ td.wrap-cell { white-space: normal; overflow-wrap: anywhere; word-break: normal;
   padding: 30px 28px;
   box-shadow: var(--sh-lg);
 }
+.login-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.login-head h1 { flex: 1; min-width: 0; }
+.login-theme-toggle { flex: none; margin: -7px -7px 0 0; color: var(--tx2); }
+.login-theme-toggle:hover { background: var(--bg3); color: var(--tx0); }
 .login-box h1 { font-size: 18px; margin-bottom: 5px; letter-spacing: -0.3px; }
 .login-box h1 span { color: var(--teal-lt); }
 .login-box .lead { color: var(--tx2); font-size: 12px; margin-bottom: 22px; }
@@ -526,18 +537,19 @@ footer {
   font-size: 11px;
 }
 
-@media (max-width: 640px) {
-  #topbar { height: auto; padding: 10px 14px; }
-  main { padding: 14px 12px 0; }
-  th, td { padding: 6px 9px; }
-}
 </style>
 </head>
 <body>
 
 <div id="login">
   <div class="login-box">
-    <h1>Arduino Helper <span>管理コンソール</span></h1>
+    <div class="login-head">
+      <h1>Arduino Helper <span>管理コンソール</span></h1>
+      <button class="theme-toggle login-theme-toggle" id="btn-login-theme" type="button" title="ライトテーマに切り替え" aria-label="ライトテーマに切り替え" aria-pressed="false">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6.5 6.5 0 0 0 8.268 8.268c.344-.215.825-.003.803.401"/></svg>
+      </button>
+    </div>
     <p class="lead">サーバーの状態・トークン・利用履歴の確認</p>
     <form id="login-form">
       <label for="login-token">管理者トークン</label>
@@ -733,7 +745,10 @@ footer {
             <option value="cancelled">キャンセルのみ</option>
           </select>
           <input class="input grow" id="f-q" type="search" placeholder="ボード・スケッチ・クライアントで検索">
+          <button class="btn btn-sm btn-danger" id="btn-hist-clear" type="button" title="保存されているすべての利用履歴を削除">履歴を全削除</button>
         </div>
+        <span class="history-action-state" id="hist-action-state" role="status" aria-live="polite" aria-atomic="true"></span>
+        <span class="sec-note">コンパイル・管理作業の利用履歴と統計が対象です。サービスの稼働ログは削除されません。</span>
       </div>
       <div class="tbl-wrap">
         <table>
@@ -753,7 +768,8 @@ footer {
 
   <footer>
     arduino-helper 管理コンソール — API: <code>GET /admin/api/overview</code> /
-    <code>GET /admin/api/history</code> (管理者トークン必須)
+    <code>GET /admin/api/history</code> /
+    <code>DELETE /admin/api/history</code> (管理者トークン必須)
   </footer>
 </div>
 
@@ -770,6 +786,8 @@ var state = {
   histTotal: 0,
   histKept: 0,
   histPaged: false,  // 「さらに読み込む」で積んだ状態なら自動更新ではリセットしない
+  historyGeneration: 0,
+  clearingHistory: false,
   busy: false,
   refreshQueued: false
 };
@@ -890,11 +908,13 @@ function renderTokenSecrets(settings) {
   var rows = [['生徒用', settings.studentToken], ['管理者用', settings.adminToken]];
   $('#token-secrets-body').innerHTML = rows.map(function (row, index) {
     var id = 'token-secret-' + index;
+    var feedbackId = 'token-copy-feedback-' + index;
     return '<tr><td><strong>' + esc(row[0]) + '</strong></td><td><div class="token-secret">' +
       '<input class="input" id="' + id + '" type="password" value="' + esc(row[1]) +
       '" readonly autocomplete="off" spellcheck="false" aria-label="' + esc(row[0]) + 'アクセストークン">' +
       '<button class="btn btn-sm" type="button" data-token-reveal="' + id + '" aria-label="' + esc(row[0]) + 'トークンを表示">表示</button>' +
-      '<button class="btn btn-sm" type="button" data-token-copy="' + id + '">コピー</button>' +
+      '<button class="btn btn-sm" type="button" data-token-copy="' + id + '" data-token-feedback="' + feedbackId + '">コピー</button>' +
+      '<span class="token-copy-feedback" id="' + feedbackId + '" role="status" aria-live="polite" hidden></span>' +
       '</div></td></tr>';
   }).join('');
   $('#prefill-student-token').checked = settings.prefillStudentToken;
@@ -930,16 +950,23 @@ $('#token-secrets-body').addEventListener('click', function (event) {
   var copy = event.target.closest('[data-token-copy]');
   if (copy) {
     var value = document.getElementById(copy.dataset.tokenCopy).value;
+    var feedback = document.getElementById(copy.dataset.tokenFeedback);
+    feedback.textContent = '';
+    feedback.classList.remove('error');
+    feedback.hidden = true;
     if (!navigator.clipboard || !navigator.clipboard.writeText) {
-      $('#token-settings-error').textContent = 'このページではクリップボード機能を利用できません';
-      $('#token-settings-error').hidden = false;
+      feedback.textContent = 'このページではクリップボード機能を利用できません';
+      feedback.classList.add('error');
+      feedback.hidden = false;
       return;
     }
     navigator.clipboard.writeText(value).then(function () {
-      $('#token-settings-status').textContent = 'トークンをコピーしました';
+      feedback.textContent = 'このトークンをコピーしました';
+      feedback.hidden = false;
     }).catch(function (err) {
-      $('#token-settings-error').textContent = 'クリップボードにコピーできません: ' + err.message;
-      $('#token-settings-error').hidden = false;
+      feedback.textContent = 'コピーできませんでした: ' + err.message;
+      feedback.classList.add('error');
+      feedback.hidden = false;
     });
   }
 });
@@ -966,7 +993,7 @@ $('#save-token-settings').addEventListener('click', function () {
 /* ---------------- テーマ ---------------- */
 (function () {
   var storageKey = 'arduino_ide_theme';
-  var button = $('#btn-theme');
+  var buttons = [$('#btn-theme'), $('#btn-login-theme')];
   var theme = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
   try {
     var savedTheme = localStorage.getItem(storageKey);
@@ -981,16 +1008,20 @@ $('#save-token-settings').addEventListener('click', function () {
   function applyTheme(nextTheme) {
     theme = nextTheme;
     document.documentElement.setAttribute('data-theme', theme);
-    button.setAttribute('aria-pressed', String(theme === 'light'));
     var label = theme === 'dark' ? 'ライトテーマに切り替え' : 'ダークテーマに切り替え';
-    button.setAttribute('aria-label', label);
-    button.title = label;
+    buttons.forEach(function (button) {
+      button.setAttribute('aria-pressed', String(theme === 'light'));
+      button.setAttribute('aria-label', label);
+      button.title = label;
+    });
   }
   applyTheme(theme);
-  button.addEventListener('click', function () {
-    applyTheme(theme === 'dark' ? 'light' : 'dark');
-    try { localStorage.setItem(storageKey, theme); }
-    catch (err) { console.warn('Shared theme preference could not be saved:', err); }
+  buttons.forEach(function (button) {
+    button.addEventListener('click', function () {
+      applyTheme(theme === 'dark' ? 'light' : 'dark');
+      try { localStorage.setItem(storageKey, theme); }
+      catch (err) { console.warn('Shared theme preference could not be saved:', err); }
+    });
   });
   window.addEventListener('storage', function (event) {
     if (event.key === storageKey && (event.newValue === 'light' || event.newValue === 'dark')) {
@@ -1244,8 +1275,10 @@ function histRow(r) {
 
 function loadHistory(mode) {   // 'reset' | 'more'
   if (!state.token) return;
+  var generation = ++state.historyGeneration;
   var offset = mode === 'more' ? state.hist.length : 0;
   api(histQuery(offset, 50), 20000).then(function (d) {
+    if (generation !== state.historyGeneration) return;
     state.histTotal = d.total;
     state.histKept = d.kept || 0;
     if (mode === 'more') {
@@ -1257,6 +1290,7 @@ function loadHistory(mode) {   // 'reset' | 'more'
     }
     renderHistory();
   }).catch(function (err) {
+    if (generation !== state.historyGeneration) return;
     if (err.auth) { stopAuto(); showLogin(err.message, true); }
     else $('#hist-count').textContent = '履歴の取得に失敗: ' + err.message;
   });
@@ -1272,6 +1306,36 @@ function renderHistory() {
 }
 
 $('#btn-hist-more').addEventListener('click', function () { loadHistory('more'); });
+$('#btn-hist-clear').addEventListener('click', function () {
+  if (!state.token || state.clearingHistory) return;
+  if (!window.confirm('保存されているコンパイル・管理作業の利用履歴をすべて削除します。この操作は取り消せません。画面の利用履歴と集計統計もリセットされます。サービスの稼働ログは削除されません。実行中の処理は、完了後に新しい利用履歴として記録される場合があります。削除しますか？')) return;
+
+  state.clearingHistory = true;
+  state.historyGeneration++;
+  var button = $('#btn-hist-clear');
+  button.disabled = true;
+  button.textContent = '削除中…';
+  $('#hist-action-state').textContent = '利用履歴を削除しています…';
+  $('#hist-action-state').classList.remove('error');
+  api('/admin/api/history', 20000, 'DELETE').then(function (result) {
+    state.historyGeneration++;
+    state.hist = [];
+    state.histTotal = 0;
+    state.histKept = 0;
+    state.histPaged = false;
+    renderHistory();
+    $('#hist-action-state').textContent = '過去の利用履歴を ' + result.deleted + ' 件削除しました。実行中の処理は完了後に記録される場合があります。';
+    refresh(true);
+  }).catch(function (err) {
+    if (err.auth) { stopAuto(); showLogin(err.message, true); return; }
+    $('#hist-action-state').textContent = '利用履歴を削除できませんでした: ' + err.message;
+    $('#hist-action-state').classList.add('error');
+  }).finally(function () {
+    state.clearingHistory = false;
+    button.disabled = false;
+    button.textContent = '履歴を全削除';
+  });
+});
 $('#f-kind').addEventListener('change', function () { loadHistory('reset'); });
 $('#f-state').addEventListener('change', function () { loadHistory('reset'); });
 var qTimer = null;

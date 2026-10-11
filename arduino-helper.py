@@ -43,6 +43,7 @@ Python 3.8+ の標準ライブラリだけで動きます。arduino-cli が必�
   --- 以下は管理者トークンが必要 ---
   GET  /admin/api/overview        サーバー状態・トークン詳細・統計・アクティブジョブ (JSON)
   GET  /admin/api/history         利用履歴 (JSON。offset/limit/kind/state/q で絞り込み)
+  DELETE /admin/api/history       保存済みの利用履歴をすべて削除
   GET  /admin/api/settings        アクセストークン・生徒用トークン配布設定 (JSON)
   POST /admin/api/settings        生徒用トークン配布設定を保存
   GET  /public-config             生徒用トークン自動入力設定 (有効時のみトークンを返す)
@@ -664,6 +665,39 @@ def history_record(job, state, error=None):
         trim = HISTORY_LINES > HISTORY_TRIM
     if trim:
         trim_history()
+
+
+def clear_history():
+    """保存済みの利用履歴を原子的に削除し、メモリ上の履歴も空にする。"""
+    global HISTORY_LINES
+    temp_path = None
+    with HISTORY_LOCK:
+        deleted = HISTORY_LINES
+        fd = None
+        try:
+            fd, temp_name = tempfile.mkstemp(prefix=".history-", suffix=".tmp", dir=str(HOME))
+            temp_path = Path(temp_name)
+            os.close(fd)
+            fd = None
+            os.replace(str(temp_path), str(HISTORY_FILE))
+            temp_path = None
+            HISTORY.clear()
+            HISTORY_LINES = 0
+            return deleted
+        except OSError as e:
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+            log("履歴を削除できません: %s" % e)
+            raise ApiError(500, "利用履歴を削除できませんでした")
+        finally:
+            if temp_path is not None:
+                try:
+                    temp_path.unlink()
+                except OSError:
+                    pass
 
 
 def history_stats(recs):
@@ -1466,7 +1500,7 @@ class Handler(BaseHTTPRequestHandler):
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Helper-Token, X-Client-Id")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Private-Network", "true")
         self.send_header("Access-Control-Max-Age", "600")
 
@@ -1675,6 +1709,10 @@ class Handler(BaseHTTPRequestHandler):
                     "prefillStudentToken": load_admin_settings()["prefillStudentToken"],
                 })
             raise ApiError(404, "不明なエンドポイント: %s %s" % (method, path[:80]))
+        if method == "DELETE" and path == "/admin/api/history":
+            self._need(role, True)
+            deleted = clear_history()
+            return self._send(200, {"ok": True, "deleted": deleted})
         if method == "POST" and path == "/admin/api/settings":
             self._need(role, True)
             body = self._body()
@@ -1881,6 +1919,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         self._run("POST")
+
+    def do_DELETE(self):
+        self._run("DELETE")
 
 
 class Server(ThreadingHTTPServer):
