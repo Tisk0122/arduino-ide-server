@@ -153,6 +153,7 @@ button  { cursor: pointer; border: none; outline: none; font-family: inherit; fo
 input,select,textarea { font-family: inherit; font-size: inherit; color: inherit; outline: none; }
 a { color: var(--teal-link); text-decoration: none; }
 svg { display: block; flex-shrink: 0; }
+.icon-fallback { display: inline-grid; place-items: center; width: 1em; height: 1em; font-style: normal; line-height: 1; }
 :focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 ::selection { background: var(--ed-sel); }
 
@@ -2582,7 +2583,32 @@ function ts() { return new Date().toLocaleTimeString('ja-JP', { hour12: false })
 function renderLucideIcons(root=document) {
   if (window.lucide && typeof window.lucide.createIcons === 'function') {
     window.lucide.createIcons({ root });
+  } else if (iconFallbackEnabled) {
+    const icons = root.matches && root.matches('i[data-lucide]')
+      ? [root]
+      : Array.from(root.querySelectorAll ? root.querySelectorAll('i[data-lucide]') : []);
+    icons.forEach(icon => {
+      if (icon.classList.contains('icon-fallback')) return;
+      icon.classList.add('icon-fallback');
+      icon.textContent = iconFallbackGlyph(icon.dataset.lucide);
+    });
   }
+}
+
+let iconFallbackEnabled = false;
+function iconFallbackGlyph(name) {
+  const glyphs = {
+    'archive-restore': '↶', 'arrow-down': '↓', 'arrow-up': '↑',
+    archive: '▤', check: '✓', 'chevron-down': '⌄', 'chevron-right': '›',
+    'circle-alert': '!', 'circle-check': '✓', 'circle-help': '?',
+    clock: '◷', 'clock-3': '◷', copy: '▢', cpu: '▣',
+    download: '↓', 'file-code-2': '</>', 'file-plus': '+', 'file-up': '↑',
+    folder: '▣', 'folder-open': '▣', info: 'i', library: '▤',
+    'panel-left': '◧', pencil: '✎', plus: '+', save: '↓', search: '⌕',
+    server: '▦', settings: '⚙', sun: '☼', terminal: '>_',
+    'trash-2': '×', triangle: '!', 'triangle-alert': '!', usb: '⎓', upload: '↑', x: '×'
+  };
+  return glyphs[name] || '•';
 }
 
 function setLucideIcon(container, name) {
@@ -2609,7 +2635,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 }, { once: true });
 document.getElementById('lucide-icons').addEventListener('error', () => {
-  console.error('Lucide Icons could not be loaded; icon placeholders will remain empty.');
+  console.error('Lucide Icons could not be loaded; using text icon fallbacks.');
+  iconFallbackEnabled = true;
+  renderLucideIcons();
 }, { once: true });
 
 function toast(msg, type='info', dur=3000) {
@@ -6187,7 +6215,8 @@ pop.addEventListener('keydown',function(e){
   if(e.key==='ArrowDown'){e.preventDefault();move(1)}
   else if(e.key==='ArrowUp'){e.preventDefault();move(-1)}
   else if(e.key==='Enter'){e.preventDefault();if(items[ai])pick(items[ai].o)}
-  else if(e.key==='Escape'||e.key==='Tab'){e.preventDefault();e.stopPropagation();close(true)}
+  else if(e.key==='Escape'){e.preventDefault();e.stopPropagation();close(true)}
+  else if(e.key==='Tab'){e.stopPropagation();close(true)}
   else if(e.key.length===1&&e.target.tagName!=='INPUT'){clearTimeout(tt);ta+=e.key.toLowerCase();tt=setTimeout(function(){ta=''},600);
     var k=items.findIndex(function(it){return it.txt.indexOf(ta)===0&&!it.o.disabled});if(k>=0)setAct(k,true)}
 },true);
