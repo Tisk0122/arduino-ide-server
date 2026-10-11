@@ -400,8 +400,6 @@ td.wrap-cell { white-space: normal; overflow-wrap: anywhere; word-break: normal;
 .token-secret { display: flex; align-items: center; gap: 6px; min-width: 320px; flex-wrap: wrap; }
 .token-secret input { flex: 1; width: 180px; min-width: 0; font-family: var(--ff-mono); font-size: 11px; }
 .token-secret .btn { flex: none; }
-.token-copy-feedback { flex: 1 0 100%; color: var(--ok); font-size: 11px; }
-.token-copy-feedback.error { color: var(--err); }
 .token-setting { display: flex; align-items: flex-start; gap: 12px; }
 .token-setting input { width: 16px; height: 16px; margin-top: 3px; accent-color: var(--teal); }
 .token-setting-copy { min-width: 0; }
@@ -527,6 +525,49 @@ td.wrap-cell { white-space: normal; overflow-wrap: anywhere; word-break: normal;
   border-color: rgba(255,112,112,0.30);
   color: var(--err);
 }
+#toast-wrap {
+  position: fixed;
+  top: 66px;
+  right: 16px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(360px, calc(100vw - 32px));
+  max-height: calc(100vh - 82px);
+  max-height: calc(100dvh - 82px);
+  overflow-y: auto;
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--bd2);
+  border-left: 3px solid var(--teal);
+  border-radius: var(--radius-lg);
+  background: var(--bg3);
+  color: var(--tx0);
+  box-shadow: var(--sh-md);
+  font-size: 12.5px;
+  word-break: break-word;
+  pointer-events: auto;
+  animation: toast-in .2s ease;
+}
+.toast.ok { border-left-color: var(--ok); }
+.toast.err { border-left-color: var(--err); }
+.toast.warn { border-left-color: var(--warn); }
+.toast-icon { flex: none; font-weight: 700; }
+.toast.ok .toast-icon { color: var(--ok); }
+.toast.err .toast-icon { color: var(--err); }
+.toast.warn .toast-icon { color: var(--warn); }
+.toast-message { min-width: 0; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+}
 [hidden] { display: none !important; }
 
 footer {
@@ -592,6 +633,7 @@ footer {
 
   <main>
     <div id="global-err" class="notice err" role="alert" aria-live="assertive" hidden></div>
+    <div id="toast-wrap" aria-label="通知"></div>
 
     <section>
       <div class="sec-head"><h2>サーバー状態</h2><span class="sec-note" id="srv-note"></span></div>
@@ -868,6 +910,33 @@ function api(path, timeoutMs, method, body) {
   });
 }
 
+function toast(message, type, duration) {
+  var wrap = $('#toast-wrap');
+  var item = document.createElement('div');
+  var icon = type === 'ok' ? '✓' : (type === 'err' ? '!' : (type === 'warn' ? '!' : 'i'));
+  item.className = 'toast ' + (type || 'info');
+  item.setAttribute('role', type === 'err' ? 'alert' : 'status');
+  item.setAttribute('aria-live', type === 'err' ? 'assertive' : 'polite');
+  var iconNode = document.createElement('span');
+  iconNode.className = 'toast-icon';
+  iconNode.setAttribute('aria-hidden', 'true');
+  iconNode.textContent = icon;
+  var messageNode = document.createElement('span');
+  messageNode.className = 'toast-message';
+  messageNode.textContent = message;
+  item.appendChild(iconNode);
+  item.appendChild(messageNode);
+  wrap.appendChild(item);
+  while (wrap.children.length > 4) wrap.firstElementChild.remove();
+
+  window.setTimeout(function () {
+    item.style.transition = 'opacity .2s, transform .2s';
+    item.style.opacity = '0';
+    item.style.transform = 'translateY(6px)';
+    window.setTimeout(function () { item.remove(); }, 220);
+  }, duration || 3000);
+}
+
 /* ---------------- ログイン ---------------- */
 function showLogin(msg, clear) {
   if (clear) { state.token = ''; localStorage.removeItem(LS_KEY); }
@@ -908,13 +977,11 @@ function renderTokenSecrets(settings) {
   var rows = [['生徒用', settings.studentToken], ['管理者用', settings.adminToken]];
   $('#token-secrets-body').innerHTML = rows.map(function (row, index) {
     var id = 'token-secret-' + index;
-    var feedbackId = 'token-copy-feedback-' + index;
     return '<tr><td><strong>' + esc(row[0]) + '</strong></td><td><div class="token-secret">' +
       '<input class="input" id="' + id + '" type="password" value="' + esc(row[1]) +
       '" readonly autocomplete="off" spellcheck="false" aria-label="' + esc(row[0]) + 'アクセストークン">' +
       '<button class="btn btn-sm" type="button" data-token-reveal="' + id + '" aria-label="' + esc(row[0]) + 'トークンを表示">表示</button>' +
-      '<button class="btn btn-sm" type="button" data-token-copy="' + id + '" data-token-feedback="' + feedbackId + '">コピー</button>' +
-      '<span class="token-copy-feedback" id="' + feedbackId + '" role="status" aria-live="polite" hidden></span>' +
+      '<button class="btn btn-sm" type="button" data-token-copy="' + id + '">コピー</button>' +
       '</div></td></tr>';
   }).join('');
   $('#prefill-student-token').checked = settings.prefillStudentToken;
@@ -950,23 +1017,14 @@ $('#token-secrets-body').addEventListener('click', function (event) {
   var copy = event.target.closest('[data-token-copy]');
   if (copy) {
     var value = document.getElementById(copy.dataset.tokenCopy).value;
-    var feedback = document.getElementById(copy.dataset.tokenFeedback);
-    feedback.textContent = '';
-    feedback.classList.remove('error');
-    feedback.hidden = true;
     if (!navigator.clipboard || !navigator.clipboard.writeText) {
-      feedback.textContent = 'このページではクリップボード機能を利用できません';
-      feedback.classList.add('error');
-      feedback.hidden = false;
+      toast('このページではクリップボード機能を利用できません', 'warn');
       return;
     }
     navigator.clipboard.writeText(value).then(function () {
-      feedback.textContent = 'このトークンをコピーしました';
-      feedback.hidden = false;
+      toast('このトークンをコピーしました', 'ok');
     }).catch(function (err) {
-      feedback.textContent = 'コピーできませんでした: ' + err.message;
-      feedback.classList.add('error');
-      feedback.hidden = false;
+      toast('コピーできませんでした: ' + err.message, 'err', 5000);
     });
   }
 });
@@ -978,8 +1036,9 @@ $('#save-token-settings').addEventListener('click', function () {
   $('#token-settings-status').textContent = '保存中...';
   api('/admin/api/settings', 15000, 'POST', { prefillStudentToken: enabled }).then(function (settings) {
     state.settings.prefillStudentToken = settings.prefillStudentToken;
-    $('#token-settings-status').textContent = '保存しました。IDEを再読み込みすると反映されます。';
+    $('#token-settings-status').textContent = '';
     $('#token-settings-error').hidden = true;
+    toast('設定を保存しました。IDEを再読み込みすると反映されます。', 'ok');
   }).catch(function (err) {
     if (err.auth) { stopAuto(); showLogin(err.message, true); return; }
     $('#token-settings-status').textContent = '';
@@ -1328,7 +1387,8 @@ $('#btn-hist-clear').addEventListener('click', function () {
     state.histKept = 0;
     state.histPaged = false;
     renderHistory();
-    $('#hist-action-state').textContent = '過去の利用履歴を ' + result.deleted + ' 件削除しました。実行中の処理は完了後に記録される場合があります。';
+    $('#hist-action-state').textContent = '';
+    toast('過去の利用履歴を ' + result.deleted + ' 件削除しました。実行中の処理は完了後に記録される場合があります。', 'ok', 5000);
     refresh(true);
   }).catch(function (err) {
     if (err.auth) { stopAuto(); showLogin(err.message, true); return; }
