@@ -4033,6 +4033,24 @@ const Flash = {
     });
   },
 
+  _avrFailureStage(error) {
+    const message = (error && error.message) || String(error);
+    const match = message.match(/Sending ([0-9a-f]+):/i);
+    if (!match) return '';
+    const command = match[1].toLowerCase();
+    const stages = {
+      '3020': 'STK500同期応答待ち (GET_SYNC)。まだスケッチ転送は開始していません',
+      '7520': 'ブートローダー署名の読み取り中',
+      '5120': 'ブートローダー終了応答待ち',
+      '5020': 'プログラムモード開始応答待ち',
+    };
+    if (command.startsWith('55') && command.endsWith('20')) return 'フラッシュ書き込みアドレスの設定中';
+    if (command.startsWith('64') && command.endsWith('20')) return 'フラッシュへのページ書き込み応答待ち';
+    if (command.startsWith('74') && command.endsWith('20')) return '書き込み後のフラッシュ読み戻し確認中';
+    if (command.startsWith('42') && command.endsWith('20')) return 'ブートローダーへのデバイス設定中';
+    return stages[command] || `STK500コマンド ${match[1]} の応答待ち`;
+  },
+
   download() {
     const p = this.plan;
     if (!p || !p.dl) return;
@@ -4122,8 +4140,11 @@ const Flash = {
           Build._log(`AVR書き込み段階: ${message}`, 'info');
           if (message === 'connected') stage = 'ポートを開きました。ブートローダーをリセット中';
           else if (message === 'reset complete.') stage = 'リセット完了。ブートローダー応答待ち';
-          else if (message === 'flashing, please wait...') stage = 'ファームウェア転送中';
-          else stage = '転送完了。ポートを閉じています';
+          else if (message === 'flashing, please wait...') {
+            stage = 'STK500ブートローダーと通信中 (同期・署名確認・書き込み・検証)';
+          } else if (message === 'flash complete.') {
+            Build._log('AVRライブラリの処理終了通知 (この通知だけでは書き込み成功を意味しません)', 'info');
+          }
         }
         return originalConsoleLog.apply(console, args);
       };
@@ -4147,7 +4168,10 @@ const Flash = {
         clearInterval(tick);
         clearTimeout(to);
         restoreHooks();
-        if (fn === reject) Build._log(`書き込み失敗時の最終段階: ${stage}`, 'warn');
+        if (fn === reject) {
+          const failedAt = Flash._avrFailureStage(v);
+          Build._log(`書き込み失敗時の最終段階: ${failedAt || stage}`, 'warn');
+        }
         if (!selectedPort) Build._log('選択ポート情報なし (ポート選択前の終了、またはブラウザーの捕捉制限)', 'info');
         fn(v);
       };
@@ -4161,7 +4185,15 @@ const Flash = {
   },
 
   async esp(m) {
-    const port = await navigator.serial.requestPort();
+    const port = await navigator.serial.requestPort({ filters: [
+      { usbVendorId: 0x2341 }, // Arduino SA
+      { usbVendorId: 0x2A03 }, // Arduino SA (newer)
+      { usbVendorId: 0x1b4f }, // SparkFun
+      { usbVendorId: 0x239A }, // Adafruit
+      { usbVendorId: 0x10C4 }, // Silicon Labs CP210x
+      { usbVendorId: 0x0403 }, // FTDI FT232
+      { usbVendorId: 0x1A86 }, // CH340/CH341
+    ] });
     this.status('書き込みライブラリを準備中...');
     const mod = this.espMod || await import(vendorUrl('esp'));
     this.espMod = mod;
@@ -4587,7 +4619,15 @@ const Ser = {
   async authorizePort() {
     if (!('serial' in navigator)) return;
     try {
-      const port = await navigator.serial.requestPort();
+      const port = await navigator.serial.requestPort({ filters: [
+        { usbVendorId: 0x2341 }, // Arduino SA
+        { usbVendorId: 0x2A03 }, // Arduino SA (newer)
+        { usbVendorId: 0x1b4f }, // SparkFun
+        { usbVendorId: 0x239A }, // Adafruit
+        { usbVendorId: 0x10C4 }, // Silicon Labs CP210x
+        { usbVendorId: 0x0403 }, // FTDI FT232
+        { usbVendorId: 0x1A86 }, // CH340/CH341
+      ] });
       await this.refreshDetection(port);
       updateUsbSetupStatus();
     } catch (err) {
@@ -4609,7 +4649,15 @@ const Ser = {
     if (!('serial' in navigator)) { toast('Web Serial APIが利用できません', 'err'); return; }
     const baud = parseInt(document.getElementById('baud-select').value);
     try {
-      const port = await navigator.serial.requestPort();
+      const port = await navigator.serial.requestPort({ filters: [
+        { usbVendorId: 0x2341 }, // Arduino SA
+        { usbVendorId: 0x2A03 }, // Arduino SA (newer)
+        { usbVendorId: 0x1b4f }, // SparkFun
+        { usbVendorId: 0x239A }, // Adafruit
+        { usbVendorId: 0x10C4 }, // Silicon Labs CP210x
+        { usbVendorId: 0x0403 }, // FTDI FT232
+        { usbVendorId: 0x1A86 }, // CH340/CH341
+      ] });
       await this._open(port, baud);
       this.refreshDetection(port).catch(err => this._detectionFailed(err));
       toast(`シリアル接続しました (${baud}bps)`, 'ok');
