@@ -1064,6 +1064,7 @@ svg { display: block; flex-shrink: 0; }
 @keyframes modal-in { from { opacity:0; transform:scale(.97) translateY(-4px) } to { opacity:1; transform:none } }
 .modal.modal-lg { width: 660px; }
 .modal.modal-sm { width: 380px; }
+.modal.modal-welcome { width: 640px; max-height: min(88vh, 760px); max-height: min(88dvh, 760px); }
 
 .modal-head {
   display: flex;
@@ -1254,10 +1255,29 @@ svg { display: block; flex-shrink: 0; }
 #helper-status-box.ok { color: var(--co-ok); }
 #helper-status-box.warn { color: var(--orange); }
 #helper-status-box.err { color: var(--red); }
+.welcome-body { display: grid; gap: 16px; }
 .welcome-copy { color: var(--tx1); line-height: 1.7; }
-.welcome-steps { display: grid; gap: 10px; margin: 16px 0; padding: 0; list-style: none; counter-reset: welcome; }
-.welcome-steps li { display: flex; gap: 10px; align-items: flex-start; counter-increment: welcome; }
+.welcome-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 0; list-style: none; counter-reset: welcome; }
+.welcome-steps li { display: flex; gap: 10px; align-items: flex-start; min-width: 0; padding: 12px; border: 1px solid var(--bd1); border-radius: var(--radius); background: var(--bg2); counter-increment: welcome; }
 .welcome-steps li::before { content: counter(welcome); display: grid; place-items: center; flex: 0 0 23px; height: 23px; border-radius: 50%; color: #071719; background: var(--teal-lt); font-weight: 700; line-height: 1; }
+.welcome-step-copy { min-width: 0; color: var(--tx1); line-height: 1.6; }
+.welcome-step-copy strong { display: block; margin-bottom: 3px; color: var(--tx0); }
+.welcome-usb { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--bd1); border-radius: var(--radius-lg); background: var(--bg-hover); }
+.welcome-usb h2 { font-size: 13px; font-weight: 700; color: var(--tx0); }
+.welcome-usb .info-notice { margin: 0; }
+.welcome-usb .welcome-copy { font-size: 12px; }
+.welcome-docs-link { justify-self: start; }
+.welcome-actions { display: flex; gap: 8px; }
+.welcome-actions .btn { padding-inline: 12px; }
+.modal-foot.welcome-foot { align-items: center; justify-content: space-between; gap: 12px; }
+@media (max-width: 600px) {
+  .modal.modal-welcome { width: 100%; }
+  .welcome-steps { grid-template-columns: 1fr; }
+  .modal-foot.welcome-foot { align-items: stretch; flex-direction: column-reverse; }
+  .welcome-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .welcome-actions .btn { justify-content: center; padding-inline: 6px; white-space: normal; }
+  #usb-setup-done-btn { width: 100%; justify-content: center; }
+}
 .jc-advice { display: none; margin-top: 8px; padding: 8px 10px; border-left: 2px solid var(--orange); border-radius: 3px; background: var(--bg-hover); color: var(--tx1); line-height: 1.55; white-space: normal; overflow-wrap: anywhere; }
 .jc-advice.show { display: block; }
 .jc-action { display: none; margin-top: 8px; padding: 5px 9px; border: 1px solid var(--bd2); border-radius: var(--radius); color: var(--teal-link); background: var(--bg2); font: inherit; cursor: pointer; }
@@ -2069,27 +2089,31 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
 
 <!-- 初回ガイドとUSBポート設定 -->
 <div class="modal-overlay" id="m-usb-setup">
-  <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="usb-setup-title" aria-describedby="usb-setup-description">
+  <div class="modal modal-welcome" role="dialog" aria-modal="true" aria-labelledby="usb-setup-title" aria-describedby="usb-setup-description">
     <div class="modal-head">
       <span class="modal-title" id="usb-setup-title">Arduino Web IDEへようこそ</span>
       <button class="modal-x" data-close="m-usb-setup" title="閉じる" aria-label="閉じる"><i data-lucide="x"></i></button>
     </div>
-    <div class="modal-body">
+    <div class="modal-body welcome-body">
       <p class="welcome-copy" id="usb-setup-description">まずはスケッチを作成して「検証」でコンパイルできます。サーバー接続が必要な場合は、先生から受け取った配布リンクまたは接続設定をご利用ください。</p>
       <ol class="welcome-steps">
-        <li>「新規」でスケッチを作成し、「検証」でコンパイルします。</li>
-        <li>スケッチはこのブラウザー内に保存されます。別の端末へ移すときは「バックアップ」でZIPを書き出してください。</li>
+        <li><span class="welcome-step-copy"><strong>スケッチを作成・検証</strong>「新規」で作成し、「検証」でコンパイルします。</span></li>
+        <li><span class="welcome-step-copy"><strong>作品を保存・移行</strong>スケッチはこのブラウザー内に保存されます。別の端末へ移すときは「バックアップ」でZIPを書き出してください。</span></li>
       </ol>
-      <p><a href="/docs" target="_blank" rel="noopener">使い方と画面のしくみを読む</a></p>
-      <p class="welcome-copy">USBボードの検出やシリアルモニターには、ブラウザーでポートを許可してください。許可しなくてもエディターとコンパイルは利用できます。</p>
-      <div class="info-notice" id="usb-setup-support"></div>
-      <p class="welcome-copy" id="usb-setup-count" role="status" aria-live="polite">許可済みポートを確認しています…</p>
-      <p class="welcome-copy">「USBポートを許可」を押し、ブラウザーの一覧から接続中のボードを選んでください。複数台使う場合は、1台ずつ許可を追加できます。許可はこのサイトに保存され、あとからブラウザーのサイト設定で取り消せます。</p>
-      <p class="welcome-copy">カメラやマイクなど、このIDEで不要な権限を求めることはありません。</p>
+      <section class="welcome-usb" aria-labelledby="welcome-usb-title">
+        <h2 id="welcome-usb-title">USBボードを使う場合（任意）</h2>
+        <p class="welcome-copy">書き込みやシリアルモニターを使う場合だけUSBポートを許可してください。エディターとコンパイルは許可なしでも利用できます。</p>
+        <div class="info-notice" id="usb-setup-support"></div>
+        <p class="welcome-copy" id="usb-setup-count" role="status" aria-live="polite">許可済みポートを確認しています…</p>
+        <p class="welcome-copy">許可はこのサイトに保存され、ブラウザーのサイト設定から取り消せます。カメラやマイクの権限は要求しません。</p>
+      </section>
+      <a class="welcome-docs-link" href="/docs" target="_blank" rel="noopener">使い方と画面のしくみを読む ↗</a>
     </div>
-    <div class="modal-foot">
-      <button class="btn btn-secondary" id="welcome-helper-btn">接続設定をする</button>
-      <button class="btn btn-secondary" id="usb-setup-allow-btn">USBポートを許可</button>
+    <div class="modal-foot welcome-foot">
+      <div class="welcome-actions">
+        <button class="btn btn-secondary" id="welcome-helper-btn">接続設定をする</button>
+        <button class="btn btn-secondary" id="usb-setup-allow-btn">USBポートを許可</button>
+      </div>
       <button class="btn btn-primary" id="usb-setup-done-btn">エディターを開く</button>
     </div>
   </div>
@@ -2729,7 +2753,7 @@ function openModal(id)  {
     }
   }
   modal.classList.add('open');
-  const focusTarget = id === 'm-usb-setup' && modal.querySelector('#usb-setup-allow-btn')
+  const focusTarget = id === 'm-usb-setup' && modal.querySelector('#usb-setup-done-btn')
     || modal.querySelector('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])');
   (focusTarget || dialog || modal).focus();
 }
