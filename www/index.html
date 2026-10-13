@@ -2462,6 +2462,10 @@ const BOARDS = [
   { id:'rp2040:rp2040:rpipico', name:'Raspberry Pi Pico', fqbn:'rp2040:rp2040:rpipico', flash:{type:'uf2'}, desc:'要 rp2040 パッケージ · UF2 をダウンロードしてドライブへコピー' },
 ];
 const USB_BOARD_IDS = new Map([
+  ['2341:0001', 'arduino:avr:uno'],
+  ['2a03:0001', 'arduino:avr:uno'],
+  ['2341:0043', 'arduino:avr:uno'],
+  ['2a03:0043', 'arduino:avr:uno'],
   ['2341:0042', 'arduino:avr:mega:cpu=atmega2560'],
   ['2a03:0042', 'arduino:avr:mega:cpu=atmega2560'],
   ['2341:8036', 'arduino:avr:leonardo'],
@@ -4462,16 +4466,21 @@ const Ser = {
       return { boardId, board: boardId ? boardById(boardId) : null };
     });
     const knownBoards = devices.filter(device => device.board);
+    const knownBoardIds = [...new Set(knownBoards.map(device => device.boardId))];
     S.serial.detectedBoardId = '';
     if (ports.length === 0) {
-      S.serial.detectedLabel = '許可済みUSB機器なし';
+      S.serial.detectedLabel = '許可済みUSBポートなし (0台)';
+    } else if (knownBoardIds.length === 1) {
+      const boardId = knownBoardIds[0];
+      const board = boardById(boardId);
+      S.serial.detectedLabel = `許可済みポート${ports.length}台 — ${board.name}を検出`;
+      S.serial.detectedBoardId = boardId;
+    } else if (ports.length > 1 && knownBoardIds.length > 1) {
+      S.serial.detectedLabel = `許可済みポート${ports.length}台 — 複数のボード候補があるため手動選択してください`;
     } else if (ports.length > 1) {
-      S.serial.detectedLabel = 'USB機器を複数検出 — ボードを手動選択してください';
-    } else if (knownBoards.length === 1) {
-      S.serial.detectedLabel = `検出: ${knownBoards[0].board.name}`;
-      S.serial.detectedBoardId = knownBoards[0].boardId;
+      S.serial.detectedLabel = `許可済みポート${ports.length}台 — ボードを手動選択してください`;
     } else {
-      S.serial.detectedLabel = 'USB機器を検出 — ボードを手動選択してください';
+      S.serial.detectedLabel = '許可済みポート1台 — ボードを手動選択してください';
     }
     updateDetectedBoardSuggestion();
     this._updateUI(S.serial.connected);
@@ -4733,7 +4742,7 @@ const Ser = {
     document.getElementById('status-port').innerHTML =
       '<i data-lucide="usb" aria-hidden="true"></i> ' + escHtml(portLabel);
     document.getElementById('status-port').title = supported
-      ? '許可済みUSB機器の検出状態。未許可のポートはブラウザーの仕様で検出できません'
+      ? 'このサイトで許可済みのUSBポート数と識別結果です。物理的な接続状態や未許可ポートは取得できません'
       : 'このブラウザーではWeb Serial APIを利用できません';
   },
 };
@@ -5985,7 +5994,7 @@ function updateUsbSetupStatus() {
   allow.textContent = total ? '別のUSBポートも許可' : 'USBポートを許可';
   allow.disabled = !S.serial.supported;
   support.textContent = S.serial.supported
-    ? 'Web Serial API対応のChrome / EdgeとHTTPSが必要です。ポート選択画面は下のボタンを押したときに開きます。'
+    ? 'Web Serial API対応のChrome / EdgeとHTTPSが必要です。USBの接続・切断はIDEの表示に反映されます。ポート選択画面の一覧は自動更新できないため、抜き差し後は閉じて開き直してください。'
     : 'このブラウザーではUSBシリアルを利用できません。Chrome / EdgeでHTTPSのページを開いてください。';
 }
 
