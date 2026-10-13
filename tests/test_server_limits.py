@@ -32,6 +32,7 @@ class ServerLimitTests(unittest.TestCase):
         server.ADMIN_TOKEN = "admin-test-token"
         server.WRAPPER = "test-wrapper"
         server.READ_CACHE.clear()
+        server.LIB_SEARCH_OMIT_RELEASES_DETAILS = None
         server.GEN = 1
         server.ADMIN_MAX_QUEUE = 10
         server.AUTH_FAILS.clear()
@@ -137,6 +138,43 @@ class ServerLimitTests(unittest.TestCase):
         handler._cors()
         self.assertFalse(any(key == "Access-Control-Allow-Origin" for key, _ in sent))
 
+    @patch.object(server, "load_admin_settings", return_value={"prefillStudentToken": True})
+    def test_public_student_token_config_is_not_cached(self, _load_settings):
+        handler = object.__new__(server.Handler)
+        handler.path = "/public-config"
+        handler._client_ip = lambda: "127.0.0.1"
+        handler._send = unittest.mock.Mock()
+
+        handler._dispatch("GET")
+
+        handler._send.assert_called_once_with(
+            200,
+            {"prefillStudentToken": True, "studentToken": "test-token"},
+            extra_headers={"Cache-Control": "no-store"},
+        )
+
+    def test_library_search_cache_key_tracks_cli_option_fallback(self):
+        server.LIB_SEARCH_OMIT_RELEASES_DETAILS = None
+        unknown = server._library_search_cache_key("servo")
+        server.LIB_SEARCH_OMIT_RELEASES_DETAILS = True
+        supported = server._library_search_cache_key("servo")
+        server.LIB_SEARCH_OMIT_RELEASES_DETAILS = False
+        fallback = server._library_search_cache_key("servo")
+
+        self.assertEqual(unknown, "ls:unknown:servo")
+        self.assertEqual(supported, "ls:omit-details:servo")
+        self.assertEqual(fallback, "ls:full-details:servo")
+        self.assertEqual(len({unknown, supported, fallback}), 3)
+
+    def test_library_version_requires_numeric_major_and_minor(self):
+        for version in ("1.0", "1.2.3", "2.0.0-rc1", "3.1.0+build.5", "2.0.0-rc1+build.5"):
+            with self.subTest(version=version):
+                self.assertEqual(server.check_name(version, server.RE_VERSION, "version"), version)
+        for version in ("arduino:avr@", "v1.2", "1", "1.2.3-", "1." + "2" * 40):
+            with self.subTest(version=version):
+                with self.assertRaises(server.ApiError):
+                    server.check_name(version, server.RE_VERSION, "version")
+
     def test_auth_failure_state_is_bounded_without_global_reset(self):
         server.AUTH_STATE_LIMIT = 2
         server.AUTH_FAILS.update({"old-a": [1], "old-b": [2]})
@@ -171,7 +209,7 @@ class ServerLimitTests(unittest.TestCase):
         endpoints = (
             ("/cores/search?q=esp32", "cs:esp32"),
             ("/cores/list", "cl"),
-            ("/libs/search?q=servo", "ls:servo"),
+            ("/libs/search?q=servo", "ls:unknown:servo"),
             ("/libs/list", "ll"),
         )
         for path, cache_key in endpoints:
@@ -219,6 +257,13 @@ class ServerLimitTests(unittest.TestCase):
         self.assertEqual(run_cli.call_count, 2)
         self.assertEqual(run_cli.call_args_list[1].args[0],
                          ["lib", "search", "servo", "--format", "json"])
+        self.assertFalse(server.LIB_SEARCH_OMIT_RELEASES_DETAILS)
+
+    def test_library_search_records_supported_option(self):
+        with patch.object(server, "run_cli", return_value=(0, '{"libraries": []}')):
+            server.run_cli_json(["lib", "search", "servo", "--omit-releases-details"])
+
+        self.assertTrue(server.LIB_SEARCH_OMIT_RELEASES_DETAILS)
 
     def test_library_search_does_not_retry_transient_cli_failure(self):
         with patch.object(server, "run_cli", return_value=(1, "network unavailable")) as run_cli:

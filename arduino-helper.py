@@ -175,7 +175,8 @@ ARTIFACT_EXT = {".hex", ".bin", ".uf2"}
 RE_FQBN = re.compile(r"^[A-Za-z0-9_.\-]+:[A-Za-z0-9_.\-]+:[A-Za-z0-9_.\-]+(:[A-Za-z0-9_.,=\-]+)?$")
 RE_CORE = re.compile(r"^[A-Za-z0-9_.\-]+:[A-Za-z0-9_.\-]+(@[0-9A-Za-z.\-+]+)?$")
 RE_LIBNAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 _.+()&'\-]{0,98}$")
-RE_VERSION = re.compile(r"^[0-9A-Za-z][0-9A-Za-z.\-+]{0,40}$")
+RE_VERSION = re.compile(
+    r"^(?=.{1,41}$)[0-9]+\.[0-9]+(?:\.[0-9]+)?(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")
 RE_FILE = re.compile(r"^[^/\\\x00-\x1f.][^/\\\x00-\x1f]{0,99}$")
 RE_JOBID = re.compile(r"^[0-9a-f]{24}$")
 
@@ -196,6 +197,8 @@ RESULT_CACHE = collections.OrderedDict()
 RESULT_CACHE_SIZE = 0
 READ_SEM = threading.BoundedSemaphore(4)
 READ_CACHE = {}                 # path+query -> (expires, gen, data)
+LIB_SEARCH_LOCK = threading.RLock()
+LIB_SEARCH_OMIT_RELEASES_DETAILS = None
 CLI_VER = {"t": 0, "v": ""}
 COMPILES_DONE = 0
 HISTORY = collections.deque(maxlen=HISTORY_KEEP)   # 過去 HISTORY_KEEP 件の利用履歴
@@ -322,6 +325,7 @@ def run_cli_json(args, timeout=120):
         r"--omit-releases-details.{0,100}(?:unknown|unrecognized|unsupported|not defined|not recognized)",
         out, re.I | re.S)
     if unsupported_flag:
+        _record_library_search_flag(args, False)
         fallback_args = [arg for arg in args if arg != "--omit-releases-details"]
         return run_cli_json(fallback_args, timeout=timeout)
     allows_search_rc1 = args[:2] in (["core", "search"], ["lib", "search"])
@@ -332,7 +336,7 @@ def run_cli_json(args, timeout=120):
         log("arduino-cli rc=%d %s (JSON パースを試みます): %s" % (rc, args, out[-200:]))
     # 1) 全体をそのままパース
     try:
-        return json.loads(out)
+        return _record_library_search_flag(args, True, json.loads(out))
     except ValueError:
         pass
     # 2) NDJSON (arduino-cli v1.0+ が複数行 JSON を出力する場合) — 各行をパースして結合
@@ -346,7 +350,7 @@ def run_cli_json(args, timeout=120):
         except ValueError:
             pass
     if len(objects) == 1:
-        return objects[0]
+        return _record_library_search_flag(args, True, objects[0])
     if len(objects) > 1:
         # 同じキーを持つオブジェクト群はリストをマージして返す
         merged = {}
@@ -359,17 +363,32 @@ def run_cli_json(args, timeout=120):
                 elif isinstance(merged[k], list) and isinstance(v, list):
                     merged[k].extend(v)
         if merged:
-            return merged
-        return objects
+            return _record_library_search_flag(args, True, merged)
+        return _record_library_search_flag(args, True, objects)
     # 3) 先頭の { または [ から末尾まで切り出してパース
     for i, ch in enumerate(out):
         if ch in "{[":
             try:
-                return json.loads(out[i:])
+                return _record_library_search_flag(args, True, json.loads(out[i:]))
             except ValueError:
                 continue
     log("arduino-cli JSON 解析失敗 (args=%s) 出力先頭: %r" % (args, out[:300]))
     raise ApiError(502, "arduino-cli から有効な応答を取得できません。ネットワークやパッケージインデックスを確認してください")
+
+
+def _record_library_search_flag(args, supported, result=None):
+    global LIB_SEARCH_OMIT_RELEASES_DETAILS
+    if "--omit-releases-details" in args:
+        with LIB_SEARCH_LOCK:
+            LIB_SEARCH_OMIT_RELEASES_DETAILS = supported
+    return result
+
+
+def _library_search_cache_key(query):
+    with LIB_SEARCH_LOCK:
+        mode = ("unknown" if LIB_SEARCH_OMIT_RELEASES_DETAILS is None else
+                "omit-details" if LIB_SEARCH_OMIT_RELEASES_DETAILS else "full-details")
+    return "ls:%s:%s" % (mode, query)
 
 
 def cli_version():
@@ -1383,7 +1402,8 @@ def run_compile(job):
         return res
     finally:
         rmtree(jobdir)
-        COMPILES_DONE += 1
+        with JOBS_LOCK:
+            COMPILES_DONE += 1
 
 
 def compile_worker():
@@ -1555,6 +1575,7 @@ def admin_overview():
         cache_entries, cache_bytes = len(RESULT_CACHE), RESULT_CACHE_SIZE
         read_cache_entries = len(READ_CACHE)
         gen = GEN
+        compiles_done = COMPILES_DONE
     active = []
     for j in jobs:
         if j["state"] not in ("queued", "running"):
@@ -1575,7 +1596,7 @@ def admin_overview():
                   for ip, un in AUTH_BLOCK.items() if un > now]
         fails = sum(1 for lst in AUTH_FAILS.values() for t in lst if now - t < 60)
     stats = history_stats(recs)
-    stats["compilesSinceStart"] = COMPILES_DONE
+    stats["compilesSinceStart"] = compiles_done
     return {
         "ok": True,
         "now": round(now, 1),
@@ -1850,7 +1871,7 @@ class Handler(BaseHTTPRequestHandler):
             config = {"prefillStudentToken": settings["prefillStudentToken"]}
             if settings["prefillStudentToken"]:
                 config["studentToken"] = TOKEN
-            return self._send(200, config)
+            return self._send(200, config, extra_headers={"Cache-Control": "no-store"})
 
         if method == "GET" and path == "/ping":
             role = role_for(self._token())
@@ -1937,7 +1958,9 @@ class Handler(BaseHTTPRequestHandler):
                         "libraries", "lib search")
                     libs = norm_libs_search(data)
                     return {"libs": sort_libs_by_relevance(libs, qq)[:200]}
-                data = read_cached("ls:" + qq, 120, _libs_search)
+                with LIB_SEARCH_LOCK:
+                    cache_key = _library_search_cache_key(qq)
+                    data = read_cached(cache_key, 120, _libs_search)
                 return self._send(200, data)
             if path == "/libs/list":
                 def _libs_list():

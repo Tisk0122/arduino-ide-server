@@ -1658,6 +1658,10 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
     <i data-lucide="upload"></i>
     <span>書き込み</span>
   </button>
+  <button class="tool-btn" id="compile-cancel-btn" title="コンパイルをキャンセル" hidden>
+    <i data-lucide="x"></i>
+    <span>キャンセル</span>
+  </button>
 
   <div class="tool-sep"></div>
 
@@ -2037,8 +2041,9 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
       <div id="bt-pkg" style="display:none">
         <div class="info-notice" id="pkg-notice" style="display:none"></div>
         <div class="lib-search-wrap">
-          <input type="text" id="core-search" class="form-input" placeholder="パッケージを検索 (例: esp32, rp2040, stm32)。空欄でインストール済み" autocomplete="off">
+          <input type="text" id="core-search" class="form-input" placeholder="2文字以上で検索 (例: esp32, rp2040)。空欄でインストール済み" autocomplete="off">
         </div>
+        <div class="form-hint">パッケージ検索には2文字以上入力してください。</div>
         <div id="core-list"></div>
         <pre class="job-log" id="core-job"></pre>
       </div>
@@ -2068,8 +2073,9 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
           <span class="lib-search-icon">
             <i data-lucide="search"></i>
           </span>
-          <input type="text" id="lib-search" placeholder="ライブラリを検索 (例: Servo, NeoPixel, DHT)" autocomplete="off">
+          <input type="text" id="lib-search" placeholder="2文字以上で検索 (例: Servo, NeoPixel, DHT)" autocomplete="off">
         </div>
+        <div class="form-hint">ライブラリ検索には2文字以上入力してください。</div>
       </div>
       <div id="lt-zip" style="display:none">
         <div class="form-group">
@@ -2358,7 +2364,7 @@ const S = {
   dirty: new Set(),   // 'sketchId:tabIndex'
   cfg: {
     fontSize: 13, tabSize: 2, autosave: 5,
-    theme: 'dark', lineNums: true, curLine: true, syntax: true, reduceMotion: false,
+    theme: 'dark', lineNums: true, curLine: true, syntax: true, reduceMotion: false, panelMinimized: false,
   },
   serial: { port: null, reader: null, writer: null, connected: false, supported: true, detectedLabel: '', detectedBoardId: '', detectionGeneration: 0, authorizedPortCount: 0 },
   helper: { url: IDE_DEFAULTS.url, fallback: IDE_DEFAULTS.fallbackUrl, token: IDE_DEFAULTS.token, adminToken: '', adminTokenTarget: '', active: '', userSet: false, prefillStudentToken: false, publicConfigError: '', ok: false, authed: false, admin: false, adminBad: false, gen: 0, info: null },
@@ -2379,11 +2385,19 @@ function updateDetectedBoardSuggestion() {
   const button = document.getElementById('apply-detected-board-btn');
   if (!button) return;
   const detectedId = S.serial.detectedBoardId;
-  const detected = detectedId ? boardById(detectedId) : null;
+  const detected = detectedId ? BOARDS.find(board => board.id === detectedId) : null;
   const selectedId = (Sk.cur() || {}).board || document.getElementById('board-select').value;
-  button.hidden = !detected || detected.id === selectedId;
+  button.hidden = !detectedId || (detected && detected.id === selectedId);
+  button.disabled = !!detectedId && !detected;
+  if (button.disabled) {
+    button.textContent = '検出したボードは未インストール';
+    button.title = 'このボードを適用するには、先にボードパッケージをインストールしてください';
+    button.setAttribute('aria-label', '検出したボードはまだインストールされていません');
+    return;
+  }
   if (detected) {
     button.textContent = `${detected.name}を適用`;
+    button.title = '';
     button.setAttribute('aria-label', `検出した${detected.name}を現在のスケッチに適用`);
   }
 }
@@ -2668,7 +2682,7 @@ document.getElementById('lucide-icons').addEventListener('error', () => {
   renderLucideIcons();
 }, { once: true });
 
-function toast(msg, type='info', dur=3000) {
+function toast(msg, type='info', dur=type === 'err' ? 7000 : 3000) {
   const w = document.getElementById('toast-wrap');
   const el = document.createElement('div');
   el.className = `toast ${type}`;
@@ -3801,7 +3815,15 @@ const Helper = {
       from = j.next;
       if (opts.onStatus) opts.onStatus(j);
       if (j.state !== 'running' && j.state !== 'queued') {
-        if (opts.admin) { CCache.clear(); this._ping(false).then(d => { S.helper.gen = d.gen || S.helper.gen; }).catch(() => {}); }
+        if (opts.admin) {
+          CCache.clear();
+          try {
+            const d = await this._ping(false);
+            S.helper.gen = d.gen || S.helper.gen;
+          } catch (err) {
+            console.warn('Server generation could not be refreshed after an admin job:', err);
+          }
+        }
         return j;
       }
       await sleep(j.state === 'queued' ? 1500 : 900);
@@ -4274,12 +4296,17 @@ function helperErrorGuidance(err, adminJob) {
 
 const Build = {
   busy: false,
+  _cancelCompile: null,
   COMPILE_EXT: /\.(ino|h|hpp|cpp|c)$/i,
 
   setBusy(b) {
     this.busy = b;
     ['verify-btn', 'upload-btn', 'board-select'].forEach(id => { const el = document.getElementById(id); if (el) el.disabled = b; });
     ['verify-btn', 'upload-btn'].forEach(id => document.getElementById(id).classList.toggle('is-busy', b));
+    const cancelButton = document.getElementById('compile-cancel-btn');
+    cancelButton.hidden = !b;
+    cancelButton.disabled = false;
+    cancelButton.lastElementChild.textContent = 'キャンセル';
   },
 
   _log(msg, type = '') {
@@ -4358,9 +4385,27 @@ const Build = {
     if (this.busy) { toast('実行中です。完了してからもう一度お試しください', 'warn'); return null; }
     this.setBusy(true);
     const board = boardById(sk.board);          // 実行時点のボードを固定する (途中で変更されても書き込み先がずれない)
-    let jobId = null, cancelled = false;
+    let jobId = null, cancelRequested = false, cancelRequestPending = false;
+    const cancelButton = document.getElementById('compile-cancel-btn');
+    const requestCancel = () => {
+      cancelRequested = true;
+      cancelButton.disabled = true;
+      cancelButton.lastElementChild.textContent = 'キャンセル中…';
+      if (!jobId || cancelRequestPending) return;
+      cancelRequestPending = true;
+      Helper.post('/jobs/' + jobId + '/cancel', {}, 10000).catch(err => {
+        cancelRequestPending = false;
+        if (!this.busy) return;
+        cancelButton.disabled = false;
+        cancelButton.lastElementChild.textContent = 'キャンセル';
+        const message = 'キャンセル要求に失敗しました: ' + Helper.explain(err);
+        this._log(message, 'err');
+        toast(message, 'err');
+      });
+    };
+    this._cancelCompile = requestCancel;
     const tk = JC.compile.start('コンパイル中', {
-      onCancel: () => { cancelled = true; if (jobId) Helper.post('/jobs/' + jobId + '/cancel', {}, 10000).catch(() => {}); },
+      onCancel: requestCancel,
     });
     try {
       this._showPanel();
@@ -4380,15 +4425,21 @@ const Build = {
       }
       const ck = await CCache.key(payload);
       let r = await CCache.get(ck);
+      if (cancelRequested && !jobId) {
+        this._log('コンパイルをキャンセルしました', 'warn');
+        setStatus('キャンセルしました');
+        JC.compile.hide();
+        return null;
+      }
       if (r) {
         this._log('前回と同じ内容のため、保存済みのコンパイル結果を使用します', 'info');
       } else {
         try {
           const sub = await Helper.post('/compile', payload, 60000);
           jobId = sub.job;
+          if (cancelRequested) requestCancel();
           let lastMsg = '';
           const j = await Helper.runJob(jobId, null, {
-            isCancelled: () => cancelled,
             onStatus: s => {
               let txt = '';
               if (s.state === 'queued') {
@@ -4398,7 +4449,7 @@ const Build = {
               if (txt && txt !== lastMsg) { lastMsg = txt; JC.compile.step(tk, txt); this._log(txt, 'info'); }
             },
           });
-          if (cancelled || j.state === 'cancelled') {
+          if (j.state === 'cancelled') {
             this._log('コンパイルをキャンセルしました', 'warn');
             setStatus('キャンセルしました');
             JC.compile.hide();
@@ -4440,7 +4491,10 @@ const Build = {
       });
       if (r.success) {
         this._log('コンパイル成功' + (r.time != null ? ` (${r.time} 秒)` : '') + (r.cached ? ' [サーバーのキャッシュ]' : ''), 'ok');
-        if (r.skipped && r.skipped.length) this._log('サイズが大きいため含めなかったファイル: ' + r.skipped.join(', '), 'warn');
+        if (r.skipped && r.skipped.length) {
+          this._log('サイズが大きいため含めなかったファイル: ' + r.skipped.join(', '), 'warn');
+          toast('サイズ上限を超えた成果物はダウンロードできません: ' + r.skipped.join(', '), 'warn', 8000);
+        }
         setStatus('コンパイル成功', 'ok');
         JC.compile.end(tk, true, 'コンパイル完了' + (r.time != null ? ` (${r.time} 秒)` : ''));
       } else {
@@ -4461,6 +4515,7 @@ const Build = {
         guidance.text, guidance.label, guidance.action);
       return { success: false, serverError: true, boardUsed: board };
     } finally {
+      this._cancelCompile = null;
       this.setBusy(false);
     }
   },
@@ -5157,6 +5212,7 @@ function initPanelResize() {
       document.body.style.userSelect='';
       document.removeEventListener('mousemove', move);
       document.removeEventListener('mouseup', up);
+      persistBottomPanelState();
     };
     document.addEventListener('mousemove', move);
     document.addEventListener('mouseup', up);
@@ -5168,9 +5224,19 @@ function updatePanelToggleA11y() {
   const button = document.getElementById('panel-toggle-btn');
   if (!panel || !button) return;
   const expanded = !panel.classList.contains('minimized');
+  const iconName = expanded ? 'chevron-down' : 'chevron-up';
+  if (button.dataset.iconName !== iconName) {
+    setLucideIcon(document.getElementById('panel-toggle-icon'), iconName);
+    button.dataset.iconName = iconName;
+  }
   button.setAttribute('aria-expanded', String(expanded));
   button.setAttribute('aria-label', expanded ? 'パネルを最小化' : 'パネルを展開');
   button.title = expanded ? 'パネルを最小化' : 'パネルを展開';
+}
+
+function persistBottomPanelState() {
+  S.cfg.panelMinimized = document.getElementById('bottom-panel').classList.contains('minimized');
+  Cfg.save();
 }
 
 function expandBottomPanel() {
@@ -5178,6 +5244,7 @@ function expandBottomPanel() {
   panel.classList.remove('minimized');
   panel.style.height = '210px';
   updatePanelToggleA11y();
+  persistBottomPanelState();
 }
 
 /* ================================================================
@@ -5248,6 +5315,7 @@ const Cfg = {
       const saved = await IDB.getKV(S.db, 'cfg');
       if (saved) Object.assign(S.cfg, saved);
     } catch(_) {}
+    if (typeof S.cfg.panelMinimized !== 'boolean') S.cfg.panelMinimized = false;
     try {
       const sharedTheme = localStorage.getItem(IDE_THEME_STORAGE_KEY);
       const legacyTheme = localStorage.getItem('arduino_docs_theme');
@@ -5294,7 +5362,11 @@ const Cfg = {
     } catch(_) {}
   },
   async save() {
-    try { await IDB.setKV(S.db, 'cfg', S.cfg); } catch(_) {}
+    try { await IDB.setKV(S.db, 'cfg', S.cfg); }
+    catch (e) {
+      console.warn('Settings could not be saved:', e);
+      toast('設定を保存できませんでした', 'err');
+    }
   },
   async saveHelper() {
     try {
@@ -5386,6 +5458,12 @@ const Cfg = {
     const rm = document.getElementById('cfg-reduce-motion');
     if (rm) rm.checked = !!S.cfg.reduceMotion;
     document.documentElement.setAttribute('data-reduce-motion', String(!!S.cfg.reduceMotion));
+    const panel = document.getElementById('bottom-panel');
+    if (panel) {
+      panel.classList.toggle('minimized', S.cfg.panelMinimized);
+      panel.style.height = S.cfg.panelMinimized ? '36px' : '210px';
+      updatePanelToggleA11y();
+    }
   },
   applyToEditor() {
     document.getElementById('app').setAttribute('data-show-linenums', S.cfg.lineNums);
@@ -5486,6 +5564,7 @@ const BoardUI = {
     const box = document.getElementById('core-list');
     if (!Helper.ready()) { box.innerHTML = '<div class="empty-note">サーバーに接続すると利用できます</div>'; return; }
     const q = document.getElementById('core-search').value.trim();
+    if (q && Array.from(q).length < 2) { box.innerHTML = '<div class="empty-note">パッケージ検索には2文字以上入力してください</div>'; return; }
     box.innerHTML = SKEL;
     try {
       const d = await Helper.get(q ? '/cores/search?q=' + encodeURIComponent(q) : '/cores/list', 120000);
@@ -5581,7 +5660,7 @@ const LibUI = {
     if (!Helper.ready()) { box.innerHTML = '<div class="empty-note">サーバーに接続するとライブラリを検索・追加できます</div>'; return; }
     const q = document.getElementById('lib-search').value.trim();
     if (this.tab === 'search' && !q) { box.innerHTML = '<div class="empty-note">ライブラリ名で検索してください</div>'; return; }
-    if (this.tab === 'search' && q.length < 2) { box.innerHTML = '<div class="empty-note">2文字以上入力してください</div>'; return; }
+    if (this.tab === 'search' && Array.from(q).length < 2) { box.innerHTML = '<div class="empty-note">2文字以上入力してください</div>'; return; }
     box.innerHTML = SKEL;
     try {
       const inst = await Helper.get('/libs/list', 60000);
@@ -5644,9 +5723,9 @@ const LibUI = {
     if (!S.helper.admin) { toast('管理者トークンが必要です', 'warn'); return; }
     if (file.size > 8 * 1024 * 1024) { toast('ZIP が大きすぎます (8MB まで)', 'warn'); return; }
     const buf = new Uint8Array(await file.arrayBuffer());
-    let bin = '';
-    for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
-    this.runJob(Helper.post('/libs/install-zip', { name: file.name, data: btoa(bin) }, 120000, true), 'インストール: ZIP ' + file.name);
+    const chunks = [];
+    for (let i = 0; i < buf.length; i += 0x4000) chunks.push(String.fromCharCode(...buf.subarray(i, i + 0x4000)));
+    this.runJob(Helper.post('/libs/install-zip', { name: file.name, data: btoa(chunks.join('')) }, 120000, true), 'インストール: ZIP ' + file.name);
   },
 };
 
@@ -5707,6 +5786,9 @@ function initEvents() {
   // ---- ツールバー ----
   document.getElementById('verify-btn').addEventListener('click', () => Build.verify());
   document.getElementById('upload-btn').addEventListener('click', () => Build.upload());
+  document.getElementById('compile-cancel-btn').addEventListener('click', () => {
+    if (Build._cancelCompile) Build._cancelCompile();
+  });
   document.getElementById('new-btn').addEventListener('click', () => {
     const d = new Date();
     document.getElementById('new-name-input').value =
@@ -5851,15 +5933,14 @@ function initEvents() {
   });
   document.getElementById('panel-toggle-btn').addEventListener('click', () => {
     const panel = document.getElementById('bottom-panel');
-    const icon  = document.getElementById('panel-toggle-icon');
     panel.classList.toggle('minimized');
     if (panel.classList.contains('minimized')) {
-      setLucideIcon(icon, 'chevron-up');
+      panel.style.height = '36px';
     } else {
-      setLucideIcon(icon, 'chevron-down');
       if (panel.style.height === '36px' || panel.offsetHeight <= 40) panel.style.height='210px';
     }
     updatePanelToggleA11y();
+    persistBottomPanelState();
   });
   updatePanelToggleA11y();
   updateToastPosition();
@@ -6197,10 +6278,14 @@ async function boot() {
         先生から受け取った <strong>配布リンク (https://...)</strong> をブラウザで開いてください。<br>
         または、Web サーバー経由でアクセスしてください。
       </div>
-      <button onclick="document.getElementById('loading-screen').remove(); boot_internal();"
+      <button id="file-open-continue-btn"
         style="margin-top:20px;padding:8px 24px;background:var(--teal);color:#fff;border-radius:4px;font-size:13px;border:none;cursor:pointer;">
         それでも続ける（保存は使えません）
       </button>`;
+    document.getElementById('file-open-continue-btn').addEventListener('click', () => {
+      document.getElementById('loading-screen').remove();
+      boot_internal();
+    }, { once: true });
     return;
   }
   await boot_internal();
