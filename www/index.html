@@ -4588,11 +4588,17 @@ const Ser = {
   /** ポートが失われた (抜去など)。待たずに状態だけ戻す */
   _lost(msg) {
     const port = S.serial.port;
+    const reader = S.serial.reader;
+    const loop = S.serial.loop;
     S.serial.reading = false;
-    if (S.serial.reader) { try { S.serial.reader.cancel(); } catch (_) {} }
     this._releaseWriter();
     S.serial.port = null; S.serial.connected = false;
-    if (port) { try { port.close().catch(() => {}); } catch (_) {} }
+    (async () => {
+      if (reader) { try { await reader.cancel(); } catch (_) {} }
+      if (loop) { try { await loop; } catch (_) {} }
+      if (port) { try { await port.close(); } catch (_) {} }
+      if (S.serial.loop === loop) S.serial.loop = null;
+    })();
     this._flushPartial();
     this._updateUI(false);
     this._appendLog('--- ' + msg + ' ---', 'sys');
