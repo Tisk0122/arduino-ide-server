@@ -4001,6 +4001,38 @@ const Flash = {
     el.style.color = cls === 'err' ? 'var(--co-err)' : cls === 'ok' ? 'var(--co-ok)' : '';
   },
 
+  _logSerialPort(port, label) {
+    try {
+      const info = port.getInfo();
+      const id = info.vendorId == null || info.productId == null
+        ? 'VID/PIDを取得できません'
+        : `${info.vendorId.toString(16).padStart(4, '0')}:${info.productId.toString(16).padStart(4, '0')}`;
+      const boardId = info.vendorId == null || info.productId == null
+        ? ''
+        : USB_BOARD_IDS.get(`${info.vendorId.toString(16).padStart(4, '0')}:${info.productId.toString(16).padStart(4, '0')}`);
+      const board = boardId ? boardById(boardId) : null;
+      Build._log(`${label}: USB ${id}${board ? ` — 識別候補 ${board.name}` : ' — ボード機種は特定できません'}`, 'info');
+    } catch (e) {
+      Build._log(`${label}: ポート情報を取得できません (${(e && e.message) || e})`, 'warn');
+    }
+  },
+
+  _logAuthorizedPorts() {
+    let ports;
+    try {
+      ports = navigator.serial.getPorts();
+    } catch (e) {
+      Build._log(`許可済みポート一覧を取得できません (${(e && e.message) || e})`, 'warn');
+      return;
+    }
+    Promise.resolve(ports).then(list => {
+      Build._log(`書き込み開始時の許可済みポート: ${list.length}台 (物理的な接続台数とは限りません)`, 'info');
+      list.forEach((port, index) => this._logSerialPort(port, `許可済みポート ${index + 1}`));
+    }).catch(e => {
+      Build._log(`許可済みポート一覧を取得できません (${(e && e.message) || e})`, 'warn');
+    });
+  },
+
   download() {
     const p = this.plan;
     if (!p || !p.dl) return;
@@ -4028,11 +4060,14 @@ const Flash = {
       toast('書き込み成功', 'ok');
       Build._log('書き込み成功', 'ok');
     } catch (e) {
-      if (e && e.name === 'NotFoundError') this.status('ポートの選択がキャンセルされました');
+      if (e && e.name === 'NotFoundError') {
+        this.status('ポートの選択がキャンセルされました');
+        Build._log('書き込み診断: ポート選択がキャンセルされました', 'warn');
+      }
       else {
         const msg = (e && e.message) || String(e);
         this.status('書き込み失敗: ' + msg, 'err');
-        Build._log('書き込み失敗: ' + msg, 'err');
+        Build._log(`書き込み失敗${e && e.name ? ` (${e.name})` : ''}: ${msg}`, 'err');
         setStatus('書き込み失敗', 'err');
       }
     } finally {
@@ -4049,15 +4084,77 @@ const Flash = {
         this.preload();
         return reject(new Error('書き込みライブラリを準備中です。数秒待ってからもう一度押してください'));
       }
+      const serial = navigator.serial;
+      const originalRequestPort = serial.requestPort;
+      const originalConsoleLog = console.log;
+      let selectedPort = false;
+      let stage = 'ポート選択待ち';
+      let requestPortHook = null;
+      let consoleHook = null;
+      const restoreHooks = () => {
+        if (requestPortHook && serial.requestPort === requestPortHook) serial.requestPort = originalRequestPort;
+        if (consoleHook && console.log === consoleHook) console.log = originalConsoleLog;
+      };
+      this._logAuthorizedPorts();
+      Build._log(`書き込み診断: platform=${navigator.userAgentData?.platform || navigator.platform || 'unknown'}; userAgent=${navigator.userAgent}; board=${this.plan.board.fqbn}; protocol=AVR`, 'info');
+      Build._log('ブラウザーのポート選択画面を開きます。選択後にUSB VID/PIDを記録します。', 'info');
+      requestPortHook = function(...args) {
+        return originalRequestPort.apply(serial, args).then(port => {
+          selectedPort = true;
+          stage = '選択ポートを開いてブートローダーに接続中';
+          Flash._logSerialPort(port, '書き込みに選択したポート');
+          return port;
+        });
+      };
+      try {
+        serial.requestPort = requestPortHook;
+        if (serial.requestPort !== requestPortHook) {
+          requestPortHook = null;
+          Build._log('ポート選択情報の捕捉はこのブラウザーで利用できません', 'warn');
+        }
+      } catch (e) {
+        requestPortHook = null;
+        Build._log(`ポート選択情報を捕捉できません (${(e && e.message) || e})`, 'warn');
+      }
+      consoleHook = function(...args) {
+        const message = args.map(value => String(value)).join(' ').replace(/\u001b\[[0-9;]*m/g, '');
+        if (/^(connected|reset complete\.|flashing, please wait\.\.\.|flash complete\.)$/.test(message)) {
+          Build._log(`AVR書き込み段階: ${message}`, 'info');
+          if (message === 'connected') stage = 'ポートを開きました。ブートローダーをリセット中';
+          else if (message === 'reset complete.') stage = 'リセット完了。ブートローダー応答待ち';
+          else if (message === 'flashing, please wait...') stage = 'ファームウェア転送中';
+          else stage = '転送完了。ポートを閉じています';
+        }
+        return originalConsoleLog.apply(console, args);
+      };
+      try {
+        console.log = consoleHook;
+        if (console.log !== consoleHook) {
+          consoleHook = null;
+          Build._log('AVR内部ログの取り込みはこのブラウザーで利用できません', 'warn');
+        }
+      } catch (e) {
+        consoleHook = null;
+        Build._log(`AVR内部ログを取り込めません (${(e && e.message) || e})`, 'warn');
+      }
       const hex = b64ToBytes(this.plan.artifacts[m.name]);
       this.status('書き込み中... (最大 90 秒かかります)');
       const t0 = Date.now();
       let done = false, tick = null, to = null;
-      const end = fn => v => { if (done) return; done = true; clearInterval(tick); clearTimeout(to); fn(v); };
+      const end = fn => v => {
+        if (done) return;
+        done = true;
+        clearInterval(tick);
+        clearTimeout(to);
+        restoreHooks();
+        if (fn === reject) Build._log(`書き込み失敗時の最終段階: ${stage}`, 'warn');
+        if (!selectedPort) Build._log('選択ポート情報なし (ポート選択前の終了、またはブラウザーの捕捉制限)', 'info');
+        fn(v);
+      };
       tick = setInterval(() => this.progress(Math.min(0.9, 0.08 + (Date.now() - t0) / 60000 * 0.8)), 400);
       to = setTimeout(end(reject), this.AVR_TIMEOUT, new Error('ボードから応答がありません (90秒)。ボードの選択・USBケーブル・他のタブでポートを使っていないかを確認し、改善しない場合は USB を抜き差ししてください'));
       try {
-        const a = new AvrgirlArduino({ board: m.board, debug: false });
+        const a = new AvrgirlArduino({ board: m.board, debug: true });
         a.flash(hex.buffer, err => err ? end(reject)(err) : end(resolve)());
       } catch (e) { end(reject)(e); }
     });
