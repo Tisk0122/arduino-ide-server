@@ -1,4 +1,5 @@
 import importlib.util
+import http.client
 import json
 import os
 import tempfile
@@ -87,6 +88,120 @@ class AccountApiTests(unittest.TestCase):
             "username": "otherteacher", "name": "権限なし",
         }, server.TOKEN, auth_scheme="Bearer")
         self.assertEqual(status, 403)
+
+    def test_admin_can_list_teacher_ids_and_reissue_passwords_without_exposing_hashes(self):
+        status, created = self.request("/admin/api/teachers", "POST", {
+            "username": "resetteacher", "name": "先生",
+        }, server.ADMIN_TOKEN, auth_scheme="Bearer")
+        self.assertEqual(status, 201)
+        status, login = self.request("/account/login", "POST", {
+            "username": created["username"], "password": created["initialPassword"],
+        })
+        self.assertEqual(status, 200)
+        old_token = login["token"]
+
+        status, listing = self.request("/admin/api/teachers", token=server.ADMIN_TOKEN,
+                                       auth_scheme="Bearer")
+        self.assertEqual(status, 200)
+        self.assertEqual(len(listing["teachers"]), 1)
+        teacher = listing["teachers"][0]
+        self.assertEqual(teacher["username"], "resetteacher")
+        self.assertTrue(teacher["mustChangePassword"])
+        self.assertNotIn("password", teacher)
+        self.assertNotIn("passwordHash", teacher)
+        self.assertNotIn("passwordSalt", teacher)
+
+        status, reset = self.request(
+            "/admin/api/teachers/%s/reset-password" % teacher["id"], "POST", {},
+            server.ADMIN_TOKEN, auth_scheme="Bearer")
+        self.assertEqual(status, 200)
+        self.assertEqual(reset["username"], "resetteacher")
+        self.assertGreaterEqual(len(reset["initialPassword"]), 10)
+        status, _ = self.request("/account/me", token=old_token)
+        self.assertEqual(status, 401)
+        status, _ = self.request("/account/login", "POST", {
+            "username": "resetteacher", "password": created["initialPassword"],
+        })
+        self.assertEqual(status, 401)
+        status, changed = self.request("/account/login", "POST", {
+            "username": "resetteacher", "password": reset["initialPassword"],
+        })
+        self.assertEqual(status, 200)
+        self.assertTrue(changed["user"]["mustChangePassword"])
+
+        status, _ = self.request("/admin/api/teachers", token=server.TOKEN,
+                                 auth_scheme="Bearer")
+        self.assertEqual(status, 403)
+
+    def test_teacher_password_reset_consumes_body_before_next_keep_alive_request(self):
+        status, _ = self.request("/admin/api/teachers", "POST", {
+            "username": "keepalive-teacher", "name": "先生",
+        }, server.ADMIN_TOKEN, auth_scheme="Bearer")
+        self.assertEqual(status, 201)
+        status, listing = self.request("/admin/api/teachers", token=server.ADMIN_TOKEN,
+                                       auth_scheme="Bearer")
+        self.assertEqual(status, 200)
+        teacher_id = listing["teachers"][0]["id"]
+
+        connection = http.client.HTTPConnection(*self.httpd.server_address, timeout=5)
+        self.addCleanup(connection.close)
+        headers = {
+            "Authorization": "Bearer " + server.ADMIN_TOKEN,
+            "Content-Type": "application/json",
+        }
+        connection.request("POST", "/admin/api/teachers/%s/reset-password" % teacher_id,
+                           body="{}", headers=headers)
+        reset_response = connection.getresponse()
+        self.assertEqual(reset_response.status, 200)
+        reset_response.read()
+
+        connection.request("GET", "/admin/api/teachers", headers=headers)
+        listing_response = connection.getresponse()
+        self.assertEqual(listing_response.status, 200)
+        self.assertEqual(len(json.loads(listing_response.read())["teachers"]), 1)
+
+    def test_student_accounts_generate_from_count_and_auto_reassign_previous_year(self):
+        teacher_token = self.create_teacher()
+        _, previous_class = self.request("/teacher/api/classes", "POST", {
+            "name": "1年D組", "schoolYear": "2026",
+        }, teacher_token)
+        status, previous = self.request("/teacher/api/students/import", "POST", {
+            "classId": previous_class["classId"], "csv": "grade,class,number\n1,D,1\n1,D,2\n",
+        }, teacher_token)
+        self.assertEqual(status, 201)
+        previous_passwords = {
+            item["studentId"]: item["initialPassword"] for item in previous["credentials"]
+        }
+        self.request("/teacher/api/classes/%s/archive" % previous_class["classId"],
+                     "POST", {}, teacher_token)
+        status, _ = self.request("/teacher/api/classes/%s/clear" % previous_class["classId"],
+                                 "POST", {"confirm": "CLEAR 1年D組 2026"}, teacher_token)
+        self.assertEqual(status, 200)
+
+        _, current_class = self.request("/teacher/api/classes", "POST", {
+            "name": "2年D組", "schoolYear": "2027",
+        }, teacher_token)
+        status, generated = self.request("/teacher/api/students/generate", "POST", {
+            "classId": current_class["classId"], "grade": "2", "classroom": "D", "count": 2,
+        }, teacher_token)
+        self.assertEqual(status, 201)
+        self.assertEqual(generated["credentials"], [])
+        self.assertEqual([item["studentId"] for item in generated["reassigned"]],
+                         ["020401", "020402"])
+        self.assertEqual([item["previousId"] for item in generated["reassigned"]],
+                         ["010401", "010402"])
+        for item in generated["reassigned"]:
+            status, login = self.request("/account/login", "POST", {
+                "username": item["studentId"],
+                "password": previous_passwords[item["previousId"]],
+            })
+            self.assertEqual(status, 200)
+            self.assertEqual(login["user"]["classId"], current_class["classId"])
+
+        status, _ = self.request("/teacher/api/students/generate", "POST", {
+            "classId": current_class["classId"], "grade": "2", "classroom": "D", "count": 100,
+        }, teacher_token)
+        self.assertEqual(status, 400)
 
     def test_import_login_student_data_review_and_teacher_edit(self):
         teacher_token = self.create_teacher()

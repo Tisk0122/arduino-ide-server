@@ -2136,6 +2136,19 @@ class Handler(BaseHTTPRequestHandler):
                     "adminToken": ADMIN_TOKEN,
                     "prefillStudentToken": load_admin_settings()["prefillStudentToken"],
                 })
+            if path == "/admin/api/teachers":
+                with ACCOUNT_LOCK, account_db() as conn:
+                    teachers = conn.execute(
+                        "SELECT id,username,display_name,active,must_change_password,created_at "
+                        "FROM account_users WHERE role='teacher' ORDER BY username COLLATE NOCASE"
+                    ).fetchall()
+                return self._send(200, {"ok": True, "teachers": [
+                    {"id": row["id"], "username": row["username"], "name": row["display_name"],
+                     "active": bool(row["active"]),
+                     "mustChangePassword": bool(row["must_change_password"]),
+                     "createdAt": row["created_at"]}
+                    for row in teachers
+                ]})
             raise ApiError(404, "不明なエンドポイント: %s %s" % (method, path[:80]))
 
         return self._dispatch_remainder(method, path, q, role)
@@ -2291,29 +2304,62 @@ class Handler(BaseHTTPRequestHandler):
                         raise ApiError(409, "同じ年度に同名のクラスがすでにあります")
                     _account_audit(conn, user["id"], "class.create", class_id, {"name": name.strip(), "year": year})
                     return self._send(201, {"ok": True, "classId": class_id})
-                if method == "POST" and path == "/teacher/api/students/import":
+                if method == "POST" and path in (
+                        "/teacher/api/students/import", "/teacher/api/students/generate"):
                     if user["role"] != "teacher":
                         raise ApiError(403, "先生アカウントが必要です")
                     body = self._body()
-                    class_id, text = body.get("classId"), body.get("csv")
+                    class_id = body.get("classId")
+                    if not isinstance(class_id, str) or not re.fullmatch(r"[a-f0-9]{24}", class_id):
+                        raise ApiError(400, "クラスを選択してください")
                     classroom = conn.execute("SELECT * FROM account_classes WHERE id=?", (class_id,)).fetchone()
                     if not classroom:
                         raise ApiError(404, "クラスが見つかりません")
                     if classroom["archived"]:
                         raise ApiError(409, "アーカイブ済みクラスには生徒を追加できません")
-                    if not isinstance(text, str) or len(text.encode("utf-8")) > 1024 * 1024:
-                        raise ApiError(400, "CSVは1MB以内で指定してください")
-                    try:
-                        reader = csv.DictReader(io.StringIO(text.lstrip("\ufeff")))
-                        records = list(reader)
-                    except csv.Error:
-                        raise ApiError(400, "CSVを読み取れません")
-                    if not records or len(records) > 500:
-                        raise ApiError(400, "CSVは1〜500人分にしてください")
-                    if (not reader.fieldnames or len(set(reader.fieldnames)) != len(reader.fieldnames)
-                            or not {"grade", "class", "number"}.issubset(reader.fieldnames)
-                            or set(reader.fieldnames) - {"grade", "class", "number", "previous_id"}):
-                        raise ApiError(400, "CSVの列名は grade,class,number[,previous_id] にしてください")
+                    if path == "/teacher/api/students/generate":
+                        grade = body.get("grade")
+                        group = body.get("classroom")
+                        count = body.get("count")
+                        if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= 99:
+                            raise ApiError(400, "人数は1〜99人で指定してください")
+                        if not isinstance(grade, str) or not isinstance(group, str):
+                            raise ApiError(400, "学年と組を指定してください")
+                        records = []
+                        for seat_number in range(1, count + 1):
+                            student_id = _student_id_from_roster(grade.strip(), group.strip(), str(seat_number))
+                            if not student_id:
+                                raise ApiError(400, "学年または組の指定が正しくありません")
+                            record = {"grade": grade.strip(), "class": group.strip(),
+                                      "number": str(seat_number)}
+                            previous_grade_id = _student_id_from_roster(
+                                str(int(grade) - 1) if grade.isdigit() else "", group.strip(), str(seat_number)
+                            )
+                            if previous_grade_id and previous_grade_id != student_id:
+                                previous_student = conn.execute(
+                                    "SELECT id FROM account_users WHERE username=? COLLATE NOCASE "
+                                    "AND role='student' AND class_id<>?",
+                                    (previous_grade_id, class_id),
+                                ).fetchone()
+                                if previous_student:
+                                    record["previous_id"] = previous_grade_id
+                            records.append(record)
+                        fieldnames = ["grade", "class", "number", "previous_id"]
+                    else:
+                        text = body.get("csv")
+                        if not isinstance(text, str) or len(text.encode("utf-8")) > 1024 * 1024:
+                            raise ApiError(400, "CSVは1MB以内で指定してください")
+                        try:
+                            reader = csv.DictReader(io.StringIO(text.lstrip("\ufeff")))
+                            records = list(reader)
+                        except csv.Error:
+                            raise ApiError(400, "CSVを読み取れません")
+                        if not records or len(records) > 500:
+                            raise ApiError(400, "CSVは1〜500人分にしてください")
+                        if (not reader.fieldnames or len(set(reader.fieldnames)) != len(reader.fieldnames)
+                                or not {"grade", "class", "number"}.issubset(reader.fieldnames)
+                                or set(reader.fieldnames) - {"grade", "class", "number", "previous_id"}):
+                            raise ApiError(400, "CSVの列名は grade,class,number[,previous_id] にしてください")
                     credentials, reassigned, plans = [], [], []
                     seen, previous_seen = set(), set()
                     for number, record in enumerate(records, 2):
@@ -2633,6 +2679,29 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 _account_audit(conn, "server-admin", "teacher.create", username)
             return self._send(201, {"ok": True, "username": username, "name": name.strip(),
+                                    "initialPassword": password})
+        teacher_reset = re.fullmatch(r"/admin/api/teachers/([a-f0-9]{32})/reset-password", path)
+        if method == "POST" and teacher_reset:
+            self._need(role, True)
+            body = self._body()
+            if not isinstance(body, dict):
+                raise ApiError(400, "リクエストの形式が正しくありません")
+            teacher_id = teacher_reset.group(1)
+            password = secrets.token_urlsafe(12)
+            salt, digest = _account_password(password)
+            with ACCOUNT_LOCK, account_db() as conn:
+                teacher = conn.execute(
+                    "SELECT username FROM account_users WHERE id=? AND role='teacher'", (teacher_id,)
+                ).fetchone()
+                if not teacher:
+                    raise ApiError(404, "先生アカウントが見つかりません")
+                conn.execute(
+                    "UPDATE account_users SET password_hash=?,password_salt=?,must_change_password=1 WHERE id=?",
+                    (digest, salt, teacher_id),
+                )
+                conn.execute("DELETE FROM account_sessions WHERE user_id=?", (teacher_id,))
+                _account_audit(conn, "server-admin", "teacher.password_reset", teacher["username"])
+            return self._send(200, {"ok": True, "username": teacher["username"],
                                     "initialPassword": password})
         if method == "POST" and path == "/admin/api/settings":
             self._need(role, True)
