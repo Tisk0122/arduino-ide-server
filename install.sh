@@ -41,7 +41,7 @@ warn() { printf '警告: %s\n' "$*" >&2; }
 die()  { printf 'エラー: %s\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || die "root 権限で実行してください:  sudo bash install.sh"
-for f in arduino-helper.py arduino-build-run github-update.sh configure-github-webhook.sh backup-arduino-helper.sh www/index.html www/admin.html www/docs.html www/teacher.html; do
+for f in arduino-helper.py arduino-build-run github-update.sh arduino-helper-update.service arduino-helper-update.timer configure-github-webhook.sh backup-arduino-helper.sh www/index.html www/admin.html www/docs.html www/teacher.html; do
   [ -f "$HERE/$f" ] || die "$HERE/$f がありません。アーカイブを展開したフォルダで実行してください"
 done
 command -v systemctl >/dev/null || die "systemd が必要です"
@@ -141,6 +141,8 @@ install -m 0644 -o root -g root "$HERE/www/admin.html" "$APP_DIR/www/admin.html"
 install -m 0644 -o root -g root "$HERE/www/docs.html" "$APP_DIR/www/docs.html"
 install -m 0644 -o root -g root "$HERE/www/teacher.html" "$APP_DIR/www/teacher.html"
 install -m 0700 -o root -g root "$HERE/github-update.sh" /usr/local/libexec/arduino-helper-update
+install -m 0644 -o root -g root "$HERE/arduino-helper-update.service" /etc/systemd/system/arduino-helper-update.service
+install -m 0644 -o root -g root "$HERE/arduino-helper-update.timer" /etc/systemd/system/arduino-helper-update.timer
 install -m 0700 -o root -g root "$HERE/configure-github-webhook.sh" /usr/local/libexec/arduino-helper-configure-github-webhook
 install -m 0750 -o root -g root "$HERE/backup-arduino-helper.sh" /usr/local/sbin/arduino-helper-backup
 cat > "$CONF_DIR/build-run.conf" <<EOF
@@ -274,6 +276,9 @@ LockPersonality=yes
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
+if [ -r "$CONF_DIR/github-webhook.env" ]; then
+  systemctl enable --now arduino-helper-update.timer
+fi
 systemctl enable arduino-helper >/dev/null 2>&1
 systemctl restart arduino-helper
 sleep 3

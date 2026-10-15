@@ -1,0 +1,9 @@
+[Unit]
+Description=Check for Arduino Web IDE GitHub updates
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/arduino-helper-update --check
+Nice=10

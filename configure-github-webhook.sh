@@ -5,6 +5,7 @@ set -euo pipefail
 CONF_DIR=/etc/arduino-helper
 ENV_FILE="$CONF_DIR/github-webhook.env"
 HELPER_ENV="$CONF_DIR/helper.env"
+HERE="$(cd "$(dirname "$0")" && pwd)"
 
 [ "$(id -u)" -eq 0 ] || { echo "sudo bash configure-github-webhook.sh で実行してください" >&2; exit 1; }
 install -d -o root -g root -m 0755 "$CONF_DIR"
@@ -65,9 +66,17 @@ chown root:root "$tmp"
 chmod 0600 "$tmp"
 mv -f "$tmp" "$HELPER_ENV"
 
+if [ -f "$HERE/arduino-helper-update.service" ] && [ -f "$HERE/arduino-helper-update.timer" ]; then
+  install -m 0644 -o root -g root "$HERE/arduino-helper-update.service" /etc/systemd/system/arduino-helper-update.service
+  install -m 0644 -o root -g root "$HERE/arduino-helper-update.timer" /etc/systemd/system/arduino-helper-update.timer
+fi
+systemctl daemon-reload
 systemctl restart arduino-helper
+systemctl enable --now arduino-helper-update.timer
+systemctl restart arduino-helper-update.timer
 
 printf '\n[OK] GitHub webhook を有効化しました。\n'
+printf 'Webhook に加え、5分ごとの更新確認を有効化しました。\n'
 printf 'Payload URL: https://<あなたの公開URL>/webhook/github\n'
 printf 'Content type: application/json\n'
 printf 'Events: Push only\n'

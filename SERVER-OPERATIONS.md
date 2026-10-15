@@ -22,6 +22,42 @@ sudo arduino-helper-backup /mnt/secure-backups/arduino-helper
 
 アカウント、クラス、作品、確認コメント、作品の過去版は `/var/lib/arduino-helper/accounts.sqlite3` に保存されます。上記バックアップはこのデータベースも含め、稼働中のサービスを止めて整合性を保って取得します。アカウント情報を含むため、アーカイブは機密データとして取り扱ってください。
 
+## GitHubからの自動更新
+
+Webhookを設定すると `main` へのpushを受けて更新します。加えて `arduino-helper-update.timer` が5分ごとにGitHubのコミットIDと最後に適用したIDを比較するため、Webhookの未配信・短時間の連続push・サーバー再起動中のpushも次回確認で検出します。変更がない確認ではcloneやサービス再起動を行いません。更新対象はサーバー本体、IDE各画面、更新スクリプト自身とtimer/service定義です。インストーラーや設定ファイル、トークン、Arduino CLIデータは自動更新しません。
+
+Webhookの初回設定は次で行います。
+
+```bash
+sudo /usr/local/libexec/arduino-helper-configure-github-webhook
+```
+
+既存サーバーで古い自動更新スクリプトを使っている場合、そのスクリプト自身は自分を更新できません。新しい更新スクリプトを一度だけGitHubから入れ、そのスクリプトを実行してください。これは、更新プログラムを更新対象に含める新しい処理を起動するための初回ブートストラップです。
+
+```bash
+sudo bash -c '
+set -euo pipefail
+tmp="$(mktemp -d)"
+trap '\''rm -rf "$tmp"'\'' EXIT
+git clone --depth 1 --branch main https://github.com/Tisk0122/arduino-ide-server.git "$tmp/repo"
+install -o root -g root -m 0700 "$tmp/repo/github-update.sh" /usr/local/libexec/arduino-helper-update
+/usr/local/libexec/arduino-helper-update
+'
+```
+
+このブートストラップは、既に `/etc/arduino-helper/github-webhook.env` が設定され、GitHubリポジトリへ接続できるサーバーで実行します。成功すると更新スクリプト自身を入れ替え、timerを有効化し、更新済みコミットIDを記録します。GitHubから取得したファイルは配置前に検査し、サービス再起動と `/ping`・`/docs`・`/teacher` の応答を確認します。検査に失敗した場合は保存したバックアップから配置ファイルを戻してサービスを再起動します。
+
+状態・実行結果の確認:
+
+```bash
+systemctl status arduino-helper-update.timer --no-pager
+systemctl list-timers arduino-helper-update.timer --no-pager
+sudo journalctl -t arduino-helper-update -n 100 --no-pager
+cat /var/lib/arduino-helper-updater/applied-commit
+```
+
+`applied-commit` は最後にヘルスチェックまで成功したGitコミットです。timerは起動時にも確認し、ネットワーク障害や更新失敗があれば次の5分間隔で再試行します。Webhookの受信APIが `202` を返しただけでは更新成功を意味しないため、journalとこのコミットIDで適用結果を確認してください。自動更新には対象ブランチへのpush権限を適切に制限し、GitHub Webhook Secretを第三者へ共有しないでください。
+
 ## サーバー規模と保存容量の目安
 
 以下はUbuntu / Debian、単一サーバー、700アカウントを想定した初期導入の目安です。実際のコンパイル時間・メモリ・ボードデータ容量は、Arduinoボード、ライブラリ、スケッチにより変わるため、本番前に利用予定のボードで負荷試験を行い、空き容量とメモリを監視してください。

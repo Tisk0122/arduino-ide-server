@@ -1,0 +1,12 @@
+[Unit]
+Description=Periodically check for Arduino Web IDE GitHub updates
+
+[Timer]
+OnBootSec=2min
+OnCalendar=*-*-* *:0/5:00
+RandomizedDelaySec=30s
+Persistent=true
+Unit=arduino-helper-update.service
+
+[Install]
+WantedBy=timers.target
