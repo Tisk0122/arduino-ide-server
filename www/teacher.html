@@ -7,18 +7,21 @@
   <meta name="theme-color" content="#005F61">
   <title>先生用クラス管理 | Arduino Web IDE</title>
   <style>
-    :root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;font-size:14px;--teal:#0EA5A8;--teal-light:#2DD4D8;--bg:#0D1117;--surface:#141B26;--surface-raised:#1A2333;--surface-hover:#202B3D;--input:#0D1117;--text:#EEF2F8;--muted:#B8C4D4;--subtle:#8A9BB0;--border:rgba(255,255,255,.08);--error:#FF7070;--success:#34C97A;--warning:#F5C842}
-    [data-theme="light"]{color-scheme:light;--bg:#F0F4F8;--surface:#FFF;--surface-raised:#F5F8FB;--surface-hover:#EBF0F6;--input:#FAFBFD;--text:#1A2535;--muted:#3A4E66;--subtle:#52677F;--border:rgba(0,0,0,.09);--error:#C01A1A;--success:#1A7A45;--warning:#A04000}
+    :root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;font-size:14px;--teal:#0EA5A8;--teal-light:#2DD4D8;--button-primary:#08777A;--button-hover:#076D70;--bg:#0D1117;--surface:#141B26;--surface-raised:#1A2333;--surface-hover:#202B3D;--input:#0D1117;--text:#EEF2F8;--muted:#B8C4D4;--subtle:#8A9BB0;--border:rgba(255,255,255,.08);--error:#FF7070;--success:#34C97A;--warning:#F5C842;--focus:rgba(14,165,168,.38);--shadow:0 12px 36px rgba(0,0,0,.18)}
+    [data-theme="light"]{color-scheme:light;--bg:#F0F4F8;--surface:#FFF;--surface-raised:#F5F8FB;--surface-hover:#EBF0F6;--input:#FAFBFD;--text:#1A2535;--muted:#3A4E66;--subtle:#52677F;--border:rgba(0,0,0,.11);--error:#C01A1A;--success:#1A7A45;--warning:#A04000;--button-primary:#076D70;--button-hover:#005F61;--focus:rgba(7,109,112,.27);--shadow:0 10px 30px rgba(24,44,64,.08)}
     *{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);line-height:1.55}button,input,select,textarea{font:inherit;color:inherit}a{color:#2DD4D8;text-underline-offset:3px}[data-theme="light"] a{color:#076D70}
+    .header-inner .brand{color:#fff}
     :focus-visible{outline:2px solid var(--teal);outline-offset:2px}
-    header{position:sticky;top:0;z-index:5;background:linear-gradient(135deg,#063A3C 0%,#085557 60%,#0A6A6C 100%);color:#fff;border-bottom:1px solid rgba(45,212,216,.15);box-shadow:0 2px 12px rgba(0,0,0,.5)}
-    .header-inner{max-width:1320px;min-height:54px;margin:auto;padding:8px 18px;display:flex;align-items:center;justify-content:space-between;gap:16px}.brand{color:#fff;text-decoration:none;font-size:15px;font-weight:700;white-space:nowrap}.header-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}.header-actions a{color:#D5FFFF}.header-user{color:rgba(255,255,255,.8);font-size:12px}
-    h1{font-size:22px;line-height:1.35;letter-spacing:-.02em;margin:0 0 16px}h2{font-size:13px;margin:0 0 12px;color:var(--muted)}main{max-width:1320px;margin:0 auto;padding:20px 18px 40px}section{margin-bottom:18px}
-    .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px;box-shadow:0 4px 18px rgba(0,0,0,.12)}
+    header{position:sticky;top:0;z-index:5;height:50px;background:linear-gradient(135deg,#063A3C 0%,#085557 60%,#0A6A6C 100%);color:#fff;border-bottom:1px solid rgba(45,212,216,.15);box-shadow:0 2px 12px rgba(0,0,0,.5)}
+    .header-inner{max-width:1320px;height:50px;margin:auto;padding:0 12px;display:flex;align-items:center;gap:10px}.brand{display:flex;align-items:center;gap:9px;color:#fff;text-decoration:none;font-size:14px;font-weight:700;letter-spacing:-.2px;white-space:nowrap}.brand::before{content:"";width:18px;height:18px;flex:none;border:1.5px solid var(--teal-light);border-radius:4px;background:radial-gradient(circle at 5px 5px,var(--teal-light) 1px,transparent 1.5px),radial-gradient(circle at 12px 5px,var(--teal-light) 1px,transparent 1.5px),radial-gradient(circle at 5px 12px,var(--teal-light) 1px,transparent 1.5px),radial-gradient(circle at 12px 12px,var(--teal-light) 1px,transparent 1.5px)}.header-sep{width:1px;height:24px;background:rgba(255,255,255,.15);margin:0 4px}.header-actions{display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-left:auto;flex-wrap:wrap}.header-actions>a{display:inline-flex;min-height:34px;align-items:center;padding:5px 10px;border:1px solid transparent;border-radius:5px;background:transparent;color:rgba(255,255,255,.88);text-decoration:none;font-size:12px;font-weight:550;transition:background .12s,border-color .12s}.header-actions>a:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.12)}.header-actions button.secondary{min-height:34px;padding:5px 11px;background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.16);color:rgba(255,255,255,.9);box-shadow:none;font-size:12px}.header-actions button.secondary:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.24)}.header-user{padding:0 8px;color:rgba(255,255,255,.7);font-size:12px}
+    h1{font-size:24px;line-height:1.35;letter-spacing:-.025em;margin:0 0 6px}h2{font-size:14px;margin:0 0 4px;color:var(--text)}main{max-width:1320px;margin:0 auto;padding:26px 24px 48px}section{margin-bottom:18px}
+    .workspace-heading{margin:0 0 18px}.workspace-heading p{margin:0;color:var(--subtle);font-size:13px}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:14px;box-shadow:var(--shadow)}
+    .section-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px}.section-heading p{margin:4px 0 0;color:var(--subtle);font-size:12px;line-height:1.65}
     .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.grow{flex:1;min-width:0}label{display:block;font-weight:600;margin:9px 0 5px}.row>label{flex:1 1 180px;min-width:0}label input{display:block;width:100%;margin-top:4px}
-    input,select,textarea{min-width:0;border:1px solid var(--border);border-radius:5px;padding:8px 10px;background:var(--input);color:var(--text)}input::placeholder{color:var(--subtle)}input:focus,select:focus,textarea:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(14,165,168,.14);outline:0}
+    input,select,textarea{min-width:0;border:1px solid var(--border);border-radius:6px;padding:8px 11px;background-color:var(--input);color:var(--text);color-scheme:inherit;transition:border-color .15s,box-shadow .15s,background-color .15s}input::placeholder,textarea::placeholder{color:var(--subtle);opacity:1}input:focus,select:focus,textarea:focus{border-color:var(--teal);box-shadow:0 0 0 3px var(--focus);outline:0}select option{background:var(--surface);color:var(--text)}
     .row>input:not([type=file]),.row>select{flex:1 1 180px}.row>input[type=file]{flex:1 1 240px;max-width:100%}
-    button{border:1px solid var(--teal);border-radius:5px;padding:7px 12px;background:var(--teal);color:#fff;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s}
+    button{border:1px solid var(--button-primary);border-radius:6px;padding:7px 12px;background:var(--button-primary);color:#fff;font-weight:650;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s,transform .15s}
     input:not([type=file]),select,button:not(.theme-toggle){min-height:40px}button:not(.theme-toggle){padding:8px 14px}
     .auth-card{width:min(100%,780px);margin:0 auto 18px;padding:24px}
     .auth-card h2{font-size:16px;color:var(--text);margin-bottom:6px}
@@ -26,34 +29,43 @@
     .form-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;align-items:end;gap:16px}
     .form-grid label{min-width:0;margin:0;color:var(--muted);font-size:13px}
     .form-grid input{width:100%;height:42px;margin-top:7px}
-    .form-grid button{height:42px;min-width:118px;white-space:nowrap}
+    .form-grid button{height:42px;min-width:142px;white-space:nowrap}
     .form-help{margin:14px 0 0;color:var(--subtle);font-size:13px}
     .form-grid.password-form{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}
-    .form-grid.class-form{grid-template-columns:minmax(0,2fr) minmax(180px,1fr) auto;margin-bottom:14px}
-    .roster-form{display:grid;grid-template-columns:minmax(130px,1fr) minmax(130px,1fr) minmax(130px,1fr) minmax(180px,2fr) auto;align-items:end;gap:10px}
-    .roster-form label{min-width:0;margin:0;color:var(--muted);font-size:13px}
-    .roster-form input,.roster-form select{width:100%;height:42px;margin-top:7px}
-    .roster-form button{height:42px;white-space:nowrap}
+    .form-grid.class-form{grid-template-columns:minmax(0,2fr) minmax(150px,1fr) auto;margin-bottom:14px}
+    .roster-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end;gap:14px 12px}
+    .roster-form label{min-width:0;margin:0;color:var(--muted);font-size:13px}.roster-field{min-width:0}.roster-field label{display:block}
+    .roster-form input,.roster-form select{width:100%;height:42px;margin-top:7px}.roster-form .teacher-select{width:100%;margin-top:7px}
+    .roster-form button{grid-column:1/-1;height:44px;white-space:nowrap}
     .inline-form{display:grid;grid-template-columns:auto minmax(180px,1fr) auto;align-items:end;gap:10px}
     .inline-form label{margin:0}
-    .inline-form select{height:40px;min-width:180px}
+    .inline-form select{height:40px;min-width:180px}.inline-form .teacher-select{min-width:180px;width:100%}
     .inline-form button{height:40px}
     .form-submit:disabled{cursor:wait}
     .form-submit[aria-busy="true"]::before{content:"";display:inline-block;width:13px;height:13px;margin-right:8px;vertical-align:-2px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
-    button:hover{background:#0B898C;border-color:#0B898C}button.secondary{background:var(--surface-raised);border-color:var(--border);color:var(--muted)}button.secondary:hover{background:var(--surface-hover);border-color:var(--border)}
+    button:hover{background:var(--button-hover);border-color:var(--button-hover);box-shadow:0 2px 8px rgba(14,165,168,.2)}button:active{transform:translateY(1px)}button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+    button.secondary{background:var(--surface-raised);border-color:var(--border);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.08)}button.secondary:hover{background:var(--surface-hover);border-color:var(--teal)}
     button.danger{background:rgba(224,82,82,.14);border-color:rgba(224,82,82,.45);color:var(--error)}button.danger:hover{background:rgba(224,82,82,.24);border-color:var(--error)}
-    button:disabled{opacity:.55;cursor:not-allowed}textarea{width:100%;min-height:180px;resize:vertical;font-family:"Cascadia Code",Consolas,monospace}
+    button:disabled{opacity:.55;cursor:not-allowed;box-shadow:none;transform:none}textarea{width:100%;min-height:180px;resize:vertical;font-family:"Cascadia Code",Consolas,monospace}
     pre{white-space:pre-wrap;overflow:auto;max-height:52vh;background:var(--surface-raised);color:var(--text);border-radius:6px;padding:14px;font:13px/1.55 "Cascadia Code",Consolas,monospace}
     .hidden{display:none!important}.muted{color:var(--subtle)}.error{color:var(--error);white-space:pre-wrap}.success{color:var(--success)}hr{border:0;border-top:1px solid var(--border);margin:18px 0}
-    .list{display:grid;gap:8px}.item{min-width:0;border:1px solid var(--border);border-radius:6px;padding:10px;display:flex;gap:10px;align-items:center;justify-content:space-between;background:var(--surface-raised)}
-    button.item{width:100%;text-align:left}button.item:hover,.item.active{border-color:var(--teal);background:rgba(14,165,168,.1)}.stack{display:grid;gap:12px}.grid{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.5fr);gap:14px}
+    .list{display:grid;gap:9px}.item{min-width:0;border:1px solid var(--border);border-radius:7px;padding:12px;display:flex;gap:12px;align-items:center;justify-content:space-between;background:var(--surface-raised)}.empty-state{padding:20px;border:1px dashed var(--border);border-radius:7px;color:var(--subtle);text-align:center;font-size:12px;line-height:1.7}
+    button.item{width:100%;min-height:48px;text-align:left;white-space:normal;color:var(--text)}button.item:hover,.item.active{border-color:var(--teal);background:rgba(14,165,168,.1);box-shadow:0 0 0 1px rgba(14,165,168,.12)}
+    .class-item{align-items:flex-start}.class-summary{flex:1 1 240px;min-width:200px;padding:8px 0;font-weight:650;line-height:1.5}.class-actions{flex:0 1 auto;justify-content:flex-end;gap:7px}.class-actions button{min-height:36px;padding:7px 10px;font-size:12px;white-space:nowrap}
+    #student-actions{gap:9px}#student-actions button{flex:1 1 210px}.student-item{text-align:left}.work-item{text-align:left}.stack{display:grid;gap:12px}.grid{display:grid;grid-template-columns:minmax(420px,.92fr) minmax(0,1.48fr);align-items:start;gap:16px}.grid>section{min-width:0}
+    .teacher-select{position:relative;display:inline-block;vertical-align:middle;min-width:0}.teacher-select-native{display:none!important}.teacher-select-button{display:flex;align-items:center;gap:8px;width:100%;min-width:0;min-height:40px;padding:8px 11px;border:1px solid var(--border);border-radius:6px;background:var(--input);color:var(--text);font:inherit;font-size:13px;text-align:left;cursor:pointer;transition:border-color .15s,box-shadow .15s,background .15s}.teacher-select-button:hover{background:var(--surface-raised);border-color:var(--border);box-shadow:none}.teacher-select-button:focus-visible,.teacher-select-button.open{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--focus)}.teacher-select-button:disabled{opacity:.5;cursor:not-allowed}.teacher-select-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.teacher-select-chevron{width:9px;height:9px;flex:none;border-right:1.5px solid var(--subtle);border-bottom:1.5px solid var(--subtle);transform:translateY(-2px) rotate(45deg);transition:transform .15s}.teacher-select-button.open .teacher-select-chevron{transform:translateY(2px) rotate(225deg)}
+    #teacher-select-pop{position:fixed;z-index:99999;display:none;flex-direction:column;min-width:160px;max-width:min(420px,calc(100vw - 16px));max-height:min(300px,calc(100vh - 16px));overflow:hidden;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);box-shadow:var(--shadow);opacity:0;transform:translateY(-5px);transition:opacity .14s,transform .14s;font-size:13px}#teacher-select-pop.show{opacity:1;transform:none}#teacher-select-pop.up{transform:translateY(5px)}#teacher-select-pop.up.show{transform:none}
+    .teacher-select-search{margin:7px;padding:8px 10px;border:1px solid var(--border);border-radius:5px;background:var(--input);color:var(--text);font:inherit;font-size:12px;outline:none}.teacher-select-search:focus{border-color:var(--teal);box-shadow:0 0 0 2px var(--focus)}.teacher-select-list{flex:1;overflow-y:auto;padding:4px}.teacher-select-list::-webkit-scrollbar{width:8px}.teacher-select-list::-webkit-scrollbar-thumb{border-radius:4px;background:var(--border)}.teacher-select-option{display:flex;align-items:center;gap:8px;min-height:34px;padding:7px 10px;border-radius:5px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .08s}.teacher-select-option-label{flex:1;overflow:hidden;text-overflow:ellipsis}.teacher-select-option.active{background:var(--surface-hover)}.teacher-select-option[aria-selected="true"]{color:var(--teal);font-weight:650}.teacher-select-option[aria-selected="true"]::after{content:"✓";font-size:12px}.teacher-select-option[aria-disabled="true"]{opacity:.4;cursor:not-allowed}.teacher-select-empty{padding:12px;color:var(--subtle);text-align:center;font-size:12px}.teacher-select-group{padding:8px 10px 3px;color:var(--subtle);font-size:11px;font-weight:600}
     .pill{display:inline-block;border-radius:99px;padding:2px 8px;background:var(--surface-hover);font-size:12px;color:var(--muted)}
     #message{position:sticky;top:62px;z-index:4;padding:0}#message:not(:empty){padding:9px 12px;margin-bottom:12px;border:1px solid var(--border);border-radius:5px;background:var(--surface-raised)}#message.error{border-color:rgba(255,112,112,.45)}#message.success{border-color:rgba(52,201,122,.4)}
     .credentials{background:rgba(245,200,66,.1);border:1px solid rgba(245,200,66,.45);padding:12px;border-radius:6px;white-space:pre-wrap;overflow-wrap:anywhere}
     .theme-toggle{display:flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;border:0;border-radius:5px;color:rgba(255,255,255,.72);background:transparent}.theme-toggle:hover{background:rgba(255,255,255,.12);color:#fff}.theme-toggle svg{width:16px;height:16px}.theme-toggle .icon-moon{display:none}[data-theme="light"] .theme-toggle .icon-sun{display:none}[data-theme="light"] .theme-toggle .icon-moon{display:block}
     .skip-link{position:absolute;left:12px;top:-60px;z-index:10;padding:8px 12px;border-radius:5px;background:var(--surface);color:var(--text)}.skip-link:focus{top:8px}
     footer{max-width:1320px;margin:0 auto;padding:0 18px 24px;color:var(--subtle);font-size:12px}
+    @media(max-width:1040px){.grid{grid-template-columns:minmax(0,1fr)}.roster-form{grid-template-columns:repeat(4,minmax(0,1fr))}.roster-form button{grid-column:1/-1}}
+    @media(max-width:720px){main{padding:20px 14px 36px}.header-inner{align-items:flex-start}.header-actions{gap:6px}.form-grid,.form-grid.password-form,.form-grid.class-form{grid-template-columns:minmax(0,1fr);gap:12px}.form-grid button{width:100%}.class-actions{justify-content:flex-start}.inline-form{grid-template-columns:minmax(0,1fr)}.inline-form select{width:100%}}
+    @media(max-width:560px){.roster-form{grid-template-columns:repeat(2,minmax(0,1fr))}.class-item{display:grid}.class-summary{min-width:0}.class-actions{justify-content:flex-start}.header-inner{padding-inline:12px}.header-user{display:none}.header-actions>a{padding-inline:8px}.brand{font-size:0}.brand span{font-size:14px}}
     @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
   </style>
 </head>
@@ -61,7 +73,7 @@
 <a class="skip-link" href="#main-content">本文へ移動</a>
 <header><div class="header-inner"><a class="brand" href="/">Arduino Web IDE <span aria-hidden="true">/</span> 先生用管理</a><nav class="header-actions" aria-label="ページ操作"><a href="/">IDEに戻る</a><a href="/docs">使い方</a><button class="theme-toggle" id="theme-toggle" type="button" title="ライトテーマに切り替え" aria-label="ライトテーマに切り替え" aria-pressed="false"><svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42 1.42"/></svg><svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6.5 6.5 0 0 0 8.268 8.268c.344-.215.825-.003.803.401"/></svg></button><span id="signed-in" class="header-user"></span><button id="logout" class="secondary hidden">ログアウト</button></nav></div></header>
 <main id="main-content">
-  <h1>先生用クラス・作品管理</h1>
+  <div class="workspace-heading"><h1>先生用クラス・作品管理</h1><p>クラスと生徒アカウントを管理し、提出された作品の確認・編集を行います。</p></div>
   <div id="message" role="status" aria-atomic="true"></div>
   <section id="login" class="card auth-card">
     <h2>先生ログイン</h2>
@@ -84,7 +96,7 @@
   </section>
   <div id="app" class="hidden">
     <section class="card">
-      <h2>クラス・年度</h2>
+      <div class="section-heading"><div><h2>クラス・年度</h2><p>年度ごとにクラスを作成し、作品の書き出しや年度末の整理を行います。</p></div></div>
       <form id="class-form" class="form-grid class-form"><label for="class-name">クラス名<input id="class-name" name="name" placeholder="例: 1年A組" maxlength="80" required></label>
         <label for="class-year">年度<input id="class-year" name="year" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="例: 2026" required></label>
         <button class="form-submit" type="submit">クラスを作成</button></form>
@@ -92,10 +104,10 @@
     </section>
     <div class="grid">
       <section class="card">
-        <h2>生徒</h2>
+        <div class="section-heading"><div><h2>生徒アカウント</h2><p>クラスを選び、人数を指定して生徒IDを発行します。</p></div></div>
         <p class="muted">クラス、学年、組、人数を指定すると、出席番号1番から生徒IDを自動生成します。例: 1年D組・24人 → <code>010401</code>〜<code>010424</code>。氏名は登録しません。前年度クラスをアーカイブして作品を消去済みの場合、同じ組・出席番号のアカウントを自動で引き継ぎます。</p>
         <form id="roster-form" class="roster-form">
-          <label for="student-class">登録先クラス<select id="student-class" required></select></label>
+          <div class="roster-field"><label for="student-class">登録先クラス</label><select id="student-class" required></select></div>
           <label for="student-grade">学年<input id="student-grade" name="grade" inputmode="numeric" pattern="[0-9]{1,2}" min="1" max="99" value="1" required></label>
           <label for="student-group">組<input id="student-group" name="classroom" maxlength="2" pattern="[A-Za-z]|[0-9]{1,2}" value="A" required></label>
           <label for="student-count">人数<input id="student-count" name="count" type="number" min="1" max="99" value="30" required></label>
@@ -105,25 +117,25 @@
         <hr>
         <div id="students" class="list"></div>
         <div id="student-actions" class="row hidden" style="margin-top:10px">
-          <button id="reset-password" class="secondary">仮パスワードを再発行</button>
-          <button id="toggle-student" class="secondary"></button>
+          <button id="reset-password" class="secondary" type="button">仮パスワードを再発行</button>
+          <button id="toggle-student" class="secondary" type="button"></button>
         </div>
       </section>
       <section class="card">
-        <h2>作品の確認・編集</h2>
+        <div class="section-heading"><div><h2>作品の確認・編集</h2><p>生徒の作品を確認し、必要に応じて編集・コメントできます。</p></div></div>
         <p id="work-hint" class="muted">クラス、生徒、作品の順に選んでください。</p>
         <div id="works" class="list"></div>
         <div id="review" class="hidden stack" style="margin-top:14px">
           <div class="row"><strong id="work-title" class="grow"></strong><span id="work-revision" class="pill"></span></div>
-          <div class="inline-form"><label for="version-select">過去の版</label><select id="version-select"></select><button id="restore-version" class="secondary">選択した版に戻す</button></div>
+          <div class="inline-form"><label for="version-select">過去の版</label><select id="version-select"></select><button id="restore-version" class="secondary" type="button">選択した版に戻す</button></div>
           <label for="file-select">編集するファイル</label><select id="file-select"></select>
           <label for="code">コード（先生による編集は履歴に記録されます）</label>
           <textarea id="code" spellcheck="false" aria-label="スケッチコード"></textarea>
-          <div class="row"><button id="save-code">コードを保存</button><button id="check-code" class="secondary"></button></div>
+          <div class="row"><button id="save-code" type="button">コードを保存</button><button id="check-code" class="secondary" type="button"></button></div>
           <label for="teacher-comment">確認コメント</label><textarea id="teacher-comment" style="min-height:90px"></textarea>
-          <button id="save-review" class="secondary">確認状態とコメントを保存</button>
+          <button id="save-review" class="secondary" type="button">確認状態とコメントを保存</button>
           <label for="comment">生徒へのコメント</label>
-          <div class="row"><input id="comment" class="grow" maxlength="4000" placeholder="返信・補足を入力"><button id="post-comment">コメントを追加</button></div>
+          <div class="row"><input id="comment" class="grow" maxlength="4000" placeholder="返信・補足を入力"><button id="post-comment" type="button">コメントを追加</button></div>
           <div id="comments" class="list"></div>
         </div>
       </section>
@@ -247,27 +259,33 @@ async function loadClasses() {
   const data = await api('/teacher/api/classes');
   $('classes').replaceChildren(); $('student-class').replaceChildren();
   data.classes.forEach(c => {
-    const item = document.createElement('div'); item.className = 'item'+(selectedClass===c.id?' active':'');
-    const summary = document.createElement('span'); summary.textContent = `${c.school_year}年度 ${c.name} — ${c.students}人 / ${c.sketches}作品${c.archived?' (アーカイブ)':''}`;
-    const actions = document.createElement('span'); actions.className = 'row';
-    const choose = document.createElement('button'); choose.textContent = '開く'; choose.disabled = !!c.archived;
+    const item = document.createElement('div'); item.className = 'item class-item'+(selectedClass===c.id?' active':'');
+    const summary = document.createElement('span'); summary.className='class-summary'; summary.textContent = `${c.school_year}年度 ${c.name} — ${c.students}人 / ${c.sketches}作品${c.archived?' (アーカイブ)':''}`;
+    const actions = document.createElement('span'); actions.className = 'row class-actions';
+    const choose = document.createElement('button'); choose.type='button'; choose.textContent = 'クラスを開く'; choose.disabled = !!c.archived; choose.setAttribute('aria-pressed',String(selectedClass===c.id));
     choose.onclick = async () => { selectedClass=c.id; selectedStudent=null; selectedSketch=null; openSketchData=null; try { await loadClasses(); await loadStudents(); } catch(e) { message(e.message,'error'); } };
     actions.append(choose);
-    const exportButton = document.createElement('button'); exportButton.className='secondary'; exportButton.textContent='作品を書き出す';
+    const exportButton = document.createElement('button'); exportButton.type='button'; exportButton.className='secondary'; exportButton.textContent='作品を書き出す';
     exportButton.onclick = async () => { try { const data=await api(`/teacher/api/classes/${c.id}/export`); const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const link=document.createElement('a'); link.href=URL.createObjectURL(blob); link.download=`${c.school_year}-${c.name}-作品.json`; link.click(); setTimeout(()=>URL.revokeObjectURL(link.href),1000); } catch(e){message(e.message,'error');} };
     actions.append(exportButton);
     if (!c.archived) {
-      const archive = document.createElement('button'); archive.className='secondary'; archive.textContent='年度をアーカイブ';
+      const archive = document.createElement('button'); archive.type='button'; archive.className='secondary'; archive.textContent='年度をアーカイブ';
       archive.onclick = async () => { if (!confirm(`${c.school_year}年度 ${c.name} をアーカイブしますか？作品は削除されません。`)) return; try { await api(`/teacher/api/classes/${c.id}/archive`,'POST',{}); await loadClasses(); } catch(e){message(e.message,'error');} };
       actions.append(archive);
     }
-    const clear = document.createElement('button'); clear.className='danger'; clear.textContent='作品を消去';
+    const clear = document.createElement('button'); clear.type='button'; clear.className='danger'; clear.textContent='作品を消去';
     clear.disabled=!c.archived; clear.title=c.archived?'作品を完全削除します。':'先に年度をアーカイブしてください。';
     clear.onclick = async () => { const phrase=`CLEAR ${c.name} ${c.school_year}`; const answer=prompt(`生徒アカウントは残し、クラス全員の作品とコメントを完全削除します。\n実行するには次を入力してください:\n${phrase}`); if(answer!==phrase)return; try { await api(`/teacher/api/classes/${c.id}/clear`,'POST',{confirm:answer}); message('作品とコメントを削除しました','success'); await loadClasses(); if(selectedClass===c.id)await loadStudents(); } catch(e){message(e.message,'error');} };
     actions.append(clear);
     item.append(summary,actions); $('classes').append(item);
     if (!c.archived) { const option=document.createElement('option'); option.value=c.id; option.textContent=`${c.school_year}年度 ${c.name}`; $('student-class').append(option); }
   });
+  if(!data.classes.length){
+    const empty=document.createElement('div');
+    empty.className='empty-state';
+    empty.textContent='クラスはまだありません。上のフォームから年度とクラス名を登録してください。';
+    $('classes').append(empty);
+  }
   if (selectedClass) $('student-class').value=selectedClass;
   syncRosterPrefix();
 }
@@ -281,11 +299,18 @@ async function loadStudents() {
   $('student-actions').classList.toggle('hidden',!selectedStudentData);
   if(selectedStudentData)$('toggle-student').textContent=selectedStudentData.active?'アカウントを停止':'アカウントを再開';
   data.students.forEach(s=>{
-    const item=document.createElement('button'); item.className='item'+(selectedStudent===s.id?' active':'');
+    const item=document.createElement('button'); item.type='button'; item.className='item student-item'+(selectedStudent===s.id?' active':'');
+    item.setAttribute('aria-pressed',String(selectedStudent===s.id));
     item.textContent=`${s.username} — ${s.sketch_count}作品${s.active?'':' (停止中)'}`;
     item.onclick=async()=>{selectedStudent=s.id; selectedSketch=null; openSketchData=null; try { await loadStudents(); await loadWorks(); } catch(e) { message(e.message,'error'); }};
     $('students').append(item);
   });
+  if(!data.students.length){
+    const empty=document.createElement('div');
+    empty.className='empty-state';
+    empty.textContent='このクラスには生徒がいません。上のフォームで人数を指定して生徒IDを発行してください。';
+    $('students').append(empty);
+  }
 }
 async function loadWorks() {
   const studentId=selectedStudent;
@@ -293,7 +318,8 @@ async function loadWorks() {
   if(selectedStudent!==studentId)return;
   $('works').replaceChildren();
   data.sketches.forEach(sk=>{
-    const item=document.createElement('button'); item.className='item'+(selectedSketch===sk.id?' active':'');
+    const item=document.createElement('button'); item.type='button'; item.className='item work-item'+(selectedSketch===sk.id?' active':'');
+    item.setAttribute('aria-pressed',String(selectedSketch===sk.id));
     item.textContent=`${sk.name} — ${new Date(sk.updatedAt).toLocaleString()}${sk.checked?' — 確認済み':' — 未確認'}`;
     item.onclick=async()=>{try{await openSketch(sk);}catch(e){message(e.message,'error');}}; $('works').append(item);
   });
@@ -448,6 +474,265 @@ $('password-form').onsubmit=async e=>{
   }
 };
 (async()=>{if(!token)return;try{const d=await api('/account/me');currentUser=d.user;if(currentUser.role!=='teacher')throw new Error('先生アカウントではありません');showLoggedIn();if(!currentUser.mustChangePassword)await loadClasses();}catch(e){token='';clearSession();showLoggedIn();message(e.message,'error');}})();
+</script>
+<script>
+(() => {
+  const popup = document.createElement('div');
+  popup.id = 'teacher-select-pop';
+  document.body.appendChild(popup);
+  const nativeValue = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+  const nativeIndex = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'selectedIndex');
+  let current = null;
+  let options = [];
+  let activeIndex = -1;
+  let typed = '';
+  let typeTimer = 0;
+
+  function build(select) {
+    if (select._teacherSelect) return;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'teacher-select';
+    wrapper.classList.add('teacher-select-' + select.id);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'teacher-select-button';
+    button.setAttribute('role', 'combobox');
+    button.setAttribute('aria-haspopup', 'listbox');
+    button.setAttribute('aria-expanded', 'false');
+    button.setAttribute('aria-controls', 'teacher-select-listbox');
+    const label = document.createElement('span');
+    label.className = 'teacher-select-label';
+    const chevron = document.createElement('span');
+    chevron.className = 'teacher-select-chevron';
+    chevron.setAttribute('aria-hidden', 'true');
+    button.append(label, chevron);
+    select.parentNode.insertBefore(wrapper, select);
+    wrapper.append(button, select);
+    select.classList.add('teacher-select-native');
+    select.tabIndex = -1;
+
+    const fieldLabel = document.querySelector('label[for="' + CSS.escape(select.id) + '"]');
+    if (fieldLabel) {
+      if (!fieldLabel.id) fieldLabel.id = 'teacher-select-label-' + select.id;
+      button.setAttribute('aria-labelledby', fieldLabel.id);
+      fieldLabel.removeAttribute('for');
+      fieldLabel.addEventListener('click', event => {
+        if (!event.target.closest('.teacher-select-button')) {
+          event.preventDefault();
+          button.focus();
+        }
+      });
+    } else {
+      button.setAttribute('aria-label', select.getAttribute('aria-label') || select.name || '選択してください');
+    }
+
+    const required = select.required;
+    select.required = false;
+    function sync() {
+      const option = select.options[select.selectedIndex];
+      label.textContent = option ? option.textContent : '選択してください';
+      button.disabled = select.disabled || select.options.length === 0;
+      button.setAttribute('aria-required', String(required));
+    }
+    Object.defineProperty(select, 'value', {
+      get() { return nativeValue.get.call(this); },
+      set(value) { nativeValue.set.call(this, value); sync(); },
+      configurable: true
+    });
+    Object.defineProperty(select, 'selectedIndex', {
+      get() { return nativeIndex.get.call(this); },
+      set(value) { nativeIndex.set.call(this, value); sync(); },
+      configurable: true
+    });
+    new MutationObserver(sync).observe(select, {
+      childList: true, subtree: true, attributes: true, characterData: true
+    });
+    select.addEventListener('change', sync);
+    select._teacherSelect = {wrapper, button, sync};
+    sync();
+    button.addEventListener('click', () => current && current.select === select ? close(true) : open(select));
+    button.addEventListener('keydown', event => {
+      if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(event.key)) {
+        event.preventDefault();
+        open(select);
+      }
+    });
+  }
+
+  function setActive(index, scroll) {
+    if (!current) return;
+    activeIndex = index;
+    options.forEach((item, i) => item.element.classList.toggle('active', i === index));
+    if (options[index]) current.button.setAttribute('aria-activedescendant', options[index].element.id);
+    else current.button.removeAttribute('aria-activedescendant');
+    if (scroll && options[index]) options[index].element.scrollIntoView({block: 'nearest'});
+  }
+
+  function move(direction) {
+    for (let count = 0, index = activeIndex; count < options.length; count++) {
+      index = (index + direction + options.length) % options.length;
+      const item = options[index];
+      if (item.element.style.display !== 'none' && !item.option.disabled) {
+        setActive(index, true);
+        return;
+      }
+    }
+  }
+
+  function filterOptions(query) {
+    if (!current) return;
+    const normalized = query.toLowerCase();
+    let visible = 0;
+    options.forEach(item => {
+      const match = item.text.includes(normalized);
+      item.element.style.display = match ? '' : 'none';
+      if (match) visible++;
+    });
+    const empty = popup.querySelector('.teacher-select-empty');
+    empty.style.display = visible ? 'none' : '';
+    setActive(options.findIndex(item => item.element.style.display !== 'none' && !item.option.disabled), true);
+  }
+
+  function open(select) {
+    if (select.disabled) return;
+    if (current) close(false);
+    const button = select._teacherSelect.button;
+    current = {select, button};
+    options = [];
+    popup.replaceChildren();
+    const searchable = select.options.length > 7;
+    let search = null;
+    if (searchable) {
+      search = document.createElement('input');
+      search.className = 'teacher-select-search';
+      search.type = 'search';
+      search.placeholder = '検索...';
+      search.autocomplete = 'off';
+      search.setAttribute('aria-label', '選択肢を検索');
+      search.addEventListener('input', () => filterOptions(search.value));
+      popup.appendChild(search);
+    }
+    const list = document.createElement('div');
+    list.id = 'teacher-select-listbox';
+    list.className = 'teacher-select-list';
+    list.setAttribute('role', 'listbox');
+    list.setAttribute('aria-labelledby', button.getAttribute('aria-labelledby') || '');
+    popup.appendChild(list);
+    Array.from(select.children).forEach(child => {
+      if (child.tagName === 'OPTGROUP') {
+        const group = document.createElement('div');
+        group.className = 'teacher-select-group';
+        group.textContent = child.label;
+        list.appendChild(group);
+        Array.from(child.children).forEach(addOption);
+      } else if (child.tagName === 'OPTION') addOption(child);
+    });
+    function addOption(option) {
+      const element = document.createElement('div');
+      element.id = 'teacher-select-option-' + options.length;
+      element.className = 'teacher-select-option';
+      element.setAttribute('role', 'option');
+      element.setAttribute('aria-selected', String(option === select.options[select.selectedIndex]));
+      if (option.disabled) element.setAttribute('aria-disabled', 'true');
+      const text = document.createElement('span');
+      text.className = 'teacher-select-option-label';
+      text.textContent = option.textContent;
+      element.appendChild(text);
+      const item = {option, element, text: option.textContent.toLowerCase()};
+      options.push(item);
+      element.addEventListener('mousemove', () => setActive(options.indexOf(item), false));
+      element.addEventListener('click', () => choose(option));
+      list.appendChild(element);
+    }
+    const empty = document.createElement('div');
+    empty.className = 'teacher-select-empty';
+    empty.textContent = '該当する項目がありません';
+    empty.style.display = 'none';
+    list.appendChild(empty);
+
+    const rect = button.getBoundingClientRect();
+    popup.style.display = 'flex';
+    popup.style.minWidth = Math.max(rect.width, 160) + 'px';
+    popup.style.maxWidth = Math.min(420, innerWidth - 16) + 'px';
+    list.style.maxHeight = Math.min(260, innerHeight - 32) + 'px';
+    let height = popup.offsetHeight;
+    const below = innerHeight - rect.bottom - 8;
+    const above = rect.top - 8;
+    const opensAbove = below < height && above > below;
+    const maxHeight = Math.max(120, Math.min(height, opensAbove ? above : below));
+    if (maxHeight < height) {
+      list.style.maxHeight = (maxHeight - (searchable ? 46 : 8)) + 'px';
+      height = popup.offsetHeight;
+    }
+    popup.style.left = Math.min(Math.max(8, rect.left), innerWidth - popup.offsetWidth - 8) + 'px';
+    popup.style.top = (opensAbove ? rect.top - height - 4 : rect.bottom + 4) + 'px';
+    popup.classList.toggle('up', opensAbove);
+    button.classList.add('open');
+    button.setAttribute('aria-expanded', 'true');
+    requestAnimationFrame(() => popup.classList.add('show'));
+    const selected = options.findIndex(item => item.option === select.options[select.selectedIndex]);
+    setActive(selected < 0 ? 0 : selected, true);
+    if (search) search.focus({preventScroll: true});
+    else {
+      popup.tabIndex = -1;
+      popup.focus({preventScroll: true});
+    }
+  }
+
+  function choose(option) {
+    if (option.disabled) return;
+    const select = current.select;
+    close(true);
+    const changed = select.selectedIndex !== option.index;
+    select.selectedIndex = option.index;
+    if (changed) {
+      select.dispatchEvent(new Event('input', {bubbles: true}));
+      select.dispatchEvent(new Event('change', {bubbles: true}));
+    }
+  }
+
+  function close(focus) {
+    if (!current) return;
+    const opened = current;
+    current = null;
+    popup.classList.remove('show');
+    opened.button.classList.remove('open');
+    opened.button.setAttribute('aria-expanded', 'false');
+    opened.button.removeAttribute('aria-activedescendant');
+    setTimeout(() => { if (!current) popup.style.display = 'none'; }, 140);
+    if (focus) opened.button.focus();
+  }
+
+  popup.addEventListener('keydown', event => {
+    if (event.key === 'ArrowDown') { event.preventDefault(); move(1); }
+    else if (event.key === 'ArrowUp') { event.preventDefault(); move(-1); }
+    else if (event.key === 'Enter') { event.preventDefault(); if (options[activeIndex]) choose(options[activeIndex].option); }
+    else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(true); }
+    else if (event.key === 'Tab') { close(true); }
+    else if (event.key.length === 1 && event.target.tagName !== 'INPUT') {
+      clearTimeout(typeTimer);
+      typed += event.key.toLowerCase();
+      typeTimer = setTimeout(() => { typed = ''; }, 600);
+      const index = options.findIndex(item => item.text.startsWith(typed) && !item.option.disabled);
+      if (index >= 0) setActive(index, true);
+    }
+  }, true);
+  document.addEventListener('pointerdown', event => {
+    if (current && !popup.contains(event.target) && !current.button.contains(event.target)) close(false);
+  }, true);
+  window.addEventListener('resize', () => close(false));
+  document.addEventListener('scroll', event => {
+    if (current && !popup.contains(event.target) && !popup.contains(document.activeElement)) close(false);
+  }, true);
+  function scan(root) {
+    if (root.matches && root.matches('select:not(.teacher-select-native)')) build(root);
+    root.querySelectorAll?.('select:not(.teacher-select-native)').forEach(build);
+  }
+  scan(document);
+  new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(node => {
+    if (node.nodeType === Node.ELEMENT_NODE) scan(node);
+  }))).observe(document.body, {childList: true, subtree: true});
+})();
 </script>
 </body>
 </html>
