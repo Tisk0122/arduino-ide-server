@@ -19,6 +19,24 @@
     input,select,textarea{min-width:0;border:1px solid var(--border);border-radius:5px;padding:8px 10px;background:var(--input);color:var(--text)}input::placeholder{color:var(--subtle)}input:focus,select:focus,textarea:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(14,165,168,.14);outline:0}
     .row>input:not([type=file]),.row>select{flex:1 1 180px}.row>input[type=file]{flex:1 1 240px;max-width:100%}
     button{border:1px solid var(--teal);border-radius:5px;padding:7px 12px;background:var(--teal);color:#fff;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s}
+    input:not([type=file]),select,button:not(.theme-toggle){min-height:40px}button:not(.theme-toggle){padding:8px 14px}
+    .auth-card{width:min(100%,780px);margin:0 auto 18px;padding:24px}
+    .auth-card h2{font-size:16px;color:var(--text);margin-bottom:6px}
+    .auth-description{max-width:66ch;margin:0 0 18px}
+    .form-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;align-items:end;gap:16px}
+    .form-grid label{min-width:0;margin:0;color:var(--muted);font-size:13px}
+    .form-grid input{width:100%;height:42px;margin-top:7px}
+    .form-grid button{height:42px;min-width:118px;white-space:nowrap}
+    .form-help{margin:14px 0 0;color:var(--subtle);font-size:13px}
+    .form-grid.password-form{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}
+    .form-grid.class-form{grid-template-columns:minmax(0,2fr) minmax(180px,1fr) auto;margin-bottom:14px}
+    .inline-form{display:grid;grid-template-columns:auto minmax(180px,1fr) auto;align-items:end;gap:10px}
+    .inline-form label{margin:0}
+    .inline-form select{height:40px;min-width:180px}
+    .inline-form button{height:40px}
+    .form-submit:disabled{cursor:wait}
+    .form-submit[aria-busy="true"]::before{content:"";display:inline-block;width:13px;height:13px;margin-right:8px;vertical-align:-2px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
     button:hover{background:#0B898C;border-color:#0B898C}button.secondary{background:var(--surface-raised);border-color:var(--border);color:var(--muted)}button.secondary:hover{background:var(--surface-hover);border-color:var(--border)}
     button.danger{background:rgba(224,82,82,.14);border-color:rgba(224,82,82,.45);color:var(--error)}button.danger:hover{background:rgba(224,82,82,.24);border-color:var(--error)}
     button:disabled{opacity:.55;cursor:not-allowed}textarea{width:100%;min-height:180px;resize:vertical;font-family:"Cascadia Code",Consolas,monospace}
@@ -41,24 +59,31 @@
 <main id="main-content">
   <h1>先生用クラス・作品管理</h1>
   <div id="message" role="status" aria-atomic="true"></div>
-  <section id="login" class="card">
+  <section id="login" class="card auth-card">
     <h2>先生ログイン</h2>
-    <p class="muted">管理者から配布された先生アカウントでログインしてください。</p>
-    <form id="login-form" class="row"><label class="grow" for="teacher-username">先生ID<input id="teacher-username" name="username" autocomplete="username" required></label>
-      <label class="grow" for="teacher-password">パスワード<input id="teacher-password" name="password" type="password" autocomplete="current-password" required></label>
-      <button>ログイン</button></form>
+    <p class="muted auth-description">管理者から配布された先生IDとパスワードでログインしてください。</p>
+    <form id="login-form" class="form-grid">
+      <label for="teacher-username">先生ID<input id="teacher-username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+      <label for="teacher-password">パスワード<input id="teacher-password" name="password" type="password" autocomplete="current-password" required></label>
+      <button class="form-submit" type="submit">ログイン</button>
+    </form>
   </section>
-  <section id="password-card" class="card hidden">
+  <section id="password-card" class="card auth-card hidden">
     <h2>パスワード変更が必要です</h2>
-    <form id="password-form" class="row"><label class="grow" for="current-password">現在のパスワード<input id="current-password" name="current" type="password" autocomplete="current-password" required></label>
-      <label class="grow" for="new-password">新しいパスワード (10文字以上)<input id="new-password" name="next" type="password" autocomplete="new-password" minlength="10" required></label><button>変更</button></form>
+    <p class="muted auth-description">初回ログイン用のパスワードから、10〜256文字の新しいパスワードに変更してください。</p>
+    <form id="password-form" class="form-grid password-form">
+      <label for="current-password">現在のパスワード<input id="current-password" name="current" type="password" autocomplete="current-password" required></label>
+      <label for="new-password">新しいパスワード<input id="new-password" name="next" type="password" autocomplete="new-password" minlength="10" maxlength="256" required></label>
+      <button class="form-submit" type="submit">変更して続ける</button>
+    </form>
+    <p id="password-help" class="form-help">10文字以上256文字以内。変更後、クラス管理画面へ進みます。</p>
   </section>
   <div id="app" class="hidden">
     <section class="card">
       <h2>クラス・年度</h2>
-      <form id="class-form" class="row"><label class="grow" for="class-name">クラス名<input id="class-name" name="name" placeholder="例: 1年A組" maxlength="80" required></label>
-        <label class="grow" for="class-year">年度<input id="class-year" name="year" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="例: 2026" required></label>
-        <button>クラスを作成</button></form>
+      <form id="class-form" class="form-grid class-form"><label for="class-name">クラス名<input id="class-name" name="name" placeholder="例: 1年A組" maxlength="80" required></label>
+        <label for="class-year">年度<input id="class-year" name="year" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="例: 2026" required></label>
+        <button class="form-submit" type="submit">クラスを作成</button></form>
       <div id="classes" class="list" style="margin-top:12px"></div>
     </section>
     <div class="grid">
@@ -83,7 +108,7 @@
         <div id="works" class="list"></div>
         <div id="review" class="hidden stack" style="margin-top:14px">
           <div class="row"><strong id="work-title" class="grow"></strong><span id="work-revision" class="pill"></span></div>
-          <div class="row"><label for="version-select">過去の版</label><select id="version-select" class="grow"></select><button id="restore-version" class="secondary">選択した版に戻す</button></div>
+          <div class="inline-form"><label for="version-select">過去の版</label><select id="version-select"></select><button id="restore-version" class="secondary">選択した版に戻す</button></div>
           <label for="file-select">編集するファイル</label><select id="file-select"></select>
           <label for="code">コード（先生による編集は履歴に記録されます）</label>
           <textarea id="code" spellcheck="false" aria-label="スケッチコード"></textarea>
@@ -136,12 +161,52 @@ const $ = id => document.getElementById(id);
   });
 })();
 const sessionKey = 'arduino_helper_account_session';
-let token = sessionStorage.getItem(sessionKey) || '';
+function loadSession() {
+  try {
+    return sessionStorage.getItem(sessionKey) || '';
+  } catch (error) {
+    console.warn('保存済みログイン状態を読み込めません:', error);
+    return '';
+  }
+}
+function clearSession() {
+  try {
+    sessionStorage.removeItem(sessionKey);
+  } catch (error) {
+    console.warn('保存済みログイン状態を消去できません:', error);
+  }
+}
+let token = loadSession();
 let currentUser = null, selectedClass = null, selectedStudent = null, selectedSketch = null, selectedStudentData = null, openSketchData = null;
 let currentRevision = 0, checked = false;
 let credentialCsv = '';
 const csvCell = value => '"' + String(value).replace(/"/g,'""') + '"';
-function message(text, type='') { $('message').className = type; $('message').textContent = text; }
+function message(text, type='') {
+  const status = $('message');
+  status.className = type;
+  status.setAttribute('role', type === 'error' ? 'alert' : 'status');
+  status.textContent = text;
+}
+function setFormPending(form, pending, pendingText) {
+  const button = form.querySelector('.form-submit');
+  if (!button) return;
+  if (pending) {
+    button.dataset.idleText = button.textContent;
+    button.textContent = pendingText;
+  } else if (button.dataset.idleText) {
+    button.textContent = button.dataset.idleText;
+    delete button.dataset.idleText;
+  }
+  button.disabled = pending;
+  button.setAttribute('aria-busy', String(pending));
+}
+function saveSession(tokenValue) {
+  try {
+    sessionStorage.setItem(sessionKey, tokenValue);
+  } catch (error) {
+    console.warn('ログイン状態をこのタブに保存できません:', error);
+  }
+}
 async function api(path, method='GET', body) {
   const response = await fetch(path, {method, headers:{...(body ? {'Content-Type':'application/json'} : {}), ...(token ? {Authorization:'Session '+token} : {})},
     body:body ? JSON.stringify(body) : undefined, cache:'no-store'});
@@ -253,8 +318,46 @@ async function openSketch(sk) {
   $('restore-version').disabled=!versions.versions.length;
 }
 function selectedClassId(){return $('import-class').value;}
-$('login-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);try{const d=await api('/account/login','POST',{username:f.get('username'),password:f.get('password')});token=d.token;sessionStorage.setItem(sessionKey,token);currentUser=d.user;if(currentUser.role!=='teacher')throw new Error('先生アカウントでログインしてください');showLoggedIn();await loadClasses();}catch(err){token='';sessionStorage.removeItem(sessionKey);currentUser=null;showLoggedIn();message(err.message,'error');}};
-$('logout').onclick=async()=>{let logoutError='';try{await api('/account/logout','POST',{});}catch(e){logoutError=e.message;}token='';sessionStorage.removeItem(sessionKey);currentUser=null;clearTeacherWorkspace();showLoggedIn();if(logoutError)message(`サーバーでのログアウトを確認できませんでした: ${logoutError}`,'error');else message('ログアウトしました','success');};
+$('login-form').onsubmit=async e=>{
+  e.preventDefault();
+  const form=e.currentTarget;
+  if(!form.reportValidity())return;
+  const values=new FormData(form);
+  setFormPending(form,true,'ログイン中…');
+  message('ログイン情報を確認しています');
+  try{
+    const data=await api('/account/login','POST',{
+      username:String(values.get('username')).trim(),
+      password:values.get('password')
+    });
+    if(data.user.role!=='teacher')throw new Error('先生アカウントでログインしてください');
+    token=data.token;
+    currentUser=data.user;
+    saveSession(token);
+    showLoggedIn();
+    if(currentUser.mustChangePassword){
+      message('初回ログインです。新しいパスワードを設定してください。');
+      $('current-password').focus();
+      return;
+    }
+    message('ログインしました。クラス情報を読み込んでいます。');
+    try{
+      await loadClasses();
+      message('ログインしました。');
+    }catch(error){
+      message(`ログインは完了しましたが、クラス一覧を読み込めませんでした: ${error.message}`,'error');
+    }
+  }catch(error){
+    token='';
+    currentUser=null;
+    try{sessionStorage.removeItem(sessionKey);}catch(storageError){console.warn('保存済みログイン状態を消去できません:',storageError);}
+    showLoggedIn();
+    message(error.message,'error');
+  }finally{
+    setFormPending(form,false);
+  }
+};
+$('logout').onclick=async()=>{let logoutError='';try{await api('/account/logout','POST',{});}catch(e){logoutError=e.message;}token='';clearSession();currentUser=null;clearTeacherWorkspace();showLoggedIn();if(logoutError)message(`サーバーでのログアウトを確認できませんでした: ${logoutError}`,'error');else message('ログアウトしました','success');};
 $('class-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);try{const d=await api('/teacher/api/classes','POST',{name:f.get('name'),schoolYear:f.get('year')});selectedClass=d.classId;e.target.reset();await loadClasses();await loadStudents();message('クラスを作成しました','success');}catch(err){message(err.message,'error');}};
 $('import-btn').onclick=async()=>{const file=$('csv-file').files[0];if(!file)return message('生徒ID一覧CSVを選択してください','error');if(!selectedClassId())return message('先にクラスを作成してください','error');try{const csv=await file.text();const d=await api('/teacher/api/students/import','POST',{classId:selectedClassId(),csv});credentialCsv=d.credentials.map(x=>[x.studentId,x.initialPassword].map(csvCell).join(',')).join('\r\n');const lines=d.credentials.map(x=>`${x.studentId},${x.initialPassword}`).join('\n');$('credentials').textContent=(lines?'今回だけ表示される初回ログイン情報です。安全に配布してください。\nstudentId,initialPassword\n'+lines+'\n':'')+(d.reassigned.length?'前年度から引き継いだアカウント (従来のパスワードを継続):\n前年度ID → 新しい生徒ID\n'+d.reassigned.map(x=>`${x.previousId} → ${x.studentId}`).join('\n'):'');$('credentials').classList.toggle('hidden',!lines&&!d.reassigned.length);$('download-credentials').classList.toggle('hidden',!credentialCsv);message(`${d.credentials.length}人分の初回パスワードを発行、${d.reassigned.length}人のアカウントを引き継ぎました`,'success');$('csv-file').value='';await loadClasses();if(selectedClass)await loadStudents();}catch(err){message(err.message,'error');}};
 $('download-credentials').onclick=()=>{if(!credentialCsv)return;const link=document.createElement('a');link.href=URL.createObjectURL(new Blob(['\ufeffstudentId,initialPassword\n'+credentialCsv],{type:'text/csv;charset=utf-8'}));link.download='student-initial-passwords.csv';link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);credentialCsv='';$('download-credentials').classList.add('hidden');message('初回パスワード一覧をダウンロードしました。配布後はファイルを安全に削除してください。','success');};
@@ -266,8 +369,43 @@ $('file-select').onchange=()=>{if(openSketchData)$('code').value=openSketchData.
 $('check-code').onclick=async()=>{checked=!checked;$('check-code').textContent=checked?'確認済みを解除':'確認済みにする';};
 $('save-review').onclick=async()=>{try{await api(`/teacher/api/students/${selectedStudent}/sketches/${selectedSketch}/review`,'PUT',{checked,comment:$('teacher-comment').value});message('確認状態とコメントを保存しました','success');await loadWorks();}catch(err){message(err.message,'error');}};
 $('post-comment').onclick=async()=>{const body=$('comment').value.trim();if(!body){message('コメントを入力してください','error');return;}try{await api(`/teacher/api/students/${selectedStudent}/sketches/${selectedSketch}/comments`,'POST',{body});$('comment').value='';await openSketch((await api(`/teacher/api/students/${selectedStudent}/sketches`)).sketches.find(x=>x.id===selectedSketch));}catch(err){message(err.message,'error');}};
-$('password-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);try{await api('/account/password','POST',{currentPassword:f.get('current'),newPassword:f.get('next')});currentUser.mustChangePassword=false;showLoggedIn();await loadClasses();message('パスワードを変更しました','success');}catch(err){message(err.message,'error');}};
-(async()=>{if(!token)return;try{const d=await api('/account/me');currentUser=d.user;if(currentUser.role!=='teacher')throw new Error('先生アカウントではありません');showLoggedIn();if(!currentUser.mustChangePassword)await loadClasses();}catch(e){token='';sessionStorage.removeItem(sessionKey);showLoggedIn();message(e.message,'error');}})();
+$('password-form').onsubmit=async e=>{
+  e.preventDefault();
+  const form=e.currentTarget;
+  if(!form.reportValidity())return;
+  const values=new FormData(form);
+  const newPassword=String(values.get('next'));
+  if(newPassword.length<10||newPassword.length>256){
+    message('新しいパスワードは10文字以上256文字以内で入力してください。','error');
+    $('new-password').focus();
+    return;
+  }
+  setFormPending(form,true,'変更中…');
+  message('新しいパスワードを設定しています');
+  try{
+    await api('/account/password','POST',{
+      currentPassword:values.get('current'),
+      newPassword
+    });
+    currentUser.mustChangePassword=false;
+    showLoggedIn();
+    message('パスワードを変更しました。クラス一覧を読み込んでいます。','success');
+    form.reset();
+    try{
+      await loadClasses();
+      message('パスワードを変更しました。クラス管理を利用できます。','success');
+    }catch(error){
+      message(`パスワードは変更されましたが、クラス一覧を読み込めませんでした: ${error.message}`,'error');
+    }
+  }catch(error){
+    message(error.message,'error');
+    if(error.message.includes('現在のパスワード'))$('current-password').focus();
+    else $('new-password').focus();
+  }finally{
+    setFormPending(form,false);
+  }
+};
+(async()=>{if(!token)return;try{const d=await api('/account/me');currentUser=d.user;if(currentUser.role!=='teacher')throw new Error('先生アカウントではありません');showLoggedIn();if(!currentUser.mustChangePassword)await loadClasses();}catch(e){token='';clearSession();showLoggedIn();message(e.message,'error');}})();
 </script>
 </body>
 </html>
