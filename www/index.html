@@ -13,6 +13,8 @@
 
 /* ---- テーマ変数 (ダーク) ---- */
 :root {
+  color-scheme: dark;
+
   /* ブランドカラー */
   --teal:          #0EA5A8;
   --teal-dk:       #076D70;
@@ -99,6 +101,8 @@
 
 /* ---- テーマ変数 (ライト) ---- */
 [data-theme="light"] {
+  color-scheme: light;
+
   --teal-link:     #076D70;
   --teal-link-hover: #005F61;
   --bg0:           #F0F4F8;
@@ -1127,6 +1131,72 @@ svg { display: block; flex-shrink: 0; }
 .form-input::placeholder { color: var(--tx3); }
 .form-hint { font-size: 11.5px; color: var(--tx3); margin-top: 5px; }
 
+/* アカウントフォームとネイティブ入力欄をテーマに合わせる */
+.modal-account { width: 460px; }
+.account-status {
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  border: 1px solid var(--bd1);
+  border-left: 3px solid var(--teal);
+  border-radius: var(--radius);
+  background: var(--bg2);
+  color: var(--tx1);
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+#m-account .form-input {
+  min-height: 42px;
+  background-color: var(--bg-input);
+  color: var(--tx0);
+  border-color: var(--bd2);
+  caret-color: var(--teal);
+}
+#m-account .form-input:-webkit-autofill,
+#m-account .form-input:-webkit-autofill:hover,
+#m-account .form-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--tx0);
+  -webkit-box-shadow: 0 0 0 1000px var(--bg-input) inset;
+  caret-color: var(--teal);
+}
+#m-account .form-input:autofill {
+  color: var(--tx0);
+  background-color: var(--bg-input);
+}
+.account-form { display: grid; gap: 15px; }
+.account-form[hidden],.account-logged-in[hidden] { display: none; }
+.account-form .form-group { margin: 0; min-width: 0; }
+.account-form-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 3px;
+}
+.account-form-actions .btn {
+  min-width: 0;
+  min-height: 42px;
+  justify-content: center;
+  white-space: normal;
+  text-align: center;
+}
+.account-logged-in { display: grid; gap: 18px; }
+.account-user-label {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--bd1);
+  border-radius: var(--radius);
+  background: var(--bg2);
+  color: var(--tx0);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.account-password-fields { display: grid; gap: 13px; }
+.account-password-fields .form-group { margin: 0; }
+.account-password-fields .form-label { margin-bottom: 6px; }
+.account-password-fields .btn { min-height: 40px; margin-top: 2px; }
+.account-session-actions { display: grid; gap: 10px; }
+.account-session-actions .btn { min-height: 40px; justify-content: center; white-space: normal; }
+.account-logged-in .form-hint { margin: -5px 0 0; line-height: 1.65; }
+
 /* ボタン */
 .btn {
   padding: 7px 17px;
@@ -1277,6 +1347,7 @@ svg { display: block; flex-shrink: 0; }
   .welcome-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .welcome-actions .btn { justify-content: center; padding-inline: 6px; white-space: normal; }
   #usb-setup-done-btn { width: 100%; justify-content: center; }
+  .modal-account { width: 100%; }
 }
 .jc-advice { display: none; margin-top: 8px; padding: 8px 10px; border-left: 2px solid var(--orange); border-radius: 3px; background: var(--bg-hover); color: var(--tx1); line-height: 1.55; white-space: normal; overflow-wrap: anywhere; }
 .jc-advice.show { display: block; }
@@ -2206,34 +2277,42 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
 
 <!-- アカウント -->
 <div class="modal-overlay" id="m-account">
-  <div class="modal">
+  <div class="modal modal-account">
     <div class="modal-head">
       <span class="modal-title">アカウントとクラウド保存</span>
       <button class="modal-x" data-close="m-account" title="閉じる" aria-label="閉じる"><i data-lucide="x"></i></button>
     </div>
     <div class="modal-body">
-      <p id="account-status" role="status">アカウントを作成してログインすると、作品をサーバーに保存し、別の端末からも使えます。</p>
-      <form id="account-login-form">
+      <p class="account-status" id="account-status" role="status">アカウントを作成してログインすると、作品をサーバーに保存し、別の端末からも使えます。</p>
+      <form class="account-form" id="account-login-form">
         <div class="form-group" id="account-name-wrap" hidden><label class="form-label" for="account-name">表示名（任意）</label><input class="form-input" id="account-name" autocomplete="name" maxlength="80"></div>
         <div class="form-group"><label class="form-label" for="account-username">ユーザー名</label><input class="form-input" id="account-username" autocomplete="username" minlength="3" maxlength="64" required></div>
         <div class="form-group"><label class="form-label" for="account-password">パスワード（10文字以上）</label><input class="form-input" id="account-password" type="password" autocomplete="current-password" minlength="10" required></div>
         <div class="form-group" id="account-confirm-wrap" hidden><label class="form-label" for="account-confirm-password">パスワードを再入力</label><input class="form-input" id="account-confirm-password" type="password" autocomplete="new-password" minlength="10"></div>
         <div class="account-form-actions"><button class="btn btn-primary" id="account-submit" type="submit">ログイン</button><button class="btn btn-secondary" id="account-mode-toggle" type="button">アカウントを作成</button></div>
       </form>
-      <div id="account-logged-in" hidden>
-        <p id="account-user-label"></p>
-        <div class="form-group" id="account-password-settings">
-          <label class="form-label" for="account-current-password">現在のパスワード</label>
-          <input class="form-input" id="account-current-password" type="password" autocomplete="current-password">
-          <label class="form-label" for="account-new-password">新しいパスワード（10文字以上）</label>
-          <input class="form-input" id="account-new-password" type="password" autocomplete="new-password" minlength="10">
-          <label class="form-label" for="account-new-password-confirm">新しいパスワードを再入力</label>
-          <input class="form-input" id="account-new-password-confirm" type="password" autocomplete="new-password" minlength="10">
-          <button class="btn btn-primary" id="account-change-password" type="button" style="margin-top:8px">パスワードを変更</button>
+      <div class="account-logged-in" id="account-logged-in" hidden>
+        <p class="account-user-label" id="account-user-label"></p>
+        <div class="account-password-fields" id="account-password-settings">
+          <div class="form-group">
+            <label class="form-label" for="account-current-password">現在のパスワード</label>
+            <input class="form-input" id="account-current-password" type="password" autocomplete="current-password">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="account-new-password">新しいパスワード（10文字以上）</label>
+            <input class="form-input" id="account-new-password" type="password" autocomplete="new-password" minlength="10">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="account-new-password-confirm">新しいパスワードを再入力</label>
+            <input class="form-input" id="account-new-password-confirm" type="password" autocomplete="new-password" minlength="10">
+          </div>
+          <button class="btn btn-primary" id="account-change-password" type="button">パスワードを変更</button>
         </div>
-        <button class="btn btn-secondary" id="account-import-local" type="button">このブラウザーの未登録作品をアカウントへ取り込む</button>
-        <button class="btn btn-secondary" id="account-sync-now" type="button">今すぐ同期</button>
-        <button class="btn btn-secondary" id="account-logout" type="button">ログアウト</button>
+        <div class="account-session-actions">
+          <button class="btn btn-secondary" id="account-import-local" type="button">このブラウザーの未登録作品をアカウントへ取り込む</button>
+          <button class="btn btn-secondary" id="account-sync-now" type="button">今すぐ同期</button>
+          <button class="btn btn-secondary" id="account-logout" type="button">ログアウト</button>
+        </div>
         <p class="form-hint">作品の変更は自動で同期します。別端末と同じ作品が競合した場合、どちらも残して確認できるようにします。共有端末では利用後にログアウトしてください。</p>
       </div>
     </div>
