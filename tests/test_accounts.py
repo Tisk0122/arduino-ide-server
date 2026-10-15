@@ -8,6 +8,7 @@ import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,6 +29,10 @@ class AccountApiTests(unittest.TestCase):
         server.TOKEN = "user-token-for-tests"
         server.ADMIN_TOKEN = "admin-token-for-tests"
         server.SINGLE_TOKEN = False
+        server.GITHUB_WEBHOOK_SECRET = "test-webhook-secret-with-at-least-32-bytes"
+        server.GITHUB_WEBHOOK_REPO = "Tisk0122/arduino-ide-server"
+        server.GITHUB_WEBHOOK_BRANCH = "main"
+        server.WEBHOOK_LAST = 0
         server.AUTH_FAILS.clear()
         server.AUTH_BLOCK.clear()
         self.httpd = server.Server(("127.0.0.1", 0), server.Handler)
@@ -54,6 +59,101 @@ class AccountApiTests(unittest.TestCase):
         except urllib.error.HTTPError as exc:
             response = exc
         return response.code, json.loads(response.read().decode("utf-8"))
+
+    def request_webhook(self, payload):
+        raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        signature = "sha256=" + server.hmac.new(
+            server.GITHUB_WEBHOOK_SECRET.encode("utf-8"), raw, server.hashlib.sha256
+        ).hexdigest()
+        request = urllib.request.Request(
+            self.base + "/webhook/github",
+            data=raw,
+            headers={
+                "Content-Type": "application/json",
+                "X-GitHub-Event": "push",
+                "X-Hub-Signature-256": signature,
+            },
+            method="POST",
+        )
+        try:
+            response = urllib.request.urlopen(request, timeout=5)
+        except urllib.error.HTTPError as exc:
+            response = exc
+        return response.code, json.loads(response.read().decode("utf-8"))
+
+    def test_valid_github_push_schedules_systemd_update(self):
+        payload = {
+            "repository": {"full_name": server.GITHUB_WEBHOOK_REPO},
+            "ref": "refs/heads/" + server.GITHUB_WEBHOOK_BRANCH,
+        }
+        with patch.object(server.subprocess, "run") as run:
+            run.return_value.returncode = 0
+            status, result = self.request_webhook(payload)
+
+        self.assertEqual(status, 202)
+        self.assertTrue(result["scheduled"])
+        self.assertFalse(result["updated"])
+        self.assertEqual(run.call_args.args[0], [
+            "sudo", "-n", "/usr/bin/systemctl", "--no-block", "start",
+            "arduino-helper-update.service",
+        ])
+        self.assertEqual(run.call_args.kwargs["timeout"], 5)
+
+    def test_github_push_falls_back_to_legacy_updater_if_systemd_cannot_start(self):
+        payload = {
+            "repository": {"full_name": server.GITHUB_WEBHOOK_REPO},
+            "ref": "refs/heads/" + server.GITHUB_WEBHOOK_BRANCH,
+        }
+        with patch.object(server.subprocess, "run") as run, \
+                patch.object(server.subprocess, "Popen") as popen:
+            run.return_value.returncode = 1
+            run.return_value.stderr = "Unit arduino-helper-update.service not found"
+            status, result = self.request_webhook(payload)
+
+        self.assertEqual(status, 202)
+        self.assertEqual(result["trigger"], "legacy")
+        popen.assert_called_once()
+
+    def test_github_push_returns_service_error_and_allows_retry(self):
+        payload = {
+            "repository": {"full_name": server.GITHUB_WEBHOOK_REPO},
+            "ref": "refs/heads/" + server.GITHUB_WEBHOOK_BRANCH,
+        }
+        with patch.object(server.subprocess, "run") as run, \
+                patch.object(server.subprocess, "Popen") as popen:
+            run.return_value.returncode = 1
+            run.return_value.stderr = "sudo: a password is required"
+            popen.side_effect = OSError("sudo executable unavailable")
+            status, error = self.request_webhook(payload)
+
+        self.assertEqual(status, 503)
+        self.assertIn("自動更新を開始できません", error["error"])
+        self.assertEqual(server.WEBHOOK_LAST, 0)
+
+    def test_github_push_with_wrong_signature_does_not_schedule_update(self):
+        payload = {
+            "repository": {"full_name": server.GITHUB_WEBHOOK_REPO},
+            "ref": "refs/heads/" + server.GITHUB_WEBHOOK_BRANCH,
+        }
+        raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        request = urllib.request.Request(
+            self.base + "/webhook/github",
+            data=raw,
+            headers={
+                "Content-Type": "application/json",
+                "X-GitHub-Event": "push",
+                "X-Hub-Signature-256": "sha256=" + "0" * 64,
+            },
+            method="POST",
+        )
+        with patch.object(server.subprocess, "run") as run:
+            try:
+                urllib.request.urlopen(request, timeout=5)
+            except urllib.error.HTTPError as exc:
+                self.assertEqual(exc.code, 401)
+            else:
+                self.fail("invalid webhook signature was accepted")
+        run.assert_not_called()
 
     def create_teacher(self):
         server._create_teacher_account("teacher01", "TeacherPass-01", "先生")

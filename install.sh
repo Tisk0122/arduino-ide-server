@@ -180,7 +180,7 @@ do
     echo "# arduino-helper が arduino-build としてラッパーだけを実行できる"
     [ -n "$defaults" ] && echo "Defaults:$H_USER $defaults"
     echo "$H_USER ALL=($B_USER) NOPASSWD: $WRAP"
-    echo "$H_USER ALL=(root) NOPASSWD: /usr/local/libexec/arduino-helper-update"
+    echo "$H_USER ALL=(root) NOPASSWD: /usr/bin/systemctl --no-block start arduino-helper-update.service"
   } > "$sudoers_tmp"
   if visudo -cf "$sudoers_tmp" >/dev/null 2>&1; then sudoers_ok=1; break; fi
 done

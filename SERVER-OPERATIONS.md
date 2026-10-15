@@ -26,7 +26,7 @@ sudo arduino-helper-backup /mnt/secure-backups/arduino-helper
 
 Webhookを設定すると `main` へのpushを受けて更新します。加えて `arduino-helper-update.timer` が5分ごとにGitHubのコミットIDと最後に適用したIDを比較するため、Webhookの未配信・短時間の連続push・サーバー再起動中のpushも次回確認で検出します。変更がない確認ではcloneやサービス再起動を行いません。更新対象はサーバー本体、IDE各画面、更新スクリプト自身とtimer/service定義です。インストーラーや設定ファイル、トークン、Arduino CLIデータは自動更新しません。
 
-Webhookの初回設定は次で行います。
+Webhookの初回設定またはWebhook起動権限の再設定は次で行います。Webhook処理の変更を更新した後も、sudoers の起動権限を同期するためこのコマンドを一度実行してください。
 
 ```bash
 sudo /usr/local/libexec/arduino-helper-configure-github-webhook
@@ -41,11 +41,12 @@ tmp="$(mktemp -d)"
 trap '\''rm -rf "$tmp"'\'' EXIT
 git clone --depth 1 --branch main https://github.com/Tisk0122/arduino-ide-server.git "$tmp/repo"
 install -o root -g root -m 0700 "$tmp/repo/github-update.sh" /usr/local/libexec/arduino-helper-update
+install -o root -g root -m 0700 "$tmp/repo/configure-github-webhook.sh" /usr/local/libexec/arduino-helper-configure-github-webhook
 /usr/local/libexec/arduino-helper-update
 '
 ```
 
-このブートストラップは、既に `/etc/arduino-helper/github-webhook.env` が設定され、GitHubリポジトリへ接続できるサーバーで実行します。成功すると更新スクリプト自身を入れ替え、timerを有効化し、更新済みコミットIDを記録します。GitHubから取得したファイルは配置前に検査し、サービス再起動と `/ping`・`/docs`・`/teacher` の応答を確認します。検査に失敗した場合は保存したバックアップから配置ファイルを戻してサービスを再起動します。
+このブートストラップは、既に `/etc/arduino-helper/github-webhook.env` が設定され、GitHubリポジトリへ接続できるサーバーで実行します。成功すると更新スクリプト自身を入れ替え、timerを有効化し、更新済みコミットIDを記録します。続けて `sudo /usr/local/libexec/arduino-helper-configure-github-webhook` を実行し、GitHubに登録してあるものと同じSecretを再入力してsystemd起動権限を反映してください。GitHubから取得したファイルは配置前に検査し、サービス再起動と `/ping`・`/docs`・`/teacher` の応答を確認します。検査に失敗した場合は保存したバックアップから配置ファイルを戻してサービスを再起動します。
 
 状態・実行結果の確認:
 
@@ -57,6 +58,14 @@ cat /var/lib/arduino-helper-updater/applied-commit
 ```
 
 `applied-commit` は最後にヘルスチェックまで成功したGitコミットです。timerは起動時にも確認し、ネットワーク障害や更新失敗があれば次の5分間隔で再試行します。Webhookの受信APIが `202` を返しただけでは更新成功を意味しないため、journalとこのコミットIDで適用結果を確認してください。自動更新には対象ブランチへのpush権限を適切に制限し、GitHub Webhook Secretを第三者へ共有しないでください。
+
+GitHubのWebhook設定では Payload URL を `https://<公開ホスト>/webhook/github`、Content type を `application/json`、Secret を設定スクリプトで入力した値、イベントを `Push events` にします。GitHubの「Recent Deliveries」で `202` は更新サービスへの起動依頼が受理された状態です。`401` はSecret不一致、`404` はサーバー側Webhook設定が未完了、`503` は更新サービス起動権限またはsystemd側の問題です。配信結果とサーバー側の処理状態は次で確認します。
+
+```bash
+sudo systemctl status arduino-helper-update.service --no-pager
+sudo journalctl -u arduino-helper-update.service -n 100 --no-pager
+sudo journalctl -t arduino-helper-update -n 100 --no-pager
+```
 
 ## サーバー規模と保存容量の目安
 

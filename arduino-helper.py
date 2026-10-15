@@ -2044,19 +2044,42 @@ class Handler(BaseHTTPRequestHandler):
             now = time.time()
             if now - WEBHOOK_LAST < WEBHOOK_COOLDOWN:
                 return self._send(202, {"ok": True, "updated": False, "cooldown": True}, close=True)
+            try:
+                result = subprocess.run(
+                    ["sudo", "-n", "/usr/bin/systemctl", "--no-block", "start",
+                     "arduino-helper-update.service"],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=5,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired) as e:
+                self.log_message("GitHub webhook update trigger failed: %s", e)
+                raise ApiError(503, "自動更新を開始できません")
+            if result.returncode != 0:
+                detail = (result.stderr or "").strip() or "systemctl が失敗しました"
+                self.log_message("GitHub webhook update trigger failed: %s", detail[:500])
+                try:
+                    subprocess.Popen(
+                        ["sudo", "-n", GITHUB_UPDATE_COMMAND],
+                        stdin=subprocess.DEVNULL,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        start_new_session=True,
+                        close_fds=True,
+                    )
+                except OSError as e:
+                    self.log_message("GitHub webhook updater fallback failed: %s", e)
+                    raise ApiError(503, "自動更新を開始できません")
+                self.log_message("systemd 起動に失敗したため、従来の更新スクリプトを直接起動しました")
+                trigger = "legacy"
+            else:
+                trigger = "systemd"
             WEBHOOK_LAST = now
-        try:
-            subprocess.Popen(
-                ["sudo", "-n", GITHUB_UPDATE_COMMAND],
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-                close_fds=True,
-            )
-        except Exception as e:
-            raise ApiError(503, "自動更新を開始できません")
-        return self._send(202, {"ok": True, "updated": True, "ref": ref}, close=True)
+        return self._send(202, {"ok": True, "updated": False, "scheduled": True,
+                                "trigger": trigger, "ref": ref}, close=True)
 
     def _dispatch(self, method):
         u = urlparse(self.path)

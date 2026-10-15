@@ -69,6 +69,7 @@ FILES=(
   "www/admin.html"
   "www/docs.html"
   "www/teacher.html"
+  "configure-github-webhook.sh"
   "github-update.sh"
   "arduino-helper-update.service"
   "arduino-helper-update.timer"
@@ -76,6 +77,7 @@ FILES=(
 
 target_for() {
   case "$1" in
+    configure-github-webhook.sh) printf '%s\n' /usr/local/libexec/arduino-helper-configure-github-webhook ;;
     github-update.sh) printf '%s\n' "$UPDATER_PATH" ;;
     arduino-helper-update.service|arduino-helper-update.timer)
       printf '%s/%s\n' "$SYSTEMD_DIR" "$1"
@@ -86,7 +88,7 @@ target_for() {
 
 mode_for() {
   case "$1" in
-    arduino-build-run|github-update.sh) printf '0700\n' ;;
+    arduino-build-run|configure-github-webhook.sh|github-update.sh) printf '0700\n' ;;
     *) printf '0644\n' ;;
   esac
 }

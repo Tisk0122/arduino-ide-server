@@ -19,11 +19,13 @@ class AutoUpdateContractTests(unittest.TestCase):
             "www/admin.html",
             "www/docs.html",
             "www/teacher.html",
+            "configure-github-webhook.sh",
             "github-update.sh",
             "arduino-helper-update.service",
             "arduino-helper-update.timer",
         }.issubset(files))
         self.assertIn('github-update.sh) printf', updater)
+        self.assertIn("configure-github-webhook.sh) printf", updater)
 
     def test_periodic_update_checks_remote_commit_and_records_success(self):
         updater = (ROOT / "github-update.sh").read_text(encoding="utf-8")
@@ -42,6 +44,9 @@ class AutoUpdateContractTests(unittest.TestCase):
         self.assertIn('"$HERE/arduino-helper-update.timer"', installer)
         self.assertIn("systemctl enable --now arduino-helper-update.timer", installer)
         self.assertIn("systemctl enable --now arduino-helper-update.timer", configure)
+        self.assertIn("arduino-helper-update.service", configure)
+        self.assertIn("/usr/bin/systemctl --no-block start arduino-helper-update.service", configure)
+        self.assertIn("/usr/bin/systemctl --no-block start arduino-helper-update.service", installer)
 
 
 if __name__ == "__main__":
