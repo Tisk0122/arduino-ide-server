@@ -726,6 +726,23 @@ footer {
     </section>
 
     <section>
+      <div class="sec-head"><h2>先生アカウント作成</h2>
+        <span class="sec-note">管理者トークンが必要です</span></div>
+      <div class="card">
+        <p class="sub" style="margin-bottom:12px">先生のログインIDと表示名を入力して作成します。初期パスワードは作成時に一度だけ表示され、先生は初回ログイン時に変更します。</p>
+        <form id="teacher-create-form" class="grid g3">
+          <input class="input" name="username" autocomplete="off" minlength="3" maxlength="64"
+            pattern="[A-Za-z0-9_.@-]{3,64}" placeholder="ログインID (例: sensei01)" aria-label="先生のログインID" required>
+          <input class="input" name="name" autocomplete="name" maxlength="80"
+            placeholder="先生の表示名" aria-label="先生の表示名" required>
+          <button class="btn btn-primary" id="teacher-create-btn" type="submit">先生アカウントを作成</button>
+        </form>
+        <div id="teacher-create-result" class="notice" role="status" aria-live="polite"
+          style="margin-top:12px;white-space:pre-line" hidden></div>
+      </div>
+    </section>
+
+    <section>
       <div class="sec-head"><h2>生徒用トークン配布</h2></div>
       <div class="card">
         <label class="token-setting">
@@ -811,7 +828,8 @@ footer {
   <footer>
     arduino-helper 管理コンソール — API: <code>GET /admin/api/overview</code> /
     <code>GET /admin/api/history</code> /
-    <code>DELETE /admin/api/history</code> (管理者トークン必須)
+    <code>DELETE /admin/api/history</code> /
+    <code>POST /admin/api/teachers</code> (管理者トークン必須)
   </footer>
 </div>
 
@@ -1044,6 +1062,35 @@ $('#save-token-settings').addEventListener('click', function () {
     $('#token-settings-status').textContent = '';
     $('#token-settings-error').textContent = '設定を保存できませんでした: ' + err.message;
     $('#token-settings-error').hidden = false;
+  }).finally(function () {
+    button.disabled = false;
+  });
+});
+
+$('#teacher-create-form').addEventListener('submit', function (event) {
+  event.preventDefault();
+  var form = this;
+  var button = $('#teacher-create-btn');
+  var values = new FormData(form);
+  var result = $('#teacher-create-result');
+  button.disabled = true;
+  result.hidden = true;
+  result.classList.remove('err');
+  api('/admin/api/teachers', 15000, 'POST', {
+    username: String(values.get('username') || '').trim(),
+    name: String(values.get('name') || '').trim()
+  }).then(function (data) {
+    result.textContent = '先生アカウントを作成しました。初回ログイン後にパスワードを変更してください。\n' +
+      'ログインID: ' + data.username + '\n初期パスワード: ' + data.initialPassword;
+    result.hidden = false;
+    result.classList.remove('err');
+    form.reset();
+    toast('先生アカウントを作成しました。初期パスワードを安全に共有してください。', 'ok', 5000);
+  }).catch(function (err) {
+    if (err.auth) { stopAuto(); showLogin(err.message, true); return; }
+    result.textContent = '作成できませんでした: ' + err.message;
+    result.hidden = false;
+    result.classList.add('err');
   }).finally(function () {
     button.disabled = false;
   });

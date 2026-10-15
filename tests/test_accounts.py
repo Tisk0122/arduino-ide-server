@@ -40,13 +40,13 @@ class AccountApiTests(unittest.TestCase):
         self.httpd.server_close()
         self.thread.join(timeout=2)
 
-    def request(self, path, method="GET", body=None, token=None):
+    def request(self, path, method="GET", body=None, token=None, auth_scheme="Session"):
         data = json.dumps(body).encode("utf-8") if body is not None else None
         headers = {}
         if data is not None:
             headers["Content-Type"] = "application/json"
         if token:
-            headers["Authorization"] = "Session " + token
+            headers["Authorization"] = auth_scheme + " " + token
         req = urllib.request.Request(self.base + path, data=data, headers=headers, method=method)
         try:
             response = urllib.request.urlopen(req, timeout=5)
@@ -61,6 +61,32 @@ class AccountApiTests(unittest.TestCase):
         })
         self.assertEqual(status, 200)
         return data["token"]
+
+    def test_admin_can_create_teacher_with_one_time_password(self):
+        status, created = self.request("/admin/api/teachers", "POST", {
+            "username": "newteacher", "name": "新しい先生",
+        }, server.ADMIN_TOKEN, auth_scheme="Bearer")
+        self.assertEqual(status, 201)
+        self.assertEqual(created["username"], "newteacher")
+        self.assertEqual(created["name"], "新しい先生")
+        self.assertGreaterEqual(len(created["initialPassword"]), 10)
+
+        status, login = self.request("/account/login", "POST", {
+            "username": created["username"], "password": created["initialPassword"],
+        })
+        self.assertEqual(status, 200)
+        self.assertEqual(login["user"]["role"], "teacher")
+        self.assertTrue(login["user"]["mustChangePassword"])
+
+        status, error = self.request("/admin/api/teachers", "POST", {
+            "username": "newteacher", "name": "重複",
+        }, server.ADMIN_TOKEN, auth_scheme="Bearer")
+        self.assertEqual(status, 409)
+
+        status, _ = self.request("/admin/api/teachers", "POST", {
+            "username": "otherteacher", "name": "権限なし",
+        }, server.TOKEN, auth_scheme="Bearer")
+        self.assertEqual(status, 403)
 
     def test_import_login_student_data_review_and_teacher_edit(self):
         teacher_token = self.create_teacher()

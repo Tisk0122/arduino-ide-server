@@ -50,6 +50,7 @@ Python 3.8+ の標準ライブラリだけで動きます。arduino-cli が必�
   DELETE /admin/api/history       保存済みの利用履歴をすべて削除
   GET  /admin/api/settings        アクセストークン・生徒用トークン配布設定 (JSON)
   POST /admin/api/settings        生徒用トークン配布設定を保存
+  POST /admin/api/teachers        先生アカウント作成（初期パスワードを一度だけ返す）
   GET  /public-config             生徒用トークン自動入力設定 (有効時のみトークンを返す)
   POST /account/login             生徒・先生アカウントのログイン
   GET  /account/sketches           ログイン中の生徒の作品一覧
@@ -2608,6 +2609,31 @@ class Handler(BaseHTTPRequestHandler):
             self._need(role, True)
             deleted = clear_history()
             return self._send(200, {"ok": True, "deleted": deleted})
+        if method == "POST" and path == "/admin/api/teachers":
+            self._need(role, True)
+            body = self._body()
+            username = body.get("username")
+            name = body.get("name")
+            if not isinstance(username, str) or not re.fullmatch(r"[A-Za-z0-9_.@-]{3,64}", username.strip()):
+                raise ApiError(400, "ログインIDは英数字と . _ @ - の3〜64文字で指定してください")
+            username = username.strip()
+            if not isinstance(name, str) or not name.strip() or len(name.strip()) > 80 \
+                    or any(ord(char) < 32 for char in name):
+                raise ApiError(400, "先生の表示名は1〜80文字で指定してください")
+            password = secrets.token_urlsafe(12)
+            salt, digest = _account_password(password)
+            with ACCOUNT_LOCK, account_db() as conn:
+                if conn.execute("SELECT 1 FROM account_users WHERE username=? COLLATE NOCASE",
+                                (username,)).fetchone():
+                    raise ApiError(409, "このログインIDはすでに使われています")
+                conn.execute(
+                    "INSERT INTO account_users(id,username,display_name,role,password_hash,password_salt,"
+                    "must_change_password,created_at) VALUES(?,?,?,'teacher',?,?,1,?)",
+                    (secrets.token_hex(16), username, name.strip(), digest, salt, int(time.time())),
+                )
+                _account_audit(conn, "server-admin", "teacher.create", username)
+            return self._send(201, {"ok": True, "username": username, "name": name.strip(),
+                                    "initialPassword": password})
         if method == "POST" and path == "/admin/api/settings":
             self._need(role, True)
             body = self._body()
