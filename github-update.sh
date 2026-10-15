@@ -68,6 +68,7 @@ FILES=(
   "www/index.html"
   "www/admin.html"
   "www/docs.html"
+  "www/teacher.html"
   "configure-github-webhook.sh"
   "github-update.sh"
   "arduino-helper-update.service"
