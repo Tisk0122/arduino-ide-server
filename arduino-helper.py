@@ -12,21 +12,21 @@ Python 3.8+ の標準ライブラリだけで動きます。arduino-cli が必�
     同名スケッチを同時にコンパイルしても、他人のコードやバイナリが混ざりません。
   - arduino-cli は arduino-build-run ラッパー経由で、別ユーザー (arduino-build) として実行できます。
     ソースの #include や .incbin でサーバーのトークン・鍵・他人のファイルを読まれるのを防ぎます。
-  - トークンは2種類です。生徒用 (コンパイルと閲覧のみ) / 管理者用 (ボード・ライブラリの変更)。
+  - トークンは2種類です。IDE 用 (コンパイルと閲覧) / 管理者用 (ボード・ライブラリの変更)。
   - 同じ内容 (ソース+ボード+サーバーの状態) のコンパイル結果はサーバー側でも使い回します。
 
 ■ 環境変数
   HELPER_HOME            データ置き場 (既定 ~/.arduino-helper)
   HELPER_HOST / PORT     待受 (既定 127.0.0.1:8765)
-  HELPER_TOKEN           生徒用トークン (未指定なら HELPER_HOME/token に自動生成)
+  HELPER_TOKEN           IDE 用トークン (未指定なら HELPER_HOME/token に自動生成)
   HELPER_ADMIN_TOKEN     管理者用トークン (未指定なら HELPER_HOME/admin-token に自動生成)
-  HELPER_SINGLE_TOKEN=1  1人で使う場合。生徒用トークンで管理操作もできる
+  HELPER_SINGLE_TOKEN=1  1人で使う場合。IDE 用トークンで管理操作もできる
   HELPER_BUILD_USER      指定すると sudo でそのユーザーとして arduino-cli を実行
   HELPER_BUILD_WRAPPER   ラッパーのパス (既定 /usr/local/libexec/arduino-build-run)
   HELPER_MAX_QUEUE       待ち行列の上限 (既定 40)
   HELPER_PER_CLIENT      同じ接続元が同時に持てるコンパイル数 (既定 2)
   HELPER_ADMIN_MAX_QUEUE 管理操作の待ち行列上限 (既定 10)
-  HELPER_CORS_ORIGINS   CORS の許可元。カンマ区切り。未指定は * (互換設定)
+  HELPER_CORS_ORIGINS   CORS の許可元。カンマ区切り。未指定はクロスオリジン拒否
   HELPER_TRUST_CF_CONNECTING_IP=1
                          loopback の信頼済みプロキシから CF-Connecting-IP を利用
   HELPER_COMPILE_TIMEOUT コンパイルの上限秒 (既定 900)
@@ -48,13 +48,13 @@ Python 3.8+ の標準ライブラリだけで動きます。arduino-cli が必�
   GET  /admin/api/overview        サーバー状態・トークン詳細・統計・アクティブジョブ (JSON)
   GET  /admin/api/history         利用履歴 (JSON。offset/limit/kind/state/q で絞り込み)
   DELETE /admin/api/history       保存済みの利用履歴をすべて削除
-  GET  /admin/api/settings        アクセストークン・生徒用トークン配布設定 (JSON)
-  POST /admin/api/settings        生徒用トークン配布設定を保存
-  POST /admin/api/teachers        先生アカウント作成（初期パスワードを一度だけ返す）
-  GET  /public-config             生徒用トークン自動入力設定 (有効時のみトークンを返す)
-  POST /account/login             生徒・先生アカウントのログイン
-  GET  /account/sketches           ログイン中の生徒の作品一覧
-  /teacher                        クラス・生徒・作品の先生用管理画面
+  GET  /admin/api/settings        アクセストークン・IDE 用トークン配布設定 (JSON)
+  POST /admin/api/settings        IDE 用トークン配布設定を保存
+  GET  /public-config             IDE 用トークン自動入力設定 (有効時のみトークンを返す)
+  POST /account/register          個人アカウントの作成
+  POST /account/login             個人アカウントのログイン
+  GET  /account/sketches          ログイン中の利用者の作品一覧
+  /teacher                        廃止された先生・クラス画面 (404)
   POST /cores/install   {id}      -> {job}
   POST /cores/uninstall {id}      -> {job}
   POST /libs/install    {name, version?} -> {job}
@@ -90,7 +90,6 @@ import time
 import traceback
 import zipfile
 import io
-import getpass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
@@ -128,16 +127,16 @@ def normalize_origin(value):
 
 def parse_cors_origins(value):
     origins = [part.strip() for part in value.split(",") if part.strip()]
-    if origins == ["*"]:
-        return ("*",)
-    if not origins or "*" in origins:
-        raise ValueError("HELPER_CORS_ORIGINS は * 単独、または origin のカンマ区切りで指定してください")
+    if "*" in origins:
+        raise ValueError("HELPER_CORS_ORIGINS にワイルドカード * は指定できません")
     return tuple(dict.fromkeys(normalize_origin(origin) for origin in origins))
 
 
 HOME = Path(os.environ.get("HELPER_HOME") or (Path.home() / ".arduino-helper"))
 ADMIN_SETTINGS_FILE = HOME / "admin-settings.json"
 ACCOUNT_LOCK = threading.RLock()
+ACCOUNT_DB_INIT_LOCK = threading.Lock()
+ACCOUNT_DB_INITIALIZED_PATH = None
 ADMIN_SETTINGS_LOCK = threading.Lock()
 WORK_DIR = HOME / "work"
 HOST = os.environ.get("HELPER_HOST", "127.0.0.1")
@@ -154,7 +153,7 @@ MAX_ARTIFACT = 12 * 1024 * 1024
 MAX_QUEUE = env_int("HELPER_MAX_QUEUE", 40, 1, 1000)
 PER_CLIENT = env_int("HELPER_PER_CLIENT", 2, 1, 50)
 ADMIN_MAX_QUEUE = env_int("HELPER_ADMIN_MAX_QUEUE", 10, 1, 100)
-CORS_ORIGINS = parse_cors_origins(os.environ.get("HELPER_CORS_ORIGINS", "*"))
+CORS_ORIGINS = parse_cors_origins(os.environ.get("HELPER_CORS_ORIGINS", ""))
 TRUST_CF_CONNECTING_IP = os.environ.get("HELPER_TRUST_CF_CONNECTING_IP") == "1"
 COMPILE_TIMEOUT = env_int("HELPER_COMPILE_TIMEOUT", 900, 30, 7200)
 OP_TIMEOUT = 3600
@@ -167,6 +166,14 @@ WEBHOOK_MAX_BODY = 1024 * 1024
 WEBHOOK_LOCK = threading.Lock()
 WEBHOOK_LAST = 0.0
 WEBHOOK_COOLDOWN = 30
+ACCOUNT_SESSION_LIMIT = 10
+ACCOUNT_AUDIT_LIMIT = 10000
+ACCOUNT_SIGNUP_LIMIT = 20
+ACCOUNT_SIGNUP_WINDOW = 3600
+ACCOUNT_SIGNUP_ATTEMPTS = {}
+ACCOUNT_SIGNUP_LOCK = threading.Lock()
+ACCOUNT_SESSION_CLEANUP_LOCK = threading.Lock()
+ACCOUNT_SESSION_CLEANUP_LAST = 0
 MAX_JOB_LINES = 4000
 MAX_OUTPUT_CHARS = 300000        # コンパイルログ等テキスト出力の上限
 MAX_JSON_OUTPUT_CHARS = 20000000  # JSON取得コマンド (lib search 等) の上限 (~20MB)
@@ -1543,6 +1550,7 @@ def role_for(token):
 
 @contextlib.contextmanager
 def account_db():
+    global ACCOUNT_DB_INITIALIZED_PATH
     HOME.mkdir(parents=True, exist_ok=True)
     db_path = HOME / "accounts.sqlite3"
     fd = os.open(str(db_path), os.O_CREAT | os.O_RDWR, 0o600)
@@ -1551,79 +1559,82 @@ def account_db():
     conn = sqlite3.connect(str(db_path), timeout=15)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA journal_mode = WAL")
     try:
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS account_users (
-                id TEXT PRIMARY KEY,
-                username TEXT NOT NULL UNIQUE COLLATE NOCASE,
-                display_name TEXT NOT NULL,
-                role TEXT NOT NULL CHECK(role IN ('teacher', 'student')),
-                class_id TEXT,
-                password_hash TEXT NOT NULL,
-                password_salt TEXT NOT NULL,
-                active INTEGER NOT NULL DEFAULT 1,
-                must_change_password INTEGER NOT NULL DEFAULT 0,
-                created_at INTEGER NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS account_classes (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                school_year TEXT NOT NULL,
-                archived INTEGER NOT NULL DEFAULT 0,
-                created_at INTEGER NOT NULL,
-                UNIQUE(name, school_year)
-            );
-            CREATE TABLE IF NOT EXISTS account_sessions (
-                token_hash TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL REFERENCES account_users(id) ON DELETE CASCADE,
-                expires_at INTEGER NOT NULL,
-                created_at INTEGER NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS account_sketches (
-                id TEXT NOT NULL,
-                user_id TEXT NOT NULL REFERENCES account_users(id) ON DELETE CASCADE,
-                data TEXT NOT NULL,
-                revision INTEGER NOT NULL DEFAULT 1,
-                updated_at INTEGER NOT NULL,
-                checked INTEGER NOT NULL DEFAULT 0,
-                teacher_comment TEXT NOT NULL DEFAULT '',
-                PRIMARY KEY(id, user_id)
-            );
-            CREATE TABLE IF NOT EXISTS account_sketch_versions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                sketch_id TEXT NOT NULL,
-                user_id TEXT NOT NULL REFERENCES account_users(id) ON DELETE CASCADE,
-                revision INTEGER NOT NULL,
-                editor_id TEXT NOT NULL,
-                data TEXT NOT NULL,
-                created_at INTEGER NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS account_comments (
-                id TEXT PRIMARY KEY,
-                sketch_id TEXT NOT NULL,
-                student_id TEXT NOT NULL REFERENCES account_users(id) ON DELETE CASCADE,
-                teacher_id TEXT NOT NULL REFERENCES account_users(id),
-                body TEXT NOT NULL,
-                created_at INTEGER NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS account_audit (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                actor_id TEXT NOT NULL,
-                action TEXT NOT NULL,
-                target TEXT NOT NULL,
-                details TEXT NOT NULL,
-                created_at INTEGER NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS account_users_class ON account_users(class_id, role);
-            CREATE INDEX IF NOT EXISTS account_sketches_user ON account_sketches(user_id, updated_at);
-            CREATE INDEX IF NOT EXISTS account_sketch_versions_lookup ON account_sketch_versions(user_id, sketch_id, revision);
-            CREATE INDEX IF NOT EXISTS account_sessions_expiry ON account_sessions(expires_at);
-            CREATE INDEX IF NOT EXISTS account_comments_sketch ON account_comments(student_id, sketch_id, created_at);
-        """)
-        conn.execute(
-            "UPDATE account_users SET display_name=username WHERE role='student' AND display_name<>username"
-        )
+        path_key = str(db_path.resolve())
+        with ACCOUNT_DB_INIT_LOCK:
+            if ACCOUNT_DB_INITIALIZED_PATH != path_key:
+                conn.execute("PRAGMA journal_mode = WAL")
+                version = conn.execute("PRAGMA user_version").fetchone()[0]
+                if version > 1:
+                    raise RuntimeError("アカウントDBのバージョンが新しすぎます")
+                if version < 1:
+                    conn.execute("BEGIN IMMEDIATE")
+                    for table in (
+                            "account_comments", "account_sketch_versions", "account_sketches",
+                            "account_sessions", "account_audit", "account_classes", "account_users"):
+                        conn.execute("DROP TABLE IF EXISTS " + table)
+                    conn.execute("""
+                        CREATE TABLE account_users (
+                            id TEXT PRIMARY KEY,
+                            username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                            display_name TEXT NOT NULL,
+                            role TEXT NOT NULL DEFAULT 'user' CHECK(role='user'),
+                            password_hash TEXT NOT NULL,
+                            password_salt TEXT NOT NULL,
+                            active INTEGER NOT NULL DEFAULT 1,
+                            created_at INTEGER NOT NULL
+                        )
+                    """)
+                    conn.execute("""
+                        CREATE TABLE account_sessions (
+                            token_hash TEXT PRIMARY KEY,
+                            user_id TEXT NOT NULL REFERENCES account_users(id) ON DELETE CASCADE,
+                            expires_at INTEGER NOT NULL,
+                            created_at INTEGER NOT NULL
+                        )
+                    """)
+                    conn.execute("""
+                        CREATE TABLE account_sketches (
+                            id TEXT NOT NULL,
+                            user_id TEXT NOT NULL REFERENCES account_users(id) ON DELETE CASCADE,
+                            data TEXT NOT NULL,
+                            revision INTEGER NOT NULL DEFAULT 1,
+                            updated_at INTEGER NOT NULL,
+                            PRIMARY KEY(id, user_id)
+                        )
+                    """)
+                    conn.execute("""
+                        CREATE TABLE account_sketch_versions (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            sketch_id TEXT NOT NULL,
+                            user_id TEXT NOT NULL REFERENCES account_users(id) ON DELETE CASCADE,
+                            revision INTEGER NOT NULL,
+                            editor_id TEXT NOT NULL,
+                            data TEXT NOT NULL,
+                            created_at INTEGER NOT NULL
+                        )
+                    """)
+                    conn.execute("""
+                        CREATE TABLE account_audit (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            actor_id TEXT REFERENCES account_users(id) ON DELETE SET NULL,
+                            action TEXT NOT NULL,
+                            target TEXT NOT NULL,
+                            details TEXT NOT NULL,
+                            created_at INTEGER NOT NULL
+                        )
+                    """)
+                    conn.execute("CREATE INDEX account_sessions_expiry ON account_sessions(expires_at)")
+                    conn.execute("CREATE INDEX account_sessions_user ON account_sessions(user_id,created_at)")
+                    conn.execute("CREATE INDEX account_sketches_user ON account_sketches(user_id,updated_at)")
+                    conn.execute(
+                        "CREATE INDEX account_sketch_versions_lookup "
+                        "ON account_sketch_versions(user_id,sketch_id,revision)"
+                    )
+                    conn.execute("CREATE INDEX account_audit_created ON account_audit(created_at)")
+                    conn.execute("PRAGMA user_version = 1")
+                    conn.commit()
+                ACCOUNT_DB_INITIALIZED_PATH = path_key
         yield conn
         conn.commit()
     except Exception:
@@ -1637,34 +1648,69 @@ def _account_password(password, salt=None):
         if not isinstance(password, str) or len(password) < 10 or len(password) > 256:
             raise ApiError(400, "パスワードは10文字以上256文字以内で指定してください")
         salt_bytes = bytes.fromhex(salt) if salt else secrets.token_bytes(16)
-        digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt_bytes, 310000)
+        digest = _account_password_digest(password, salt_bytes)
         return salt_bytes.hex(), digest.hex()
 
 
-def _student_id_from_roster(grade, classroom, number):
-    if not re.fullmatch(r"[0-9]{1,2}", grade or ""):
-        return None
-    if not re.fullmatch(r"(?:[A-Za-z]|[0-9]{1,2})", classroom or ""):
-        return None
-    if not re.fullmatch(r"[0-9]{1,2}", number or ""):
-        return None
-    grade_number = int(grade)
-    class_number = ord(classroom.upper()) - ord("A") + 1 if classroom.isalpha() else int(classroom)
-    seat_number = int(number)
-    if not 1 <= grade_number <= 99 or not 1 <= class_number <= 99 or not 1 <= seat_number <= 99:
-        return None
-    return "%02d%02d%02d" % (grade_number, class_number, seat_number)
+def _account_password_digest(password, salt_bytes):
+        return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt_bytes, 310000)
+
+
+def _account_password_matches(password, salt, expected):
+        if not isinstance(password, str) or len(password) > 256:
+            return False
+        digest = _account_password_digest(password, bytes.fromhex(salt)).hex()
+        return hmac.compare_digest(digest, expected)
 
 
 def _account_user(row):
-        return {"id": row["id"], "username": row["username"], "name": row["display_name"],
-                "role": row["role"], "classId": row["class_id"],
-                "mustChangePassword": bool(row["must_change_password"])}
+        return {"id": row["id"], "username": row["username"], "name": row["display_name"]}
 
 
 def _account_audit(conn, actor, action, target, details=None):
         conn.execute("INSERT INTO account_audit(actor_id, action, target, details, created_at) VALUES(?,?,?,?,?)",
                      (actor, action, target, json.dumps(details or {}, ensure_ascii=False), int(time.time())))
+        conn.execute(
+            "DELETE FROM account_audit WHERE id NOT IN "
+            "(SELECT id FROM account_audit ORDER BY id DESC LIMIT ?)",
+            (ACCOUNT_AUDIT_LIMIT,),
+        )
+
+
+def _account_signup_allowed(ip):
+    now = time.time()
+    with ACCOUNT_SIGNUP_LOCK:
+        attempts = [timestamp for timestamp in ACCOUNT_SIGNUP_ATTEMPTS.get(ip, [])
+                    if now - timestamp < ACCOUNT_SIGNUP_WINDOW]
+        if len(attempts) >= ACCOUNT_SIGNUP_LIMIT:
+            ACCOUNT_SIGNUP_ATTEMPTS[ip] = attempts
+            return max(1, int(ACCOUNT_SIGNUP_WINDOW - (now - attempts[0])))
+        attempts.append(now)
+        ACCOUNT_SIGNUP_ATTEMPTS[ip] = attempts
+        if len(ACCOUNT_SIGNUP_ATTEMPTS) > AUTH_STATE_LIMIT:
+            oldest = min(ACCOUNT_SIGNUP_ATTEMPTS,
+                         key=lambda address: ACCOUNT_SIGNUP_ATTEMPTS[address][-1])
+            ACCOUNT_SIGNUP_ATTEMPTS.pop(oldest, None)
+        return 0
+
+
+def _trim_account_sessions(conn, user_id):
+    conn.execute(
+        "DELETE FROM account_sessions WHERE user_id=? AND token_hash NOT IN "
+        "(SELECT token_hash FROM account_sessions WHERE user_id=? "
+        "ORDER BY created_at DESC, rowid DESC LIMIT ?)",
+        (user_id, user_id, ACCOUNT_SESSION_LIMIT),
+    )
+
+
+def _clean_expired_account_sessions(conn, now):
+    global ACCOUNT_SESSION_CLEANUP_LAST
+    if now - ACCOUNT_SESSION_CLEANUP_LAST < 3600:
+        return
+    with ACCOUNT_SESSION_CLEANUP_LOCK:
+        if now - ACCOUNT_SESSION_CLEANUP_LAST >= 3600:
+            conn.execute("DELETE FROM account_sessions WHERE expires_at<=?", (now,))
+            ACCOUNT_SESSION_CLEANUP_LAST = now
 
 
 def _session_user(handler, conn):
@@ -1675,9 +1721,7 @@ def _session_user(handler, conn):
         token_hash = hashlib.sha256(token.encode("ascii", "ignore")).hexdigest()
         row = conn.execute(
             "SELECT u.* FROM account_sessions s JOIN account_users u ON u.id=s.user_id "
-            "LEFT JOIN account_classes c ON c.id=u.class_id "
-            "WHERE s.token_hash=? AND s.expires_at>? AND u.active=1 "
-            "AND (u.role='teacher' OR COALESCE(c.archived,0)=0)",
+            "WHERE s.token_hash=? AND s.expires_at>? AND u.active=1",
             (token_hash, int(time.time())),
         ).fetchone()
         if not row:
@@ -1722,8 +1766,6 @@ def _valid_sketch(sketch):
 def _account_sketch_view(row):
         sketch = json.loads(row["data"])
         sketch["revision"] = row["revision"]
-        sketch["checked"] = bool(row["checked"])
-        sketch["teacherComment"] = row["teacher_comment"]
         return sketch
 
 
@@ -1734,18 +1776,6 @@ def _trim_account_versions(conn, user_id, sketch_id):
         "ORDER BY revision DESC, id DESC LIMIT -1 OFFSET 100)",
         (user_id, sketch_id),
     )
-
-
-def _create_teacher_account(username, password, name=None):
-    if not re.fullmatch(r"[A-Za-z0-9_.@-]{3,64}", username or ""):
-        raise ValueError("ユーザー名は英数字と . _ @ - の3〜64文字で指定してください")
-    salt, digest = _account_password(password)
-    with account_db() as conn:
-        conn.execute(
-            "INSERT INTO account_users(id, username, display_name, role, password_hash, password_salt, created_at) "
-            "VALUES(?,?,?,?,?,?,?)",
-            (secrets.token_hex(16), username, (name or username)[:80], "teacher", digest, salt, int(time.time())),
-        )
 
 
 # ---------------------------------------------------------------
@@ -1912,9 +1942,7 @@ class Handler(BaseHTTPRequestHandler):
     def _cors(self):
         origin = self.headers.get("Origin", "") if self.headers else ""
         self.send_header("Vary", "Origin")
-        if CORS_ORIGINS == ("*",):
-            self.send_header("Access-Control-Allow-Origin", "*")
-        elif origin:
+        if origin and CORS_ORIGINS:
             try:
                 normalized = normalize_origin(origin)
             except ValueError:
@@ -1923,7 +1951,6 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Access-Control-Allow-Origin", normalized)
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Helper-Token")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        self.send_header("Access-Control-Allow-Private-Network", "true")
         self.send_header("Access-Control-Max-Age", "600")
 
     def _send(self, code, obj, close=False, extra_headers=None):
@@ -2133,8 +2160,7 @@ class Handler(BaseHTTPRequestHandler):
                 d["maxQueue"] = MAX_QUEUE
             return self._send(200, d)
 
-        if (path in ("/account", "/account/", "/teacher", "/teacher/")
-                or path.startswith("/account/") or path.startswith("/teacher/api/")):
+        if path in ("/account", "/account/") or path.startswith("/account/") or path.startswith("/teacher"):
             return self._account_dispatch(method, path, q, ip)
 
         wait = auth_blocked(ip)
@@ -2148,6 +2174,8 @@ class Handler(BaseHTTPRequestHandler):
         if method == "GET" and path.startswith("/admin/api"):
             # 管理画面 API。arduino-cli が無くても状態を確認できるよう、CLI 判定より先に処理する。
             self._need(role, True)
+            if path.startswith("/admin/api/teachers"):
+                raise ApiError(404, "先生アカウント機能は提供していません")
             if path == "/admin/api/overview":
                 return self._send(200, admin_overview())
             if path == "/admin/api/history":
@@ -2159,573 +2187,178 @@ class Handler(BaseHTTPRequestHandler):
                     "adminToken": ADMIN_TOKEN,
                     "prefillStudentToken": load_admin_settings()["prefillStudentToken"],
                 })
-            if path == "/admin/api/teachers":
-                with ACCOUNT_LOCK, account_db() as conn:
-                    teachers = conn.execute(
-                        "SELECT id,username,display_name,active,must_change_password,created_at "
-                        "FROM account_users WHERE role='teacher' ORDER BY username COLLATE NOCASE"
-                    ).fetchall()
-                return self._send(200, {"ok": True, "teachers": [
-                    {"id": row["id"], "username": row["username"], "name": row["display_name"],
-                     "active": bool(row["active"]),
-                     "mustChangePassword": bool(row["must_change_password"]),
-                     "createdAt": row["created_at"]}
-                    for row in teachers
-                ]})
             raise ApiError(404, "不明なエンドポイント: %s %s" % (method, path[:80]))
 
         return self._dispatch_remainder(method, path, q, role)
 
     def _account_dispatch(self, method, path, q, ip):
-            if method == "GET" and path in ("/account", "/account/"):
-                return self._send_html(Path(__file__).resolve().parent / "www" / "index.html")
-            if method == "GET" and path in ("/teacher", "/teacher/"):
-                return self._send_html(Path(__file__).resolve().parent / "www" / "teacher.html")
-            with ACCOUNT_LOCK, account_db() as conn:
-                if method == "POST" and path == "/account/login":
-                    wait = auth_blocked(ip)
-                    if wait:
-                        return self._send(429, {"success": False, "error": "認証の失敗が続いたため、しばらく受け付けません (%d 秒)" % wait},
-                                          close=True, extra_headers={"Retry-After": str(wait)})
-                    body = self._body()
-                    username = body.get("username")
-                    password = body.get("password")
-                    if not isinstance(username, str) or not isinstance(password, str):
-                        raise ApiError(400, "ユーザー名とパスワードを入力してください")
-                    row = conn.execute(
-                        "SELECT u.* FROM account_users u LEFT JOIN account_classes c ON c.id=u.class_id "
-                        "WHERE u.username=? COLLATE NOCASE AND (u.role='teacher' OR COALESCE(c.archived,0)=0)",
-                        (username.strip(),),
+        if path in ("/account", "/account/") and method == "GET":
+            return self._send_html(Path(__file__).resolve().parent / "www" / "index.html")
+        if path.startswith("/teacher"):
+            raise ApiError(404, "先生・クラス機能は提供していません")
+
+        with ACCOUNT_LOCK, account_db() as conn:
+            if method == "POST" and path == "/account/register":
+                wait = _account_signup_allowed(ip)
+                if wait:
+                    raise ApiError(429, "アカウント作成の回数が上限に達しました。時間をおいて再試行してください",
+                                   {"retryAfter": wait})
+                body = self._body()
+                username = body.get("username")
+                display_name = body.get("name", "")
+                password = body.get("password")
+                if not isinstance(username, str) or not re.fullmatch(
+                        r"[A-Za-z0-9_.@-]{3,64}", username.strip()):
+                    raise ApiError(400, "ユーザー名は英数字と . _ @ - の3〜64文字で指定してください")
+                username = username.strip()
+                if not isinstance(display_name, str) or len(display_name.strip()) > 80 \
+                        or any(ord(char) < 32 for char in display_name):
+                    raise ApiError(400, "表示名は80文字以内で入力してください")
+                salt, digest = _account_password(password)
+                if conn.execute("SELECT 1 FROM account_users WHERE username=? COLLATE NOCASE",
+                                (username,)).fetchone():
+                    raise ApiError(409, "このユーザー名はすでに使われています")
+                user_id = secrets.token_hex(16)
+                now = int(time.time())
+                conn.execute(
+                    "INSERT INTO account_users(id,username,display_name,password_hash,password_salt,created_at) "
+                    "VALUES(?,?,?,?,?,?)",
+                    (user_id, username, display_name.strip() or username, digest, salt, now),
+                )
+                _account_audit(conn, user_id, "account.register", user_id)
+                token = secrets.token_urlsafe(32)
+                conn.execute(
+                    "INSERT INTO account_sessions(token_hash,user_id,expires_at,created_at) VALUES(?,?,?,?)",
+                    (hashlib.sha256(token.encode("ascii")).hexdigest(), user_id, now + 12 * 3600, now),
+                )
+                user = conn.execute("SELECT * FROM account_users WHERE id=?", (user_id,)).fetchone()
+                return self._send(201, {"ok": True, "token": token, "user": _account_user(user)})
+
+            if method == "POST" and path == "/account/login":
+                wait = auth_blocked(ip)
+                if wait:
+                    raise ApiError(429, "認証の失敗が続いたため、しばらく受け付けません (%d 秒)" % wait,
+                                   {"retryAfter": wait})
+                body = self._body()
+                username = body.get("username")
+                password = body.get("password")
+                if not isinstance(username, str) or not isinstance(password, str):
+                    raise ApiError(400, "ユーザー名とパスワードを入力してください")
+                row = conn.execute(
+                    "SELECT * FROM account_users WHERE username=? COLLATE NOCASE",
+                    (username.strip(),),
+                ).fetchone()
+                if not row or not row["active"]:
+                    auth_failed(ip)
+                    raise ApiError(401, "ユーザー名またはパスワードが正しくありません")
+                if not _account_password_matches(password, row["password_salt"], row["password_hash"]):
+                    auth_failed(ip)
+                    raise ApiError(401, "ユーザー名またはパスワードが正しくありません")
+                token = secrets.token_urlsafe(32)
+                now = int(time.time())
+                _clean_expired_account_sessions(conn, now)
+                conn.execute(
+                    "INSERT INTO account_sessions(token_hash,user_id,expires_at,created_at) VALUES(?,?,?,?)",
+                    (hashlib.sha256(token.encode("ascii")).hexdigest(), row["id"], now + 12 * 3600, now),
+                )
+                _trim_account_sessions(conn, row["id"])
+                auth_succeeded(ip)
+                return self._send(200, {"ok": True, "token": token, "user": _account_user(row)})
+
+            if method == "POST" and path == "/account/logout":
+                header = self.headers.get("Authorization", "")
+                token = header[8:].strip() if header.startswith("Session ") else ""
+                if token:
+                    conn.execute("DELETE FROM account_sessions WHERE token_hash=?",
+                                 (hashlib.sha256(token.encode("ascii", "ignore")).hexdigest(),))
+                return self._send(200, {"ok": True})
+
+            user = _session_user(self, conn)
+            if method == "GET" and path == "/account/me":
+                return self._send(200, {"ok": True, "user": _account_user(user)})
+            if method == "POST" and path == "/account/password":
+                wait = auth_blocked(ip)
+                if wait:
+                    raise ApiError(429, "認証の失敗が続いたため、しばらく受け付けません (%d 秒)" % wait,
+                                   {"retryAfter": wait})
+                body = self._body()
+                old = body.get("currentPassword")
+                new = body.get("newPassword")
+                if not isinstance(old, str):
+                    auth_failed(ip)
+                    raise ApiError(403, "現在のパスワードが正しくありません")
+                if not _account_password_matches(old, user["password_salt"], user["password_hash"]):
+                    auth_failed(ip)
+                    raise ApiError(403, "現在のパスワードが正しくありません")
+                salt, digest = _account_password(new)
+                conn.execute("UPDATE account_users SET password_hash=?, password_salt=? WHERE id=?",
+                             (digest, salt, user["id"]))
+                conn.execute("DELETE FROM account_sessions WHERE user_id=?", (user["id"],))
+                _account_audit(conn, user["id"], "account.password_change", user["id"])
+                auth_succeeded(ip)
+                return self._send(200, {"ok": True, "reauthenticate": True})
+
+            if method == "GET" and path == "/account/sketches":
+                rows = conn.execute("SELECT * FROM account_sketches WHERE user_id=? ORDER BY updated_at DESC",
+                                    (user["id"],)).fetchall()
+                return self._send(200, {"sketches": [_account_sketch_view(row) for row in rows]})
+
+            match = re.fullmatch(r"/account/sketches/([A-Za-z0-9_-]{1,80})", path)
+            if method == "PUT" and match:
+                body = self._body()
+                sketch = _valid_sketch(body.get("sketch"))
+                if sketch["id"] != match.group(1):
+                    raise ApiError(400, "スケッチIDが一致しません")
+                expected = body.get("revision", 0)
+                if not isinstance(expected, int) or isinstance(expected, bool) or expected < 0:
+                    raise ApiError(400, "revision が不正です")
+                row = conn.execute("SELECT revision FROM account_sketches WHERE user_id=? AND id=?",
+                                   (user["id"], sketch["id"])).fetchone()
+                current = row["revision"] if row else 0
+                if current != expected:
+                    raise ApiError(409, "別の端末でスケッチが更新されています。同期し直してください")
+                revision = current + 1
+                now = int(time.time())
+                if row:
+                    previous = conn.execute(
+                        "SELECT data FROM account_sketches WHERE id=? AND user_id=?",
+                        (sketch["id"], user["id"]),
                     ).fetchone()
-                    if not row or not row["active"]:
-                        auth_failed(ip)
-                        raise ApiError(401, "ユーザー名またはパスワードが正しくありません")
-                    _, digest = _account_password(password, row["password_salt"])
-                    if not hmac.compare_digest(digest, row["password_hash"]):
-                        auth_failed(ip)
-                        raise ApiError(401, "ユーザー名またはパスワードが正しくありません")
-                    token = secrets.token_urlsafe(32)
-                    now = int(time.time())
-                    conn.execute("DELETE FROM account_sessions WHERE expires_at<=?", (now,))
-                    conn.execute("INSERT INTO account_sessions(token_hash,user_id,expires_at,created_at) VALUES(?,?,?,?)",
-                                 (hashlib.sha256(token.encode("ascii")).hexdigest(), row["id"], now + 12 * 3600, now))
-                    auth_succeeded(ip)
-                    user = _account_user(row)
-                    user["mustChangePassword"] = bool(row["must_change_password"])
-                    return self._send(200, {"ok": True, "token": token, "user": user})
-
-                if method == "POST" and path == "/account/logout":
-                    header = self.headers.get("Authorization", "")
-                    token = header[8:].strip() if header.startswith("Session ") else ""
-                    if token:
-                        conn.execute("DELETE FROM account_sessions WHERE token_hash=?",
-                                     (hashlib.sha256(token.encode("ascii", "ignore")).hexdigest(),))
-                    return self._send(200, {"ok": True})
-
-                user = _session_user(self, conn)
-                if method == "GET" and path == "/account/me":
-                    return self._send(200, {"ok": True, "user": _account_user(user)})
-                if path.startswith("/teacher/api/") and user["role"] != "teacher":
-                    raise ApiError(403, "先生アカウントが必要です")
-                if user["must_change_password"] and path != "/account/password":
-                    raise ApiError(403, "初回ログインです。続行する前にパスワードを変更してください")
-                if method == "POST" and path == "/account/password":
-                    body = self._body()
-                    old = body.get("currentPassword")
-                    new = body.get("newPassword")
-                    _, old_hash = _account_password(old, user["password_salt"])
-                    if not hmac.compare_digest(old_hash, user["password_hash"]):
-                        raise ApiError(403, "現在のパスワードが正しくありません")
-                    salt, digest = _account_password(new)
-                    conn.execute("UPDATE account_users SET password_hash=?, password_salt=?, must_change_password=0 WHERE id=?",
-                                 (digest, salt, user["id"]))
-                    return self._send(200, {"ok": True})
-                if user["role"] == "student":
-                    if method == "GET" and path == "/account/sketches":
-                        rows = conn.execute("SELECT * FROM account_sketches WHERE user_id=? ORDER BY updated_at DESC",
-                                            (user["id"],)).fetchall()
-                        return self._send(200, {"sketches": [_account_sketch_view(row) for row in rows]})
-                    comment_match = re.fullmatch(r"/account/sketches/([A-Za-z0-9_-]{1,80})/comments", path)
-                    if method == "GET" and comment_match:
-                        comments = conn.execute(
-                            "SELECT c.id,c.body,c.created_at,u.display_name AS teacher FROM account_comments c "
-                            "JOIN account_users u ON u.id=c.teacher_id WHERE c.student_id=? AND c.sketch_id=? ORDER BY c.created_at",
-                            (user["id"], comment_match.group(1)),
-                        ).fetchall()
-                        return self._send(200, {"comments": [dict(item) for item in comments]})
-                    match = re.fullmatch(r"/account/sketches/([A-Za-z0-9_-]{1,80})", path)
-                    if method == "PUT" and match:
-                        body = self._body()
-                        sketch = _valid_sketch(body.get("sketch"))
-                        if sketch["id"] != match.group(1):
-                            raise ApiError(400, "スケッチIDが一致しません")
-                        expected = body.get("revision", 0)
-                        if not isinstance(expected, int) or expected < 0:
-                            raise ApiError(400, "revision が不正です")
-                        row = conn.execute("SELECT revision FROM account_sketches WHERE user_id=? AND id=?",
-                                           (user["id"], sketch["id"])).fetchone()
-                        current = row["revision"] if row else 0
-                        if current != expected:
-                            raise ApiError(409, "別の端末でスケッチが更新されています。同期し直してください")
-                        revision = current + 1
-                        if row:
-                            conn.execute(
-                                "INSERT INTO account_sketch_versions(sketch_id,user_id,revision,editor_id,data,created_at) "
-                                "SELECT id,user_id,revision,?,data,? FROM account_sketches WHERE id=? AND user_id=?",
-                                (user["id"], int(time.time()), sketch["id"], user["id"]),
-                            )
-                            _trim_account_versions(conn, user["id"], sketch["id"])
-                        conn.execute(
-                            "INSERT INTO account_sketches(id,user_id,data,revision,updated_at) VALUES(?,?,?,?,?) "
-                            "ON CONFLICT(id,user_id) DO UPDATE SET data=excluded.data, revision=excluded.revision, "
-                            "updated_at=excluded.updated_at, checked=0",
-                            (sketch["id"], user["id"], json.dumps(sketch, ensure_ascii=False), revision,
-                             int(time.time())),
-                        )
-                        return self._send(200, {"ok": True, "revision": revision})
-                    if method == "DELETE" and match:
-                        row = conn.execute("SELECT revision FROM account_sketches WHERE user_id=? AND id=?",
-                                           (user["id"], match.group(1))).fetchone()
-                        if not row:
-                            return self._send(200, {"ok": True, "deleted": False})
-                        expected = q.get("revision")
-                        if expected is None or not expected.isdigit() or int(expected) != row["revision"]:
-                            raise ApiError(409, "別の端末でスケッチが更新されています。削除を中止しました")
-                        conn.execute("DELETE FROM account_comments WHERE student_id=? AND sketch_id=?",
-                                     (user["id"], match.group(1)))
-                        conn.execute("DELETE FROM account_sketch_versions WHERE user_id=? AND sketch_id=?",
-                                     (user["id"], match.group(1)))
-                        conn.execute("DELETE FROM account_sketches WHERE user_id=? AND id=?",
-                                     (user["id"], match.group(1)))
-                        return self._send(200, {"ok": True, "deleted": True})
-                    raise ApiError(404, "不明なアカウントAPI: %s %s" % (method, path[:80]))
-
-                if method == "GET" and path == "/teacher/api/classes":
-                    if user["role"] != "teacher":
-                        raise ApiError(403, "先生アカウントが必要です")
-                    rows = conn.execute(
-                        "SELECT c.*, COUNT(DISTINCT u.id) AS students, COUNT(DISTINCT s.id) AS sketches "
-                        "FROM account_classes c LEFT JOIN account_users u ON u.class_id=c.id AND u.role='student' "
-                        "LEFT JOIN account_sketches s ON s.user_id=u.id GROUP BY c.id "
-                        "ORDER BY c.school_year DESC, c.name").fetchall()
-                    return self._send(200, {"classes": [dict(row) for row in rows]})
-                if method == "POST" and path == "/teacher/api/classes":
-                    if user["role"] != "teacher":
-                        raise ApiError(403, "先生アカウントが必要です")
-                    body = self._body()
-                    name, year = body.get("name"), body.get("schoolYear")
-                    if (not isinstance(name, str) or not name.strip() or len(name.strip()) > 80
-                            or any(ord(char) < 32 for char in name)):
-                        raise ApiError(400, "クラス名を1〜80文字で入力してください")
-                    if not isinstance(year, str) or not re.fullmatch(r"\d{4}", year):
-                        raise ApiError(400, "年度は西暦4桁で指定してください")
-                    class_id = secrets.token_hex(12)
-                    try:
-                        conn.execute("INSERT INTO account_classes(id,name,school_year,created_at) VALUES(?,?,?,?)",
-                                     (class_id, name.strip(), year, int(time.time())))
-                    except sqlite3.IntegrityError:
-                        raise ApiError(409, "同じ年度に同名のクラスがすでにあります")
-                    _account_audit(conn, user["id"], "class.create", class_id, {"name": name.strip(), "year": year})
-                    return self._send(201, {"ok": True, "classId": class_id})
-                if method == "POST" and path in (
-                        "/teacher/api/students/import", "/teacher/api/students/generate"):
-                    if user["role"] != "teacher":
-                        raise ApiError(403, "先生アカウントが必要です")
-                    body = self._body()
-                    class_id = body.get("classId")
-                    if not isinstance(class_id, str) or not re.fullmatch(r"[a-f0-9]{24}", class_id):
-                        raise ApiError(400, "クラスを選択してください")
-                    classroom = conn.execute("SELECT * FROM account_classes WHERE id=?", (class_id,)).fetchone()
-                    if not classroom:
-                        raise ApiError(404, "クラスが見つかりません")
-                    if classroom["archived"]:
-                        raise ApiError(409, "アーカイブ済みクラスには生徒を追加できません")
-                    if path == "/teacher/api/students/generate":
-                        grade = body.get("grade")
-                        group = body.get("classroom")
-                        count = body.get("count")
-                        if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= 99:
-                            raise ApiError(400, "人数は1〜99人で指定してください")
-                        if not isinstance(grade, str) or not isinstance(group, str):
-                            raise ApiError(400, "学年と組を指定してください")
-                        records = []
-                        for seat_number in range(1, count + 1):
-                            student_id = _student_id_from_roster(grade.strip(), group.strip(), str(seat_number))
-                            if not student_id:
-                                raise ApiError(400, "学年または組の指定が正しくありません")
-                            record = {"grade": grade.strip(), "class": group.strip(),
-                                      "number": str(seat_number)}
-                            previous_grade_id = _student_id_from_roster(
-                                str(int(grade) - 1) if grade.isdigit() else "", group.strip(), str(seat_number)
-                            )
-                            if previous_grade_id and previous_grade_id != student_id:
-                                previous_student = conn.execute(
-                                    "SELECT id FROM account_users WHERE username=? COLLATE NOCASE "
-                                    "AND role='student' AND class_id<>?",
-                                    (previous_grade_id, class_id),
-                                ).fetchone()
-                                if previous_student:
-                                    record["previous_id"] = previous_grade_id
-                            records.append(record)
-                        fieldnames = ["grade", "class", "number", "previous_id"]
-                    else:
-                        text = body.get("csv")
-                        if not isinstance(text, str) or len(text.encode("utf-8")) > 1024 * 1024:
-                            raise ApiError(400, "CSVは1MB以内で指定してください")
-                        try:
-                            reader = csv.DictReader(io.StringIO(text.lstrip("\ufeff")))
-                            records = list(reader)
-                        except csv.Error:
-                            raise ApiError(400, "CSVを読み取れません")
-                        if not records or len(records) > 500:
-                            raise ApiError(400, "CSVは1〜500人分にしてください")
-                        if (not reader.fieldnames or len(set(reader.fieldnames)) != len(reader.fieldnames)
-                                or not {"grade", "class", "number"}.issubset(reader.fieldnames)
-                                or set(reader.fieldnames) - {"grade", "class", "number", "previous_id"}):
-                            raise ApiError(400, "CSVの列名は grade,class,number[,previous_id] にしてください")
-                    credentials, reassigned, plans = [], [], []
-                    seen, previous_seen = set(), set()
-                    for number, record in enumerate(records, 2):
-                        if None in record or any(record.get(key) is None for key in ("grade", "class", "number")):
-                            raise ApiError(400, "%d行目の列数が不正です" % number)
-                        student_id = _student_id_from_roster(
-                            (record.get("grade") or "").strip(),
-                            (record.get("class") or "").strip(),
-                            (record.get("number") or "").strip(),
-                        )
-                        if not student_id:
-                            raise ApiError(400, "%d行目の学年・組・出席番号が不正です" % number)
-                        if student_id in seen:
-                            raise ApiError(400, "CSV内で生徒IDが重複しています: %s" % student_id)
-                        seen.add(student_id)
-                        previous_id = (record.get("previous_id") or "").strip()
-                        if previous_id and not re.fullmatch(r"[A-Za-z0-9_.@-]{3,64}", previous_id):
-                            raise ApiError(400, "%d行目のprevious_idが不正です" % number)
-                        if previous_id:
-                            if previous_id.casefold() in previous_seen:
-                                raise ApiError(400, "CSV内で前年度IDが重複しています: %s" % previous_id)
-                            previous_seen.add(previous_id.casefold())
-                            source = conn.execute(
-                                "SELECT * FROM account_users WHERE username=? COLLATE NOCASE", (previous_id,)
-                            ).fetchone()
-                            if not source:
-                                raise ApiError(404, "前年度IDのアカウントが見つかりません: %s" % previous_id)
-                            if source["role"] != "student" or source["class_id"] == class_id:
-                                raise ApiError(409, "前年度IDが別クラスの生徒アカウントではありません: %s" % previous_id)
-                        else:
-                            source = conn.execute(
-                                "SELECT * FROM account_users WHERE username=? COLLATE NOCASE", (student_id,)
-                            ).fetchone()
-
-                        if source:
-                            previous_class = conn.execute("SELECT archived FROM account_classes WHERE id=?",
-                                                          (source["class_id"],)).fetchone()
-                            has_sketches = conn.execute("SELECT 1 FROM account_sketches WHERE user_id=? LIMIT 1",
-                                                        (source["id"],)).fetchone()
-                            if not previous_class or not previous_class["archived"] or has_sketches:
-                                raise ApiError(
-                                    409,
-                                    "%s は前年度クラスのアーカイブと作品消去が必要です" % source["username"],
-                                )
-                            if previous_id:
-                                target = conn.execute(
-                                    "SELECT id,role FROM account_users WHERE username=? COLLATE NOCASE", (student_id,)
-                                ).fetchone()
-                                if target and target["id"] != source["id"]:
-                                    raise ApiError(409, "生徒IDは別アカウントで使用済みです: %s" % student_id)
-                                plans.append((student_id, source, False))
-                            else:
-                                plans.append((student_id, source, True))
-                        else:
-                            plans.append((student_id, None, False))
-
-                    moving_ids = {source["id"] for _, source, _ in plans if source}
-                    for student_id, source, _ in plans:
-                        target = conn.execute(
-                            "SELECT id FROM account_users WHERE username=? COLLATE NOCASE", (student_id,)
-                        ).fetchone()
-                        if target and target["id"] not in moving_ids:
-                            raise ApiError(409, "生徒IDは別アカウントで使用済みです: %s" % student_id)
-
-                    now = int(time.time())
-                    for _, source, _ in plans:
-                        if source:
-                            conn.execute("UPDATE account_users SET username=? WHERE id=?",
-                                         ("move_" + secrets.token_hex(16), source["id"]))
-                    for student_id, source, recycled in plans:
-                        if source and not recycled:
-                            conn.execute(
-                                "UPDATE account_users SET username=?,display_name=?,class_id=?,active=1 WHERE id=?",
-                                (student_id, student_id, class_id, source["id"]),
-                            )
-                            conn.execute("DELETE FROM account_sessions WHERE user_id=?", (source["id"],))
-                            reassigned.append({"studentId": student_id, "previousId": source["username"]})
-                            continue
-                        password = secrets.token_urlsafe(10)
-                        if source:
-                            salt, digest = _account_password(password)
-                            conn.execute(
-                                "UPDATE account_users SET username=?,display_name=?,class_id=?,active=1,"
-                                "password_hash=?,password_salt=?,must_change_password=1 WHERE id=?",
-                                (student_id, student_id, class_id, digest, salt, source["id"]),
-                            )
-                            conn.execute("DELETE FROM account_sessions WHERE user_id=?", (source["id"],))
-                        else:
-                            account_id = secrets.token_hex(16)
-                            salt, digest = _account_password(password)
-                            conn.execute(
-                                "INSERT INTO account_users(id,username,display_name,role,class_id,password_hash,password_salt,must_change_password,created_at) "
-                                "VALUES(?,?,?,'student',?,?,?,1,?)",
-                                (account_id, student_id, student_id, class_id, digest, salt, now),
-                            )
-                        credentials.append({"studentId": student_id, "initialPassword": password})
-                    _account_audit(conn, user["id"], "students.import", class_id,
-                                   {"created": len(credentials) - sum(1 for _, _, recycled in plans if recycled),
-                                    "reassigned": len(reassigned),
-                                    "reissued": sum(1 for _, _, recycled in plans if recycled)})
-                    return self._send(201, {"ok": True, "reassigned": reassigned, "credentials": credentials})
-
-                if user["role"] != "teacher":
-                    raise ApiError(403, "先生アカウントが必要です")
-                match = re.fullmatch(r"/teacher/api/classes/([a-f0-9]{24})/(archive|clear|export)", path)
-                if match:
-                    class_id, action = match.groups()
-                    classroom = conn.execute("SELECT * FROM account_classes WHERE id=?", (class_id,)).fetchone()
-                    if not classroom:
-                        raise ApiError(404, "クラスが見つかりません")
-                    if method == "POST" and action == "archive":
-                        conn.execute("UPDATE account_classes SET archived=1 WHERE id=?", (class_id,))
-                        _account_audit(conn, user["id"], "class.archive", class_id)
-                        return self._send(200, {"ok": True})
-                    if method == "POST" and action == "clear":
-                        body = self._body()
-                        if not classroom["archived"]:
-                            raise ApiError(409, "先にクラスをアーカイブしてください")
-                        required = "CLEAR %s %s" % (classroom["name"], classroom["school_year"])
-                        if body.get("confirm") != required:
-                            raise ApiError(400, "確認文字列が一致しません: %s" % required)
-                        conn.execute(
-                            "DELETE FROM account_comments WHERE student_id IN (SELECT id FROM account_users WHERE class_id=?)",
-                            (class_id,),
-                        )
-                        conn.execute(
-                            "DELETE FROM account_sketch_versions WHERE user_id IN (SELECT id FROM account_users WHERE class_id=?)",
-                            (class_id,),
-                        )
-                        conn.execute(
-                            "DELETE FROM account_sketches WHERE user_id IN (SELECT id FROM account_users WHERE class_id=?)",
-                            (class_id,),
-                        )
-                        _account_audit(conn, user["id"], "class.clear", class_id)
-                        return self._send(200, {"ok": True})
-                    if method == "GET" and action == "export":
-                        students = conn.execute(
-                            "SELECT id,username,display_name,active FROM account_users WHERE class_id=? AND role='student' ORDER BY username",
-                            (class_id,),
-                        ).fetchall()
-                        payload = []
-                        for student in students:
-                            sketches = conn.execute("SELECT * FROM account_sketches WHERE user_id=? ORDER BY updated_at",
-                                                    (student["id"],)).fetchall()
-                            payload.append({"student": dict(student),
-                                            "sketches": [_account_sketch_view(row) for row in sketches]})
-                        return self._send(200, {"class": dict(classroom), "students": payload},
-                                          extra_headers={"Content-Disposition": "attachment; filename=class-export.json"})
-                match = re.fullmatch(r"/teacher/api/classes/([a-f0-9]{24})/students", path)
-                if method == "GET" and match:
-                    students = conn.execute(
-                        "SELECT u.id,u.username,u.display_name,u.active,u.created_at,"
-                        "COUNT(s.id) AS sketch_count,MAX(s.updated_at) AS last_work "
-                        "FROM account_users u LEFT JOIN account_sketches s ON s.user_id=u.id "
-                        "WHERE u.class_id=? AND u.role='student' GROUP BY u.id ORDER BY u.username",
-                        (match.group(1),),
-                    ).fetchall()
-                    return self._send(200, {"students": [dict(row) for row in students]})
-                match = re.fullmatch(r"/teacher/api/students/([a-f0-9]{32})/sketches", path)
-                if method == "GET" and match:
-                    student = conn.execute("SELECT id FROM account_users WHERE id=? AND role='student'",
-                                           (match.group(1),)).fetchone()
-                    if not student:
-                        raise ApiError(404, "生徒が見つかりません")
-                    rows = conn.execute("SELECT * FROM account_sketches WHERE user_id=? ORDER BY updated_at DESC",
-                                        (student["id"],)).fetchall()
-                    return self._send(200, {"sketches": [_account_sketch_view(row) for row in rows]})
-                match = re.fullmatch(r"/teacher/api/students/([a-f0-9]{32})/sketches/([A-Za-z0-9_-]{1,80})/versions", path)
-                if method == "GET" and match:
-                    versions = conn.execute(
-                        "SELECT v.revision,v.data,v.created_at,u.display_name AS editor "
-                        "FROM account_sketch_versions v LEFT JOIN account_users u ON u.id=v.editor_id "
-                        "WHERE v.user_id=? AND v.sketch_id=? ORDER BY v.revision DESC LIMIT 100",
-                        (match.group(1), match.group(2)),
-                    ).fetchall()
-                    return self._send(200, {"versions": [
-                        {"revision": item["revision"], "createdAt": item["created_at"],
-                         "editor": item["editor"] or "不明", "sketch": json.loads(item["data"])}
-                        for item in versions]})
-                match = re.fullmatch(r"/teacher/api/students/([a-f0-9]{32})/sketches/([A-Za-z0-9_-]{1,80})/versions/(\d+)/restore", path)
-                if method == "POST" and match:
-                    student_id, sketch_id, version_number = match.groups()
-                    body = self._body()
-                    current = conn.execute("SELECT * FROM account_sketches WHERE user_id=? AND id=?",
-                                            (student_id, sketch_id)).fetchone()
-                    version = conn.execute(
-                        "SELECT data FROM account_sketch_versions WHERE user_id=? AND sketch_id=? AND revision=?",
-                        (student_id, sketch_id, int(version_number)),
-                    ).fetchone()
-                    if not current or not version:
-                        raise ApiError(404, "復元する版が見つかりません")
-                    if body.get("revision") != current["revision"]:
-                        raise ApiError(409, "作品が更新されています。読み込み直してください")
-                    conn.execute(
-                        "INSERT INTO account_sketch_versions(sketch_id,user_id,revision,editor_id,data,created_at) VALUES(?,?,?,?,?,?)",
-                        (sketch_id, student_id, current["revision"], user["id"], current["data"], int(time.time())),
-                    )
-                    _trim_account_versions(conn, student_id, sketch_id)
-                    revision = current["revision"] + 1
-                    conn.execute("UPDATE account_sketches SET data=?,revision=?,updated_at=? WHERE user_id=? AND id=?",
-                                 (version["data"], revision, int(time.time()), student_id, sketch_id))
-                    _account_audit(conn, user["id"], "sketch.restore", student_id + "/" + sketch_id,
-                                   {"version": int(version_number)})
-                    return self._send(200, {"ok": True, "revision": revision})
-                match = re.fullmatch(r"/teacher/api/students/([a-f0-9]{32})/sketches/([A-Za-z0-9_-]{1,80})/(review|comments)", path)
-                if match:
-                    student_id, sketch_id, operation = match.groups()
-                    row = conn.execute("SELECT * FROM account_sketches WHERE user_id=? AND id=?",
-                                       (student_id, sketch_id)).fetchone()
-                    if not row:
-                        raise ApiError(404, "スケッチが見つかりません")
-                    body = self._body() if method in ("POST", "PUT") else {}
-                    if method == "PUT" and operation == "review":
-                        if not isinstance(body.get("checked"), bool) or not isinstance(body.get("comment", ""), str):
-                            raise ApiError(400, "確認状態またはコメントが不正です")
-                        comment = body.get("comment", "")
-                        if len(comment) > 4000:
-                            raise ApiError(400, "コメントは4000文字以内にしてください")
-                        conn.execute("UPDATE account_sketches SET checked=?,teacher_comment=? WHERE user_id=? AND id=?",
-                                     (int(body["checked"]), comment, student_id, sketch_id))
-                        _account_audit(conn, user["id"], "sketch.review", student_id + "/" + sketch_id)
-                        return self._send(200, {"ok": True})
-                    if method == "POST" and operation == "comments":
-                        text = body.get("body")
-                        if not isinstance(text, str) or not text.strip() or len(text) > 4000:
-                            raise ApiError(400, "コメントは1〜4000文字で入力してください")
-                        comment_id = secrets.token_hex(16)
-                        conn.execute(
-                            "INSERT INTO account_comments(id,sketch_id,student_id,teacher_id,body,created_at) VALUES(?,?,?,?,?,?)",
-                            (comment_id, sketch_id, student_id, user["id"], text.strip(), int(time.time())),
-                        )
-                        return self._send(201, {"ok": True, "commentId": comment_id})
-                    if method == "GET" and operation == "comments":
-                        comments = conn.execute(
-                            "SELECT c.id,c.body,c.created_at,u.display_name AS teacher FROM account_comments c "
-                            "JOIN account_users u ON u.id=c.teacher_id WHERE c.student_id=? AND c.sketch_id=? ORDER BY c.created_at",
-                            (student_id, sketch_id),
-                        ).fetchall()
-                        return self._send(200, {"comments": [dict(item) for item in comments]})
-                match = re.fullmatch(r"/teacher/api/students/([a-f0-9]{32})/sketches/([A-Za-z0-9_-]{1,80})", path)
-                if method == "PUT" and match:
-                    student_id, sketch_id = match.groups()
-                    body = self._body()
-                    sketch = _valid_sketch(body.get("sketch"))
-                    if sketch["id"] != sketch_id:
-                        raise ApiError(400, "スケッチIDが一致しません")
-                    row = conn.execute("SELECT revision FROM account_sketches WHERE user_id=? AND id=?",
-                                       (student_id, sketch_id)).fetchone()
-                    if not row:
-                        raise ApiError(404, "スケッチが見つかりません")
-                    if body.get("revision") != row["revision"]:
-                        raise ApiError(409, "別の端末でスケッチが更新されています。読み込み直してください")
-                    revision = row["revision"] + 1
                     conn.execute(
                         "INSERT INTO account_sketch_versions(sketch_id,user_id,revision,editor_id,data,created_at) "
-                        "SELECT id,user_id,revision,?,data,? FROM account_sketches WHERE id=? AND user_id=?",
-                        (user["id"], int(time.time()), sketch_id, student_id),
+                        "VALUES(?,?,?,?,?,?)",
+                        (sketch["id"], user["id"], current, user["id"], previous["data"], now),
                     )
-                    _trim_account_versions(conn, student_id, sketch_id)
-                    conn.execute("UPDATE account_sketches SET data=?,revision=?,updated_at=?,checked=0 WHERE user_id=? AND id=?",
-                                 (json.dumps(sketch, ensure_ascii=False), revision, int(time.time()), student_id, sketch_id))
-                    _account_audit(conn, user["id"], "sketch.teacher_edit", student_id + "/" + sketch_id)
-                    return self._send(200, {"ok": True, "revision": revision})
-                match = re.fullmatch(r"/teacher/api/students/([a-f0-9]{32})/(active|reset-password)", path)
-                if match:
-                    student_id, operation = match.groups()
-                    student = conn.execute("SELECT * FROM account_users WHERE id=? AND role='student'",
-                                           (student_id,)).fetchone()
-                    if not student:
-                        raise ApiError(404, "生徒が見つかりません")
-                    if method == "POST" and operation == "active":
-                        body = self._body()
-                        if not isinstance(body.get("active"), bool):
-                            raise ApiError(400, "active は true または false を指定してください")
-                        conn.execute("UPDATE account_users SET active=? WHERE id=?",
-                                     (int(body["active"]), student_id))
-                        if not body["active"]:
-                            conn.execute("DELETE FROM account_sessions WHERE user_id=?", (student_id,))
-                        _account_audit(conn, user["id"], "student.active", student_id, {"active": body["active"]})
-                        return self._send(200, {"ok": True})
-                    if method == "POST" and operation == "reset-password":
-                        password = secrets.token_urlsafe(10)
-                        salt, digest = _account_password(password)
-                        conn.execute("UPDATE account_users SET password_hash=?,password_salt=?,must_change_password=1 WHERE id=?",
-                                     (digest, salt, student_id))
-                        conn.execute("DELETE FROM account_sessions WHERE user_id=?", (student_id,))
-                        _account_audit(conn, user["id"], "student.password_reset", student_id)
-                        return self._send(200, {"ok": True, "username": student["username"], "temporaryPassword": password})
-                raise ApiError(404, "不明なアカウントAPI: %s %s" % (method, path[:80]))
+                    _trim_account_versions(conn, user["id"], sketch["id"])
+                conn.execute(
+                    "INSERT INTO account_sketches(id,user_id,data,revision,updated_at) VALUES(?,?,?,?,?) "
+                    "ON CONFLICT(id,user_id) DO UPDATE SET data=excluded.data,revision=excluded.revision,"
+                    "updated_at=excluded.updated_at",
+                    (sketch["id"], user["id"], json.dumps(sketch, ensure_ascii=False), revision, now),
+                )
+                return self._send(200, {"ok": True, "revision": revision})
+            if method == "DELETE" and match:
+                row = conn.execute("SELECT revision FROM account_sketches WHERE user_id=? AND id=?",
+                                   (user["id"], match.group(1))).fetchone()
+                if not row:
+                    return self._send(200, {"ok": True, "deleted": False})
+                expected = q.get("revision")
+                if expected is None or not expected.isdigit() or int(expected) != row["revision"]:
+                    raise ApiError(409, "別の端末でスケッチが更新されています。削除を中止しました")
+                conn.execute("DELETE FROM account_sketch_versions WHERE user_id=? AND sketch_id=?",
+                             (user["id"], match.group(1)))
+                conn.execute("DELETE FROM account_sketches WHERE user_id=? AND id=?",
+                             (user["id"], match.group(1)))
+                return self._send(200, {"ok": True, "deleted": True})
+            raise ApiError(404, "不明なアカウントAPI: %s %s" % (method, path[:80]))
 
     def _dispatch_remainder(self, method, path, q, role):
+        if path.startswith("/admin/api/teachers"):
+            raise ApiError(404, "先生アカウント機能は提供していません")
         if method == "DELETE" and path == "/admin/api/history":
             self._need(role, True)
             deleted = clear_history()
             return self._send(200, {"ok": True, "deleted": deleted})
-        if method == "POST" and path == "/admin/api/teachers":
-            self._need(role, True)
-            body = self._body()
-            username = body.get("username")
-            name = body.get("name")
-            if not isinstance(username, str) or not re.fullmatch(r"[A-Za-z0-9_.@-]{3,64}", username.strip()):
-                raise ApiError(400, "ログインIDは英数字と . _ @ - の3〜64文字で指定してください")
-            username = username.strip()
-            if not isinstance(name, str) or not name.strip() or len(name.strip()) > 80 \
-                    or any(ord(char) < 32 for char in name):
-                raise ApiError(400, "先生の表示名は1〜80文字で指定してください")
-            password = secrets.token_urlsafe(12)
-            salt, digest = _account_password(password)
-            with ACCOUNT_LOCK, account_db() as conn:
-                if conn.execute("SELECT 1 FROM account_users WHERE username=? COLLATE NOCASE",
-                                (username,)).fetchone():
-                    raise ApiError(409, "このログインIDはすでに使われています")
-                conn.execute(
-                    "INSERT INTO account_users(id,username,display_name,role,password_hash,password_salt,"
-                    "must_change_password,created_at) VALUES(?,?,?,'teacher',?,?,1,?)",
-                    (secrets.token_hex(16), username, name.strip(), digest, salt, int(time.time())),
-                )
-                _account_audit(conn, "server-admin", "teacher.create", username)
-            return self._send(201, {"ok": True, "username": username, "name": name.strip(),
-                                    "initialPassword": password})
-        teacher_reset = re.fullmatch(r"/admin/api/teachers/([a-f0-9]{32})/reset-password", path)
-        if method == "POST" and teacher_reset:
-            self._need(role, True)
-            body = self._body()
-            if not isinstance(body, dict):
-                raise ApiError(400, "リクエストの形式が正しくありません")
-            teacher_id = teacher_reset.group(1)
-            password = secrets.token_urlsafe(12)
-            salt, digest = _account_password(password)
-            with ACCOUNT_LOCK, account_db() as conn:
-                teacher = conn.execute(
-                    "SELECT username FROM account_users WHERE id=? AND role='teacher'", (teacher_id,)
-                ).fetchone()
-                if not teacher:
-                    raise ApiError(404, "先生アカウントが見つかりません")
-                conn.execute(
-                    "UPDATE account_users SET password_hash=?,password_salt=?,must_change_password=1 WHERE id=?",
-                    (digest, salt, teacher_id),
-                )
-                conn.execute("DELETE FROM account_sessions WHERE user_id=?", (teacher_id,))
-                _account_audit(conn, "server-admin", "teacher.password_reset", teacher["username"])
-            return self._send(200, {"ok": True, "username": teacher["username"],
-                                    "initialPassword": password})
         if method == "POST" and path == "/admin/api/settings":
             self._need(role, True)
             body = self._body()
@@ -2991,7 +2624,7 @@ def load_secret(env_name, fname):
 
 def cmd_show_tokens():
     HOME.mkdir(parents=True, exist_ok=True)
-    print("生徒用トークン  : %s" % load_secret("HELPER_TOKEN", "token"))
+    print("IDE 用トークン  : %s" % load_secret("HELPER_TOKEN", "token"))
     print("管理者トークン  : %s" % load_secret("HELPER_ADMIN_TOKEN", "admin-token"))
 
 
@@ -3011,22 +2644,8 @@ def cmd_share_link(url, fallback=None):
     if fallback:
         cfg["f"] = fallback.rstrip("/")
     b = base64.urlsafe_b64encode(json.dumps(cfg, separators=(",", ":")).encode()).decode().rstrip("=")
-    print("IDE の URL の末尾にこの文字列を付けて配布してください (生徒用トークンのみ含まれます):")
+    print("IDE の URL の末尾にこの文字列を付けて配布してください (IDE 用トークンのみ含まれます):")
     print("#cfg=" + b)
-
-
-def cmd_create_teacher(username, name=None):
-    HOME.mkdir(parents=True, exist_ok=True)
-    password = getpass.getpass("先生アカウントの初期パスワード (10文字以上): ")
-    confirm = getpass.getpass("確認のため再入力してください: ")
-    if password != confirm:
-        raise SystemExit("パスワードが一致しません")
-    try:
-        _create_teacher_account(username, password, name)
-    except (ValueError, sqlite3.IntegrityError, ApiError) as exc:
-        raise SystemExit(str(exc))
-    print("先生アカウントを作成しました: %s" % username)
-    print("先生用画面: https://<サーバーURL>/teacher")
 
 
 def main():
@@ -3038,8 +2657,6 @@ def main():
         return cmd_rotate(args[1] if len(args) > 1 else "both")
     if args and args[0] == "--share-link" and len(args) > 1:
         return cmd_share_link(args[1], args[2] if len(args) > 2 else None)
-    if args and args[0] == "--create-teacher" and len(args) > 1:
-        return cmd_create_teacher(args[1], args[2] if len(args) > 2 else None)
     os.umask(0o007)
     HOME.mkdir(parents=True, exist_ok=True)
     for d in (WORK_DIR,):
@@ -3061,7 +2678,7 @@ def main():
     else:
         ADMIN_TOKEN = load_secret("HELPER_ADMIN_TOKEN", "admin-token")
         if ADMIN_TOKEN == TOKEN:
-            sys.exit("生徒用と管理者用のトークンが同じです。--rotate admin で再発行してください")
+            sys.exit("IDE用と管理者用のトークンが同じです。--rotate admin で再発行してください")
     load_gen()
     load_history()
     log("Arduino Web IDE helper %s" % VERSION)

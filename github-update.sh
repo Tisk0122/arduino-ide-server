@@ -68,7 +68,6 @@ FILES=(
   "www/index.html"
   "www/admin.html"
   "www/docs.html"
-  "www/teacher.html"
   "configure-github-webhook.sh"
   "github-update.sh"
   "arduino-helper-update.service"
@@ -237,9 +236,9 @@ if ! curl -fsS --max-time 10 "http://127.0.0.1:8765/docs" -o "$stage/docs-health
     || ! grep -q "Arduino Web IDE" "$stage/docs-health.html"; then
   die "ドキュメントページのヘルスチェックに失敗しました"
 fi
-if ! curl -fsS --max-time 10 "http://127.0.0.1:8765/teacher" -o "$stage/teacher-health.html" \
-    || ! grep -q "先生用クラス・作品管理" "$stage/teacher-health.html"; then
-  die "先生ページのヘルスチェックに失敗しました"
+if ! curl -fsS --max-time 10 "http://127.0.0.1:8765/account" -o "$stage/account-health.html" \
+    || ! grep -q "アカウントとクラウド保存" "$stage/account-health.html"; then
+  die "アカウントページのヘルスチェックに失敗しました"
 fi
 
 run_logged systemctl enable --now arduino-helper-update.timer

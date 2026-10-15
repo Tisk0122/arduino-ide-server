@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class AutoUpdateContractTests(unittest.TestCase):
-    def test_updater_deploys_itself_and_all_ui_pages(self):
+    def test_updater_deploys_itself_and_all_supported_ui_pages(self):
         updater = (ROOT / "github-update.sh").read_text(encoding="utf-8")
         match = re.search(r"^FILES=\(\n(.*?)^\)", updater, re.MULTILINE | re.DOTALL)
         self.assertIsNotNone(match)
@@ -18,7 +18,6 @@ class AutoUpdateContractTests(unittest.TestCase):
             "www/index.html",
             "www/admin.html",
             "www/docs.html",
-            "www/teacher.html",
             "configure-github-webhook.sh",
             "github-update.sh",
             "arduino-helper-update.service",
@@ -26,6 +25,8 @@ class AutoUpdateContractTests(unittest.TestCase):
         }.issubset(files))
         self.assertIn('github-update.sh) printf', updater)
         self.assertIn("configure-github-webhook.sh) printf", updater)
+        self.assertIn('http://127.0.0.1:8765/account', updater)
+        self.assertIn("アカウントとクラウド保存", updater)
 
     def test_periodic_update_checks_remote_commit_and_records_success(self):
         updater = (ROOT / "github-update.sh").read_text(encoding="utf-8")

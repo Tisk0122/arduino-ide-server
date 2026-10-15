@@ -41,7 +41,7 @@ warn() { printf '警告: %s\n' "$*" >&2; }
 die()  { printf 'エラー: %s\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || die "root 権限で実行してください:  sudo bash install.sh"
-for f in arduino-helper.py arduino-build-run github-update.sh arduino-helper-update.service arduino-helper-update.timer configure-github-webhook.sh backup-arduino-helper.sh www/index.html www/admin.html www/docs.html www/teacher.html; do
+for f in arduino-helper.py arduino-build-run github-update.sh arduino-helper-update.service arduino-helper-update.timer configure-github-webhook.sh backup-arduino-helper.sh www/index.html www/admin.html www/docs.html; do
   [ -f "$HERE/$f" ] || die "$HERE/$f がありません。アーカイブを展開したフォルダで実行してください"
 done
 command -v systemctl >/dev/null || die "systemd が必要です"
@@ -139,7 +139,6 @@ install -d -o root -g root -m 0755 "$APP_DIR/www"
 install -m 0644 -o root -g root "$HERE/www/index.html" "$APP_DIR/www/index.html"
 install -m 0644 -o root -g root "$HERE/www/admin.html" "$APP_DIR/www/admin.html"
 install -m 0644 -o root -g root "$HERE/www/docs.html" "$APP_DIR/www/docs.html"
-install -m 0644 -o root -g root "$HERE/www/teacher.html" "$APP_DIR/www/teacher.html"
 install -m 0700 -o root -g root "$HERE/github-update.sh" /usr/local/libexec/arduino-helper-update
 install -m 0644 -o root -g root "$HERE/arduino-helper-update.service" /etc/systemd/system/arduino-helper-update.service
 install -m 0644 -o root -g root "$HERE/arduino-helper-update.timer" /etc/systemd/system/arduino-helper-update.timer
@@ -160,7 +159,7 @@ if [ ! -f "$CONF_DIR/helper.env" ]; then
 #HELPER_TRUST_CF_CONNECTING_IP=0 # 信頼できるローカルプロキシを使わない場合
 #HELPER_COMPILE_TIMEOUT=900     # 1回のコンパイルの上限 (秒)
 #HELPER_MIN_FREE_MB=1024        # 空きがこれ未満ならコンパイルを断る
-#HELPER_SINGLE_TOKEN=1          # 1人で使うとき: 生徒用トークンで管理操作もできる
+#HELPER_SINGLE_TOKEN=1          # 1人で使うとき: IDE 用トークンで管理操作もできる
 #HELPER_ALLOW_ASM=1             # アセンブラを明示的に許可する場合のみ
 # GitHub 自動更新を使う場合は configure-github-webhook.sh で設定します。
 # Webhook URL: /webhook/github
@@ -323,8 +322,8 @@ echo "API の待受     : http://127.0.0.1:$HELPER_PORT  (Cloudflare Tunnel / Ta
 echo
 sudo -u "$H_USER" env HELPER_HOME="$H_HOME" python3 "$APP_DIR/arduino-helper.py" --show-tokens
 echo
-echo "  生徒用トークン … IDE に入れる。コンパイルと閲覧だけできる"
-echo "  管理者トークン … 先生だけが使う。ボード・ライブラリの追加削除ができる (生徒に配らない)"
+echo "  IDE 用トークン … IDE に入力。コンパイルと閲覧に使う"
+echo "  管理者トークン … ボード・ライブラリの追加削除と管理画面に使う"
 echo
 echo "状態確認   : systemctl status arduino-helper"
 echo "ログ       : journalctl -u arduino-helper -f"
