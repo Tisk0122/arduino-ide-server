@@ -219,7 +219,19 @@ run_logged systemctl restart "$SERVICE"
 sleep 2
 systemctl is-active --quiet "$SERVICE" || die "サービスが active ではありません"
 
-if ! curl -fsS --max-time 10 "http://127.0.0.1:8765/ping" -o "$stage/ping.json"; then
+health_port="$(systemctl show --property=Environment --value "$SERVICE" |
+  python3 -c '
+import re
+import sys
+
+matches = re.findall(r"(?:^|\s)HELPER_PORT=([0-9]+)(?:\s|$)", sys.stdin.read())
+port = int(matches[-1]) if matches else 8765
+if not 1 <= port <= 65535:
+    raise SystemExit("HELPER_PORT が範囲外です")
+print(port)
+')"
+
+if ! curl -fsS --max-time 10 "http://127.0.0.1:$health_port/ping" -o "$stage/ping.json"; then
   die "ローカルヘルスチェックに失敗しました"
 fi
 python3 - "$stage/ping.json" <<'PY'
@@ -232,17 +244,19 @@ if result.get("ok") is not True:
     raise SystemExit("ローカルヘルスチェックの応答が不正です")
 PY
 
-if ! curl -fsS --max-time 10 "http://127.0.0.1:8765/docs" -o "$stage/docs-health.html" \
+if ! curl -fsS --max-time 10 "http://127.0.0.1:$health_port/docs" -o "$stage/docs-health.html" \
     || ! grep -q "Arduino Web IDE" "$stage/docs-health.html"; then
   die "ドキュメントページのヘルスチェックに失敗しました"
 fi
-if ! curl -fsS --max-time 10 "http://127.0.0.1:8765/account" -o "$stage/account-health.html" \
+if ! curl -fsS --max-time 10 "http://127.0.0.1:$health_port/account" -o "$stage/account-health.html" \
     || ! grep -q "アカウントとクラウド保存" "$stage/account-health.html"; then
   die "アカウントページのヘルスチェックに失敗しました"
 fi
 
 run_logged systemctl enable --now arduino-helper-update.timer
 run_logged systemctl restart arduino-helper-update.timer
+systemctl is-enabled --quiet arduino-helper-update.timer || die "更新確認timerが enabled ではありません"
+systemctl is-active --quiet arduino-helper-update.timer || die "更新確認timerが active ではありません"
 
 commit="$(git rev-parse HEAD)"
 printf '%s\n' "$commit" > "$UPDATE_DIR/applied-commit.new.$$"

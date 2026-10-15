@@ -24,7 +24,7 @@ sudo arduino-helper-backup /mnt/secure-backups/arduino-helper
 
 ## GitHubからの自動更新
 
-Webhookを設定すると `main` へのpushを受けて更新します。加えて `arduino-helper-update.timer` が5分ごとにGitHubのコミットIDと最後に適用したIDを比較するため、Webhookの未配信・短時間の連続push・サーバー再起動中のpushも次回確認で検出します。変更がない確認ではcloneやサービス再起動を行いません。更新対象はサーバー本体、IDE各画面、更新スクリプト自身とtimer/service定義です。インストーラーや設定ファイル、トークン、Arduino CLIデータは自動更新しません。
+Webhookを設定すると `main` へのpushを受けて更新します。加えて `arduino-helper-update.timer` が5分ごとにGitHubのコミットIDと最後に適用したIDを比較するため、Webhookの未配信・短時間の連続push・サーバー再起動中のpushも次回確認で検出します。変更がない確認ではcloneやサービス再起動を行いません。更新対象はサーバー本体、IDE各画面、更新スクリプト自身とtimer/service定義です。インストーラーや設定ファイル、トークン、Arduino CLIデータは自動更新しません。ヘルスチェックは稼働中の `arduino-helper` systemd unitから `HELPER_PORT` を読み取るため、既定の8765以外の待受ポートでも更新を検証できます。
 
 Webhookの初回設定またはWebhook起動権限の再設定は次で行います。Webhook処理の変更を更新した後も、sudoers の起動権限を同期するためこのコマンドを一度実行してください。
 
@@ -53,6 +53,8 @@ install -o root -g root -m 0700 "$tmp/repo/configure-github-webhook.sh" /usr/loc
 ```bash
 systemctl status arduino-helper-update.timer --no-pager
 systemctl list-timers arduino-helper-update.timer --no-pager
+systemctl is-enabled arduino-helper-update.timer
+systemctl is-active arduino-helper-update.timer
 sudo journalctl -t arduino-helper-update -n 100 --no-pager
 cat /var/lib/arduino-helper-updater/applied-commit
 ```

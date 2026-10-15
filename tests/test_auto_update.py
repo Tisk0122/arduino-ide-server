@@ -25,7 +25,7 @@ class AutoUpdateContractTests(unittest.TestCase):
         }.issubset(files))
         self.assertIn('github-update.sh) printf', updater)
         self.assertIn("configure-github-webhook.sh) printf", updater)
-        self.assertIn('http://127.0.0.1:8765/account', updater)
+        self.assertIn('"http://127.0.0.1:$health_port/account"', updater)
         self.assertIn("アカウントとクラウド保存", updater)
 
     def test_periodic_update_checks_remote_commit_and_records_success(self):
@@ -37,6 +37,13 @@ class AutoUpdateContractTests(unittest.TestCase):
         self.assertIn("OnCalendar=*-*-* *:0/5:00", timer)
         self.assertIn("Persistent=true", timer)
         self.assertIn("arduino-helper-update --check", service)
+        self.assertIn('systemctl show --property=Environment --value "$SERVICE"', updater)
+        self.assertIn('"http://127.0.0.1:$health_port/ping"', updater)
+        self.assertIn('"http://127.0.0.1:$health_port/docs"', updater)
+        self.assertIn('"http://127.0.0.1:$health_port/account"', updater)
+        self.assertNotIn("http://127.0.0.1:8765/", updater)
+        self.assertIn('systemctl is-enabled --quiet arduino-helper-update.timer', updater)
+        self.assertIn('systemctl is-active --quiet arduino-helper-update.timer', updater)
 
     def test_installer_and_webhook_setup_enable_the_update_timer(self):
         installer = (ROOT / "install.sh").read_text(encoding="utf-8")
