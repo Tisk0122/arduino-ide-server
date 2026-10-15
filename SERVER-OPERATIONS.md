@@ -32,9 +32,7 @@ Webhookの初回設定またはWebhook起動権限の再設定は次で行いま
 sudo /usr/local/libexec/arduino-helper-configure-github-webhook
 ```
 
-旧版の更新スクリプトには、リポジトリから廃止した `www/teacher.html` を必須ファイルとして探すものがあります。この移行に対応する退役ページを互換用に残しているため、その互換ページを含むコミットが `main` にpushされれば、稼働中の5分timerが従来の更新処理を完了し、新しい更新スクリプトへ置き換えます。通常、この移行のためにサーバー上で手動ブートストラップを行う必要はありません。
-
-更新timerが動いていない、または別の必須ファイルエラーでブートストラップが必要な場合のみ、次の手順で更新スクリプトを手動導入できます。事前にWebhook設定とGitHubへの接続を確認してください。
+旧版の更新スクリプトは `www/teacher.html` を必須とし、さらに廃止済み `/teacher` 画面のヘルスチェックを行います。新しい更新スクリプトへファイルを差し替えても、実行中のプロセスは旧版のまま処理を続けるため、ヘルスチェックで失敗してロールバックし、旧版へ戻ることがあります。この世代の旧スクリプトから移行するときは、次のブートストラップを一度だけ手動実行してください。Webhookとtimerが稼働していても、旧スクリプトのままでは自動更新だけで復旧できません。
 
 ```bash
 sudo bash -c '
@@ -43,12 +41,11 @@ tmp="$(mktemp -d)"
 trap '\''rm -rf "$tmp"'\'' EXIT
 git clone --depth 1 --branch main https://github.com/Tisk0122/arduino-ide-server.git "$tmp/repo"
 install -o root -g root -m 0700 "$tmp/repo/github-update.sh" /usr/local/libexec/arduino-helper-update
-install -o root -g root -m 0700 "$tmp/repo/configure-github-webhook.sh" /usr/local/libexec/arduino-helper-configure-github-webhook
 /usr/local/libexec/arduino-helper-update
 '
 ```
 
-このブートストラップは、既に `/etc/arduino-helper/github-webhook.env` が設定され、GitHubリポジトリへ接続できるサーバーで実行します。成功すると更新スクリプト自身を入れ替え、timerを有効化し、更新済みコミットIDを記録します。続けて `sudo /usr/local/libexec/arduino-helper-configure-github-webhook` を実行し、GitHubに登録してあるものと同じSecretを再入力してsystemd起動権限を反映してください。GitHubから取得したファイルは配置前に検査し、サービス再起動と `/ping`・`/docs`・`/account` の応答を確認します。検査に失敗した場合は保存したバックアップから配置ファイルを戻してサービスを再起動します。
+このブートストラップは、既に `/etc/arduino-helper/github-webhook.env` が設定され、GitHubリポジトリへ接続できるサーバーで実行します。更新スクリプトは取得したコミットのファイルを配置し、サービス再起動と `/ping`・`/docs`・`/account` の応答を確認します。検査に失敗した場合は配置ファイルを保存済みバックアップへ戻します。成功したら `applied-commit` がGitHubの `main` と一致することを確認してください。既にWebhook・timerが設定済みなら、Webhook Secretの再入力や `configure-github-webhook` の再実行は不要です。
 
 状態・実行結果の確認:
 
