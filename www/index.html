@@ -1636,6 +1636,9 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
   <div class="topbar-spacer"></div>
 
   <div id="topbar-right">
+    <button class="tb-icon-btn" id="account-open-btn" title="アカウントとクラウド保存" aria-label="アカウントとクラウド保存">
+      <i data-lucide="user-round" aria-hidden="true"></i>
+    </button>
     <button class="tb-icon-btn" id="theme-btn" title="テーマ切替" aria-label="ライトテーマに切り替え" aria-pressed="false">
       <span id="theme-icon" aria-hidden="true"><i data-lucide="sun"></i></span>
     </button>
@@ -2201,6 +2204,40 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
   </div>
 </div>
 
+<!-- アカウント -->
+<div class="modal-overlay" id="m-account">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">アカウントとクラウド保存</span>
+      <button class="modal-x" data-close="m-account" title="閉じる" aria-label="閉じる"><i data-lucide="x"></i></button>
+    </div>
+    <div class="modal-body">
+      <p id="account-status" role="status">ログインすると、作品をサーバーに保存して別の端末から読み込めます。</p>
+      <form id="account-login-form">
+        <div class="form-group"><label class="form-label" for="account-username">生徒ID</label><input class="form-input" id="account-username" autocomplete="username" required></div>
+        <div class="form-group"><label class="form-label" for="account-password">パスワード</label><input class="form-input" id="account-password" type="password" autocomplete="current-password" required></div>
+        <button class="btn btn-primary" type="submit">ログイン</button>
+      </form>
+      <div id="account-logged-in" hidden>
+        <p id="account-user-label"></p>
+        <div id="account-feedback" class="form-hint"></div>
+        <div class="form-group" id="account-force-password" hidden>
+          <label class="form-label" for="account-current-password">現在のパスワード</label>
+          <input class="form-input" id="account-current-password" type="password" autocomplete="current-password">
+          <label class="form-label" for="account-new-password">初回ログインです。新しいパスワード (10文字以上)</label>
+          <input class="form-input" id="account-new-password" type="password" autocomplete="new-password" minlength="10">
+          <button class="btn btn-primary" id="account-change-password" type="button" style="margin-top:8px">パスワードを変更</button>
+        </div>
+        <button class="btn btn-secondary" id="account-import-local" type="button">このブラウザーの未登録作品をアカウントへ取り込む</button>
+        <button class="btn btn-secondary" id="account-sync-now" type="button">今すぐ同期</button>
+        <button class="btn btn-secondary" id="account-logout" type="button">ログアウト</button>
+        <p class="form-hint">作品の変更は自動で同期します。別端末と同じ作品が競合した場合、どちらも残して確認できるようにします。共有端末では利用後にログアウトしてください。</p>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-secondary" data-close="m-account">閉じる</button></div>
+  </div>
+</div>
+
 <!-- 設定 -->
 <div class="modal-overlay" id="m-settings">
   <div class="modal">
@@ -2358,13 +2395,39 @@ const IDE_THEME_STORAGE_KEY = 'arduino_ide_theme';
 /* ---- グローバル状態 ---- */
 const S = {
   db: null,
+  localDb: null,
   sketches: [],
+  account: { token: '', user: null, loading: false, syncing: false },
   curId: null,
   curTab: 0,
   dirty: new Set(),   // 'sketchId:tabIndex'
   cfg: {
     fontSize: 13, tabSize: 2, autosave: 5,
     theme: 'dark', lineNums: true, curLine: true, syntax: true, reduceMotion: false, panelMinimized: false,
+  },
+  async renderFeedback() {
+    const container = document.getElementById('account-feedback');
+    if (!container || !S.account.user || S.account.user.mustChangePassword) return;
+    container.replaceChildren();
+    for (const sketch of S.sketches) {
+      if (!sketch.checked && !sketch.teacherComment) continue;
+      const item = document.createElement('p');
+      item.textContent = `${sketch.name}: ${sketch.checked ? '先生が確認済み' : '先生からのコメント'}${sketch.teacherComment ? ' — ' + sketch.teacherComment : ''}`;
+      container.append(item);
+    }
+    try {
+      for (const sketch of S.sketches) {
+        const result = await this.request('/account/sketches/' + encodeURIComponent(sketch.id) + '/comments');
+        result.comments.forEach(comment => {
+          const item = document.createElement('p');
+          item.textContent = `${sketch.name} — ${comment.teacher}: ${comment.body}`;
+          container.append(item);
+        });
+      }
+    } catch (err) {
+      console.warn('Teacher feedback could not be loaded:', err);
+    }
+    if (!container.childNodes.length) container.textContent = '先生からの確認・コメントはまだありません。';
   },
   serial: { port: null, reader: null, writer: null, connected: false, supported: true, detectedLabel: '', detectedBoardId: '', detectionGeneration: 0, authorizedPortCount: 0 },
   helper: { url: IDE_DEFAULTS.url, fallback: IDE_DEFAULTS.fallbackUrl, token: IDE_DEFAULTS.token, adminToken: '', adminTokenTarget: '', active: '', userSet: false, prefillStudentToken: false, publicConfigError: '', ok: false, authed: false, admin: false, adminBad: false, gen: 0, info: null },
@@ -2540,9 +2603,9 @@ const SVG_BOARD = '<i data-lucide="cpu" aria-hidden="true"></i>';
    IndexedDB
 ================================================================ */
 const IDB = {
-  async open() {
+  async open(name='ArduinoWebIDE_v2') {
     return new Promise((res, rej) => {
-      const req = indexedDB.open('ArduinoWebIDE_v2', 1);
+      const req = indexedDB.open(name, 1);
       req.onupgradeneeded = e => {
         const db = e.target.result;
         if (!db.objectStoreNames.contains('sketches')) {
@@ -2566,14 +2629,23 @@ const IDB = {
       req.onerror   = () => rej(req.error);
     });
   },
-  async put(db, sketch) {
+  async put(db, sketch, sync=true) {
     sketch.updatedAt = Date.now();
     if (!db) return true;
     return new Promise(res => {
       let req;
       try { req = this.tx(db, 'sketches', 'readwrite').put(sketch); }
       catch (e) { IDB.fail(e); return res(false); }
-      req.onsuccess = () => { S.saveFailed = false; res(true); };
+      req.onsuccess = async () => {
+        try {
+          if (sync && S.account.user && !S.account.loading) await Account.saveSketch(sketch);
+          S.saveFailed = false;
+          res(true);
+        } catch (err) {
+          IDB.fail(err);
+          res(false);
+        }
+      };
       req.onerror   = () => { IDB.fail(req.error); res(false); };
     });
   },
@@ -2585,8 +2657,9 @@ const IDB = {
       toast('保存に失敗しました' + (e && e.name === 'QuotaExceededError' ? ' (ブラウザの保存容量が不足)' : '') + '。「バックアップ」でZIPに保存してください', 'err', 8000);
     }
   },
-  async del(db, id) {
+  async del(db, id, revision) {
     if (!db) return;
+    if (S.account.user && !S.account.loading) await Account.deleteSketch(id, revision);
     return new Promise((res, rej) => {
       const req = this.tx(db, 'sketches', 'readwrite').delete(id);
       req.onsuccess = () => res();
@@ -2594,17 +2667,19 @@ const IDB = {
     });
   },
   async getKV(db, k) {
-    if (!db) return null;
+    const target = S.localDb || db;
+    if (!target) return null;
     return new Promise((res, rej) => {
-      const req = this.tx(db, 'kv', 'readonly').get(k);
+      const req = this.tx(target, 'kv', 'readonly').get(k);
       req.onsuccess = () => res(req.result ? req.result.v : null);
       req.onerror   = () => rej(req.error);
     });
   },
   async setKV(db, k, v) {
-    if (!db) return;
+    const target = S.localDb || db;
+    if (!target) return;
     return new Promise((res, rej) => {
-      const req = this.tx(db, 'kv', 'readwrite').put({ k, v });
+      const req = this.tx(target, 'kv', 'readwrite').put({ k, v });
       req.onsuccess = () => res();
       req.onerror   = () => rej(req.error);
     });
@@ -2648,7 +2723,7 @@ function iconFallbackGlyph(name) {
     folder: '▣', 'folder-open': '▣', info: 'i', library: '▤',
     'panel-left': '◧', pencil: '✎', plus: '+', save: '↓', search: '⌕',
     server: '▦', settings: '⚙', sun: '☼', terminal: '>_',
-    'trash-2': '×', triangle: '!', 'triangle-alert': '!', usb: '⎓', upload: '↑', x: '×'
+    'trash-2': '×', triangle: '!', 'triangle-alert': '!', usb: '⎓', upload: '↑', 'user-round': '●', x: '×'
   };
   return glyphs[name] || '•';
 }
@@ -3457,7 +3532,7 @@ const Sk = {
   async delete(id) {
     const sk = S.sketches.find(s=>s.id===id);
     if (!sk) return;
-    await IDB.del(S.db, id);
+    await IDB.del(S.db, id, sk.revision);
     S.sketches = S.sketches.filter(s=>s.id!==id);
     S.dirty.forEach(key => { if (key.startsWith(`${id}:`)) S.dirty.delete(key); });
     updateAutosaveIndicator();
@@ -3828,6 +3903,220 @@ const Helper = {
       }
       await sleep(j.state === 'queued' ? 1500 : 900);
     }
+  },
+};
+
+const Account = {
+  key: 'arduino_helper_account_session',
+  error(message, status) { const e = new Error(message); e.status = status; return e; },
+  async request(path, method='GET', body, token=S.account.token) {
+    const bases = Helper.order();
+    if (!bases.length) throw this.error('コンパイルサーバーURLを先に設定してください');
+    let networkError;
+    for (const base of bases) {
+      let response;
+      try {
+        response = await fetch(base + path, { method,
+          headers: { ...(body ? {'Content-Type':'application/json'} : {}), ...(token ? {Authorization:'Session '+token} : {}) },
+          body: body ? JSON.stringify(body) : undefined, cache:'no-store', signal:Helper.signal(30000) });
+      } catch (err) { networkError = err; continue; }
+      let data = {};
+      try { data = await response.json(); } catch (_) {}
+      if (!response.ok) throw this.error(data.error || `アカウントAPIエラー (HTTP ${response.status})`, response.status);
+      return data;
+    }
+    throw networkError || this.error('アカウントサーバーに接続できません');
+  },
+  async saveSketch(sketch, force=false) {
+    if ((this.syncing && !force) || (this.loading && !force) || S.account.user.mustChangePassword) return;
+    const result = await this.request('/account/sketches/' + encodeURIComponent(sketch.id), 'PUT',
+      { sketch, revision: Number(sketch.revision || 0) });
+    sketch.revision = result.revision;
+    await IDB.put(S.db, sketch, false);
+  },
+  async resolveConflict(sketch) {
+    const data = await this.request('/account/sketches');
+    const remote = data.sketches.find(item => item.id === sketch.id);
+    if (!remote) throw this.error('同期先を確認できませんでした。変更はローカルに残っています');
+    const localCopy = JSON.parse(JSON.stringify(sketch));
+    const originalId = sketch.id;
+    const activeTab = S.curId === originalId ? S.curTab : 0;
+    if (S.curId === originalId && Ed.ta && localCopy.files[activeTab]) {
+      localCopy.files[activeTab].content = Ed.ta.value;
+      localCopy.board = Boards.currentId();
+    }
+    localCopy.id = uid();
+    localCopy.name = (localCopy.name + ' (競合コピー)').slice(0, 120);
+    localCopy.revision = 0;
+    const index = S.sketches.findIndex(item => item.id === originalId);
+    if (index >= 0) S.sketches[index] = remote;
+    Object.assign(sketch, remote);
+    if (!S.sketches.some(item => item.id === localCopy.id)) S.sketches.unshift(localCopy);
+    await IDB.put(S.db, remote, false);
+    await IDB.put(S.db, localCopy, false);
+    const result = await this.request('/account/sketches/' + encodeURIComponent(localCopy.id), 'PUT',
+      {sketch:localCopy,revision:0});
+    localCopy.revision = result.revision;
+    await IDB.put(S.db, localCopy, false);
+    if (S.curId === originalId && Ed.ta) {
+      S.curId = localCopy.id;
+      S.curTab = Math.min(activeTab, localCopy.files.length - 1);
+      Sk.open(localCopy.id);
+    }
+    for (const key of Array.from(S.dirty)) {
+      if (key.startsWith(originalId + ':')) S.dirty.delete(key);
+    }
+    S.saveFailed = false;
+    updateAutosaveIndicator();
+    Sk.renderList();
+    toast('別の端末で更新されていたため、サーバー版を復元し、今回の変更を「競合コピー」として保存しました', 'warn', 9000);
+  },
+  async deleteSketch(id, revision) {
+    if (!S.account.user || this.loading || S.account.user.mustChangePassword) return;
+    await this.request('/account/sketches/' + encodeURIComponent(id) + '?revision=' + encodeURIComponent(revision || 0), 'DELETE');
+  },
+  async synchronize() {
+    if (!S.account.user || S.account.syncing) return;
+    S.account.syncing = true;
+    try {
+      const data = await this.request('/account/sketches');
+      const remoteById = new Map(data.sketches.map(sk => [sk.id, sk]));
+      const local = await IDB.getAll(S.db);
+      const localById = new Map(local.map(sk => [sk.id, sk]));
+      for (const remote of data.sketches) {
+        const existing = localById.get(remote.id);
+        if (!existing) {
+          await IDB.put(S.db, remote, false);
+          continue;
+        }
+        const same = JSON.stringify([existing.name,existing.files,existing.board]) ===
+          JSON.stringify([remote.name,remote.files,remote.board]);
+        if (same) {
+          existing.revision = remote.revision;
+          existing.checked = remote.checked;
+          existing.teacherComment = remote.teacherComment;
+          await IDB.put(S.db, existing, false);
+        } else {
+          await this.resolveConflict(existing);
+        }
+      }
+      for (const existing of local) {
+        if (!remoteById.has(existing.id)) {
+          try { await this.saveSketch(existing, true); }
+          catch (err) {
+            if (err.status !== 409) throw err;
+            await this.resolveConflict(existing);
+          }
+        }
+      }
+      S.sketches = await IDB.getAll(S.db);
+      S.sketches.sort((a,b) => b.updatedAt - a.updatedAt);
+      await this.renderFeedback();
+      Sk.renderList();
+      if (Ed.ta && S.sketches.length && !S.sketches.some(sketch => sketch.id === S.curId)) {
+        Sk.open(S.sketches[0].id);
+      }
+      const who = S.account.user.name || S.account.user.username;
+      document.getElementById('account-status').textContent = `${who} としてログイン中。作品はこのアカウントに同期されます。`;
+      return true;
+    } finally { S.account.syncing = false; }
+  },
+  async enter(token, user) {
+    if (user.role !== 'student') {
+      try { await this.request('/account/logout', 'POST', {}, token); } catch (_) {}
+      throw this.error('生徒アカウントでログインしてください。先生は /teacher を利用してください');
+    }
+    if (S.dirty.size) await Sk.saveAll();
+    S.account.token = token;
+    S.account.user = user;
+    S.sketches = [];
+    S.curId = null;
+    S.dirty.clear();
+    sessionStorage.setItem(this.key, token);
+    document.getElementById('account-login-form').hidden = true;
+    document.getElementById('account-logged-in').hidden = false;
+    document.getElementById('account-user-label').textContent = `${user.name} (${user.username})`;
+    document.getElementById('account-force-password').hidden = !user.mustChangePassword;
+    const previousDb = S.db;
+    S.account.loading = true;
+    try {
+      S.db = await IDB.open('ArduinoWebIDE_account_' + user.id + '_' + (user.classId || 'default'));
+      if (!user.mustChangePassword) await this.synchronize();
+    } catch (err) {
+      S.account.token = '';
+      S.account.user = null;
+      sessionStorage.removeItem(this.key);
+      if (S.db && S.db !== previousDb) S.db.close();
+      S.db = previousDb;
+      throw err;
+    } finally { S.account.loading = false; }
+    if (Ed.ta && !user.mustChangePassword && !S.sketches.length) {
+      await Sk.create('sketch_' + new Date().toISOString().slice(0,10).replace(/-/g,''), 'basic');
+    }
+  },
+  async restore() {
+    const token = sessionStorage.getItem(this.key);
+    if (!token) return false;
+    try {
+      const data = await this.request('/account/me', 'GET', null, token);
+      await this.enter(token, data.user);
+      return true;
+    } catch (err) {
+      sessionStorage.removeItem(this.key);
+      S.account.token = '';
+      S.account.user = null;
+      toast('アカウントを復元できませんでした: ' + err.message, 'warn', 8000);
+      return false;
+    }
+  },
+  async importLocal() {
+    if (!S.account.user) return;
+    const local = await IDB.getAll(S.localDb);
+    if (!local.length) { toast('このブラウザーに取り込める未登録作品はありません', 'info'); return; }
+    if (!confirm(`このブラウザーの未登録作品 ${local.length} 件を ${S.account.user.name} のアカウントに取り込みますか？`)) return;
+    S.account.syncing = true;
+    try {
+      const remotes = await this.request('/account/sketches');
+      const remoteIds = new Set(remotes.sketches.map(sk => sk.id));
+      for (const item of local) {
+        let sketch = JSON.parse(JSON.stringify(item));
+        if (remoteIds.has(sketch.id)) {
+          sketch.id = uid();
+          sketch.name = (sketch.name + ' (取り込み)').slice(0, 120);
+        }
+        sketch.revision = 0;
+        const result = await this.request('/account/sketches/' + encodeURIComponent(sketch.id), 'PUT',
+          {sketch,revision:0});
+        sketch.revision = result.revision;
+        await IDB.put(S.db, sketch, false);
+      }
+      S.sketches = await IDB.getAll(S.db);
+      Sk.renderList();
+      if (S.sketches.length) Sk.open(S.sketches[0].id);
+      await this.renderFeedback();
+      toast(`${local.length} 件をアカウントに取り込みました`, 'ok');
+    } catch (err) { toast('取り込みに失敗しました: ' + err.message, 'err', 9000); }
+    finally { S.account.syncing = false; }
+  },
+  async logout() {
+    if (!S.account.user) return;
+    await Sk.saveAll();
+    try { await this.request('/account/logout', 'POST', {}); } catch (err) { console.warn('Account logout request failed:', err); }
+    sessionStorage.removeItem(this.key);
+    S.account.token = ''; S.account.user = null;
+    const db = S.db;
+    S.db = S.localDb;
+    if (db && db !== S.localDb) db.close();
+    S.sketches = await IDB.getAll(S.localDb);
+    S.sketches.sort((a,b)=>b.updatedAt-a.updatedAt);
+    S.curId = null;
+    S.dirty.clear();
+    document.getElementById('account-login-form').hidden = false;
+    document.getElementById('account-logged-in').hidden = true;
+    document.getElementById('account-force-password').hidden = true;
+    document.getElementById('account-status').textContent = 'ログアウトしました。アカウントの作品はサーバーに保存されています。';
+    if (S.sketches.length) Sk.open(S.sketches[0].id); else await Sk.create('sketch_' + Date.now(), 'basic');
+    Sk.renderList();
   },
 };
 
@@ -5844,6 +6133,64 @@ function initEvents() {
     Cfg.save();
   });
   document.getElementById('settings-open-btn').addEventListener('click', () => { Cfg.applyToUI(); openModal('m-settings'); });
+  document.getElementById('account-open-btn').addEventListener('click', () => {
+    document.getElementById('account-login-form').hidden = !!S.account.user;
+    document.getElementById('account-logged-in').hidden = !S.account.user;
+    if (S.account.user) {
+      document.getElementById('account-user-label').textContent = `${S.account.user.name} (${S.account.user.username})`;
+      document.getElementById('account-force-password').hidden = !S.account.user.mustChangePassword;
+      document.getElementById('account-status').textContent = S.account.user.mustChangePassword
+        ? '初回ログインです。まずパスワードを変更してください。'
+        : 'ログイン中。作品は自動で同期されます。';
+    }
+    openModal('m-account');
+  });
+  document.getElementById('account-login-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const username = document.getElementById('account-username').value.trim();
+    const password = document.getElementById('account-password').value;
+    const status = document.getElementById('account-status');
+    status.textContent = 'ログインしています…';
+    try {
+      const result = await Account.request('/account/login', 'POST', { username, password }, '');
+      await Account.enter(result.token, result.user);
+      document.getElementById('account-current-password').value = result.user.mustChangePassword ? password : '';
+      document.getElementById('account-password').value = '';
+      status.textContent = result.user.mustChangePassword
+        ? '初回ログインです。続行前にパスワードを変更してください。'
+        : `${result.user.name} としてログインしました。作品を同期しました。`;
+      Sk.renderList();
+    } catch (err) {
+      document.getElementById('account-login-form').hidden = false;
+      document.getElementById('account-logged-in').hidden = true;
+      status.textContent = err.message;
+      status.setAttribute('role', 'alert');
+    }
+  });
+  document.getElementById('account-change-password').addEventListener('click', async () => {
+    const currentPassword = document.getElementById('account-current-password').value || document.getElementById('account-password').value;
+    const newPassword = document.getElementById('account-new-password').value;
+    try {
+      await Account.request('/account/password', 'POST', { currentPassword, newPassword });
+      S.account.user.mustChangePassword = false;
+      document.getElementById('account-force-password').hidden = true;
+      document.getElementById('account-new-password').value = '';
+      document.getElementById('account-current-password').value = '';
+      await Account.synchronize();
+      if (!S.sketches.length) await Sk.create('sketch_' + new Date().toISOString().slice(0,10).replace(/-/g,''), 'basic');
+      document.getElementById('account-status').textContent = 'パスワードを変更し、作品を同期しました。';
+      toast('パスワードを変更しました', 'ok');
+    } catch (err) { document.getElementById('account-status').textContent = err.message; }
+  });
+  document.getElementById('account-import-local').addEventListener('click', () => Account.importLocal());
+  document.getElementById('account-sync-now').addEventListener('click', async () => {
+    try { await Sk.saveAll(); await Account.synchronize(); toast('同期しました', 'ok'); }
+    catch (err) { toast('同期に失敗しました: ' + err.message, 'err'); }
+  });
+  document.getElementById('account-logout').addEventListener('click', async () => {
+    try { await Account.logout(); closeModal('m-account'); }
+    catch (err) { toast('ログアウト前の保存に失敗しました。接続を確認してください: ' + err.message, 'err', 9000); }
+  });
   document.getElementById('help-open-btn').addEventListener('click', () => openModal('m-help'));
   document.getElementById('board-select').addEventListener('change', e => {
     const sk = Sk.cur();
@@ -6305,6 +6652,8 @@ async function boot_internal() {
     updateLoadMessage('データベースを開いています...');
     try { S.db = await IDB.open(); }
     catch (dbErr) { S.db = null; console.warn('IndexedDB unavailable:', dbErr); }
+    S.localDb = S.db;
+    S.localDb = S.db;
 
     updateLoadMessage('設定を読み込んでいます...');
     await Cfg.load();
@@ -6312,6 +6661,7 @@ async function boot_internal() {
     await Cfg.loadPublicHelperConfig();
 
     updateLoadMessage('スケッチを読み込んでいます...');
+    await Account.restore();
     S.sketches = await IDB.getAll(S.db);
     S.sketches.sort((a,b) => b.updatedAt - a.updatedAt);
 

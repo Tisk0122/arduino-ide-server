@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>先生用クラス管理 | Arduino Web IDE</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#17212b;background:#f3f6f8;font-size:15px}
+    *{box-sizing:border-box}body{margin:0}button,input,select,textarea{font:inherit}
+    header{background:#123d47;color:white;padding:16px max(20px,calc((100% - 1200px)/2));display:flex;align-items:center;justify-content:space-between;gap:16px}
+    h1{font-size:20px;margin:0}main{max-width:1200px;margin:24px auto;padding:0 18px}
+    .card{background:#fff;border:1px solid #d9e1e5;border-radius:12px;padding:18px;margin-bottom:16px;box-shadow:0 2px 8px #152d3810}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.grow{flex:1}label{display:block;font-weight:650;margin:9px 0 5px}
+    input,select,textarea{border:1px solid #bccbd1;border-radius:7px;padding:9px 10px;background:#fff;color:inherit}
+    input:focus,select:focus,textarea:focus{outline:2px solid #48a9a0;outline-offset:1px}
+    button{border:0;border-radius:7px;padding:9px 13px;background:#147d78;color:#fff;font-weight:650;cursor:pointer}
+    button.secondary{background:#e5edf0;color:#19333d}button.danger{background:#a93333}button:disabled{opacity:.5;cursor:default}
+    textarea{width:100%;min-height:180px;resize:vertical;font-family:ui-monospace,Consolas,monospace}
+    pre{white-space:pre-wrap;overflow:auto;max-height:52vh;background:#14232b;color:#e5f3f4;border-radius:8px;padding:14px;font:13px/1.55 ui-monospace,Consolas,monospace}
+    .hidden{display:none!important}.muted{color:#5a6b73}.error{color:#a32020;white-space:pre-wrap}.success{color:#176c42}
+    .list{display:grid;gap:8px}.item{border:1px solid #dce4e7;border-radius:8px;padding:11px;display:flex;gap:10px;align-items:center;justify-content:space-between}
+    .item.active{border-color:#147d78;background:#f1fbfa}.stack{display:grid;gap:12px}.grid{display:grid;grid-template-columns:minmax(220px, .8fr) minmax(350px, 1.5fr);gap:16px}
+    .pill{display:inline-block;border-radius:99px;padding:2px 8px;background:#e5edf0;font-size:12px}
+    #message{position:sticky;top:8px;z-index:2}.credentials{background:#fff8d8;border:1px solid #ddcb70;padding:12px;border-radius:8px;white-space:pre-wrap}
+    @media(max-width:760px){.grid{grid-template-columns:1fr}header{padding:14px 18px}main{margin:15px auto}}
+  </style>
+</head>
+<body>
+<header><h1>Arduino Web IDE — 先生用クラス管理</h1><div class="row"><span id="signed-in"></span><button id="logout" class="secondary hidden">ログアウト</button></div></header>
+<main>
+  <div id="message" role="status"></div>
+  <section id="login" class="card">
+    <h2>先生ログイン</h2>
+    <p class="muted">アカウントはサーバー管理者が事前に作成します。</p>
+    <form id="login-form" class="row"><input name="username" autocomplete="username" placeholder="ユーザー名" required>
+      <input name="password" type="password" autocomplete="current-password" placeholder="パスワード" required>
+      <button>ログイン</button></form>
+  </section>
+  <section id="password-card" class="card hidden">
+    <h2>パスワード変更が必要です</h2>
+    <form id="password-form" class="row"><input name="current" type="password" autocomplete="current-password" placeholder="現在のパスワード" required>
+      <input name="next" type="password" autocomplete="new-password" minlength="10" placeholder="新しいパスワード (10文字以上)" required><button>変更</button></form>
+  </section>
+  <div id="app" class="hidden">
+    <section class="card">
+      <h2>クラス・年度</h2>
+      <form id="class-form" class="row"><input name="name" placeholder="クラス名 (例: 1年A組)" maxlength="80" required>
+        <input name="year" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="年度 (例: 2026)" required>
+        <button>クラスを作成</button></form>
+      <div id="classes" class="list" style="margin-top:12px"></div>
+    </section>
+    <div class="grid">
+      <section class="card">
+        <h2>生徒</h2>
+        <label for="roster">生徒ID一覧CSVを一括登録</label>
+        <p class="muted">UTF-8 CSV。列は <code>grade,class,number</code>（任意で <code>previous_id</code>）。例: <code>1,D,24</code> → 生徒ID <code>010424</code>。氏名は登録しません。IDは規則から推測できるため、パスワードも安全に配布してください。前年度IDを指定したアカウントの引き継ぎには、前年度クラスのアーカイブと作品消去が必要です。</p>
+        <div class="row"><select id="import-class" aria-label="登録先クラス"></select><input id="csv-file" type="file" accept=".csv,text/csv"></div>
+        <button id="import-btn" class="secondary" style="margin-top:8px">生徒IDを登録する</button>
+        <div id="credentials" class="credentials hidden" style="margin-top:10px"></div>
+        <button id="download-credentials" class="secondary hidden" style="margin-top:8px">初回パスワード一覧をダウンロード</button>
+        <hr style="border:0;border-top:1px solid #e1e7e9;margin:18px 0">
+        <div id="students" class="list"></div>
+        <div id="student-actions" class="row hidden" style="margin-top:10px">
+          <button id="reset-password" class="secondary">仮パスワードを再発行</button>
+          <button id="toggle-student" class="secondary"></button>
+        </div>
+      </section>
+      <section class="card">
+        <h2>作品の確認・編集</h2>
+        <p id="work-hint" class="muted">クラス、生徒、作品の順に選んでください。</p>
+        <div id="works" class="list"></div>
+        <div id="review" class="hidden stack" style="margin-top:14px">
+          <div class="row"><strong id="work-title" class="grow"></strong><span id="work-revision" class="pill"></span></div>
+          <div class="row"><label for="version-select">過去の版</label><select id="version-select" class="grow"></select><button id="restore-version" class="secondary">選択した版に戻す</button></div>
+          <label for="file-select">編集するファイル</label><select id="file-select"></select>
+          <label for="code">コード（先生による編集は履歴に記録されます）</label>
+          <textarea id="code" spellcheck="false" aria-label="スケッチコード"></textarea>
+          <div class="row"><button id="save-code">コードを保存</button><button id="check-code" class="secondary"></button></div>
+          <label for="teacher-comment">確認コメント</label><textarea id="teacher-comment" style="min-height:90px"></textarea>
+          <button id="save-review" class="secondary">確認状態とコメントを保存</button>
+          <label for="comment">生徒へのコメント</label>
+          <div class="row"><input id="comment" class="grow" maxlength="4000" placeholder="返信・補足を入力"><button id="post-comment">コメントを追加</button></div>
+          <div id="comments" class="list"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const sessionKey = 'arduino_helper_account_session';
+let token = sessionStorage.getItem(sessionKey) || '';
+let currentUser = null, selectedClass = null, selectedStudent = null, selectedSketch = null, selectedStudentData = null, openSketchData = null;
+let currentRevision = 0, checked = false;
+let credentialCsv = '';
+const csvCell = value => '"' + String(value).replace(/"/g,'""') + '"';
+function message(text, type='') { $('message').className = type; $('message').textContent = text; }
+async function api(path, method='GET', body) {
+  const response = await fetch(path, {method, headers:{...(body ? {'Content-Type':'application/json'} : {}), ...(token ? {Authorization:'Session '+token} : {})},
+    body:body ? JSON.stringify(body) : undefined, cache:'no-store'});
+  let data = {};
+  try { data = await response.json(); } catch (_) {}
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  return data;
+}
+function showLoggedIn() {
+  $('login').classList.toggle('hidden', !!currentUser);
+  $('app').classList.toggle('hidden', !currentUser || currentUser.mustChangePassword);
+  $('password-card').classList.toggle('hidden', !currentUser || !currentUser.mustChangePassword);
+  $('logout').classList.toggle('hidden', !currentUser);
+  $('signed-in').textContent = currentUser ? `${currentUser.name} (先生)` : '';
+}
+function safeText(element, text) { element.textContent = text == null ? '' : String(text); }
+async function loadClasses() {
+  const data = await api('/teacher/api/classes');
+  $('classes').replaceChildren(); $('import-class').replaceChildren();
+  data.classes.forEach(c => {
+    const item = document.createElement('div'); item.className = 'item'+(selectedClass===c.id?' active':'');
+    const summary = document.createElement('span'); summary.textContent = `${c.school_year}年度 ${c.name} — ${c.students}人 / ${c.sketches}作品${c.archived?' (アーカイブ)':''}`;
+    const actions = document.createElement('span'); actions.className = 'row';
+    const choose = document.createElement('button'); choose.textContent = '開く'; choose.disabled = !!c.archived;
+    choose.onclick = () => { selectedClass=c.id; selectedStudent=null; selectedSketch=null; loadClasses(); loadStudents(); };
+    actions.append(choose);
+    const exportButton = document.createElement('button'); exportButton.className='secondary'; exportButton.textContent='作品を書き出す';
+    exportButton.onclick = async () => { try { const data=await api(`/teacher/api/classes/${c.id}/export`); const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const link=document.createElement('a'); link.href=URL.createObjectURL(blob); link.download=`${c.school_year}-${c.name}-作品.json`; link.click(); setTimeout(()=>URL.revokeObjectURL(link.href),1000); } catch(e){message(e.message,'error');} };
+    actions.append(exportButton);
+    if (!c.archived) {
+      const archive = document.createElement('button'); archive.className='secondary'; archive.textContent='年度をアーカイブ';
+      archive.onclick = async () => { if (!confirm(`${c.school_year}年度 ${c.name} をアーカイブしますか？作品は削除されません。`)) return; try { await api(`/teacher/api/classes/${c.id}/archive`,'POST',{}); await loadClasses(); } catch(e){message(e.message,'error');} };
+      actions.append(archive);
+    }
+    const clear = document.createElement('button'); clear.className='danger'; clear.textContent='作品を消去';
+    clear.disabled=!c.archived; clear.title=c.archived?'作品を完全削除します。':'先に年度をアーカイブしてください。';
+    clear.onclick = async () => { const phrase=`CLEAR ${c.name} ${c.school_year}`; const answer=prompt(`生徒アカウントは残し、クラス全員の作品とコメントを完全削除します。\n実行するには次を入力してください:\n${phrase}`); if(answer!==phrase)return; try { await api(`/teacher/api/classes/${c.id}/clear`,'POST',{confirm:answer}); message('作品とコメントを削除しました','success'); await loadClasses(); if(selectedClass===c.id)await loadStudents(); } catch(e){message(e.message,'error');} };
+    actions.append(clear);
+    item.append(summary,actions); $('classes').append(item);
+    if (!c.archived) { const option=document.createElement('option'); option.value=c.id; option.textContent=`${c.school_year}年度 ${c.name}`; $('import-class').append(option); }
+  });
+  if (selectedClass) $('import-class').value=selectedClass;
+}
+async function loadStudents() {
+  $('students').replaceChildren(); $('works').replaceChildren(); $('review').classList.add('hidden');
+  if (!selectedClass) return;
+  const data=await api(`/teacher/api/classes/${selectedClass}/students`);
+  selectedStudentData=data.students.find(x=>x.id===selectedStudent)||null;
+  $('student-actions').classList.toggle('hidden',!selectedStudentData);
+  if(selectedStudentData)$('toggle-student').textContent=selectedStudentData.active?'アカウントを停止':'アカウントを再開';
+  data.students.forEach(s=>{
+    const item=document.createElement('button'); item.className='item'+(selectedStudent===s.id?' active':'');
+    item.textContent=`${s.username} — ${s.sketch_count}作品${s.active?'':' (停止中)'}`;
+    item.onclick=async()=>{selectedStudent=s.id; selectedSketch=null; await loadStudents(); await loadWorks();};
+    $('students').append(item);
+  });
+}
+async function loadWorks() {
+  const data=await api(`/teacher/api/students/${selectedStudent}/sketches`); $('works').replaceChildren();
+  data.sketches.forEach(sk=>{
+    const item=document.createElement('button'); item.className='item'+(selectedSketch===sk.id?' active':'');
+    item.textContent=`${sk.name} — ${new Date(sk.updatedAt).toLocaleString()}${sk.checked?' — 確認済み':' — 未確認'}`;
+    item.onclick=()=>openSketch(sk); $('works').append(item);
+  });
+  if (!data.sketches.length) $('works').textContent='作品はまだありません。';
+}
+async function openSketch(sk) {
+  selectedSketch=sk.id; openSketchData=sk; currentRevision=sk.revision; checked=sk.checked;
+  $('review').classList.remove('hidden'); $('work-hint').textContent='スケッチを表示しています。';
+  $('work-title').textContent=sk.name; $('work-revision').textContent=`版 ${sk.revision}`;
+  $('file-select').replaceChildren();
+  sk.files.forEach((file,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=file.name;$('file-select').append(option);});
+  $('code').value=sk.files[0]?.content||'';
+  $('teacher-comment').value=sk.teacherComment||'';
+  $('check-code').textContent=checked?'確認済みを解除':'確認済みにする';
+  const comments=await api(`/teacher/api/students/${selectedStudent}/sketches/${selectedSketch}/comments`);
+  $('comments').replaceChildren();
+  comments.comments.forEach(c=>{const el=document.createElement('div');el.className='item';el.textContent=`${c.teacher}: ${c.body} (${new Date(c.created_at*1000).toLocaleString()})`;$('comments').append(el);});
+  const versions=await api(`/teacher/api/students/${selectedStudent}/sketches/${selectedSketch}/versions`);
+  $('version-select').replaceChildren();
+  versions.versions.forEach(v=>{const option=document.createElement('option');option.value=String(v.revision);option.textContent=`版 ${v.revision} — ${v.editor} — ${new Date(v.createdAt*1000).toLocaleString()}`;$('version-select').append(option);});
+  $('restore-version').disabled=!versions.versions.length;
+}
+function selectedClassId(){return $('import-class').value;}
+$('login-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);try{const d=await api('/account/login','POST',{username:f.get('username'),password:f.get('password')});token=d.token;sessionStorage.setItem(sessionKey,token);currentUser=d.user;if(currentUser.role!=='teacher')throw new Error('先生アカウントでログインしてください');showLoggedIn();await loadClasses();}catch(err){token='';sessionStorage.removeItem(sessionKey);currentUser=null;showLoggedIn();message(err.message,'error');}};
+$('logout').onclick=async()=>{try{await api('/account/logout','POST',{});}catch(_){}token='';sessionStorage.removeItem(sessionKey);currentUser=null;showLoggedIn();};
+$('class-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);try{const d=await api('/teacher/api/classes','POST',{name:f.get('name'),schoolYear:f.get('year')});selectedClass=d.classId;e.target.reset();await loadClasses();await loadStudents();message('クラスを作成しました','success');}catch(err){message(err.message,'error');}};
+$('import-btn').onclick=async()=>{const file=$('csv-file').files[0];if(!file)return message('生徒ID一覧CSVを選択してください','error');if(!selectedClassId())return message('先にクラスを作成してください','error');try{const csv=await file.text();const d=await api('/teacher/api/students/import','POST',{classId:selectedClassId(),csv});credentialCsv=d.credentials.map(x=>[x.studentId,x.initialPassword].map(csvCell).join(',')).join('\r\n');const lines=d.credentials.map(x=>`${x.studentId},${x.initialPassword}`).join('\n');$('credentials').textContent=(lines?'今回だけ表示される初回ログイン情報です。安全に配布してください。\nstudentId,initialPassword\n'+lines+'\n':'')+(d.reassigned.length?'前年度から引き継いだアカウント (従来のパスワードを継続):\n前年度ID → 新しい生徒ID\n'+d.reassigned.map(x=>`${x.previousId} → ${x.studentId}`).join('\n'):'');$('credentials').classList.toggle('hidden',!lines&&!d.reassigned.length);$('download-credentials').classList.toggle('hidden',!credentialCsv);message(`${d.credentials.length}人分の初回パスワードを発行、${d.reassigned.length}人のアカウントを引き継ぎました`,'success');$('csv-file').value='';await loadClasses();if(selectedClass)await loadStudents();}catch(err){message(err.message,'error');}};
+$('download-credentials').onclick=()=>{if(!credentialCsv)return;const link=document.createElement('a');link.href=URL.createObjectURL(new Blob(['\ufeffstudentId,initialPassword\n'+credentialCsv],{type:'text/csv;charset=utf-8'}));link.download='student-initial-passwords.csv';link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);credentialCsv='';$('download-credentials').classList.add('hidden');message('初回パスワード一覧をダウンロードしました。配布後はファイルを安全に削除してください。','success');};
+$('save-code').onclick=async()=>{if(!selectedSketch)return;const original=await api(`/teacher/api/students/${selectedStudent}/sketches`);const sk=original.sketches.find(x=>x.id===selectedSketch);if(!sk)return;const content=$('code').value; if(sk.files.length!==1){message('複数ファイル作品はファイル別編集に対応していません。変更は保存されません。','error');return;}sk.files[0].content=content;try{const d=await api(`/teacher/api/students/${selectedStudent}/sketches/${selectedSketch}`,'PUT',{sketch:sk,revision:currentRevision});currentRevision=d.revision;$('work-revision').textContent=`版 ${currentRevision}`;message('コードを保存し、変更履歴に記録しました','success');await loadWorks();}catch(err){message(err.message,'error');}};
+$('file-select').onchange=()=>{if(openSketchData)$('code').value=openSketchData.files[Number($('file-select').value)]?.content||'';};
+$('save-code').onclick=async()=>{if(!openSketchData)return;openSketchData.files[Number($('file-select').value)].content=$('code').value;try{const d=await api(`/teacher/api/students/${selectedStudent}/sketches/${selectedSketch}`,'PUT',{sketch:openSketchData,revision:currentRevision});currentRevision=d.revision;openSketchData.revision=currentRevision;checked=false;$('check-code').textContent='確認済みにする';$('work-revision').textContent=`版 ${currentRevision}`;message('コードを保存し、変更履歴に記録しました','success');await loadWorks();}catch(err){message(err.message,'error');}};
+$('restore-version').onclick=async()=>{const version=Number($('version-select').value);if(!version||!confirm(`版 ${version} に戻しますか？現在のコードも履歴として保存されます。`))return;try{const d=await api(`/teacher/api/students/${selectedStudent}/sketches/${selectedSketch}/versions/${version}/restore`,'POST',{revision:currentRevision});currentRevision=d.revision;const data=await api(`/teacher/api/students/${selectedStudent}/sketches`);openSketch(data.sketches.find(x=>x.id===selectedSketch));await loadWorks();message(`版 ${version} から復元しました`,'success');}catch(err){message(err.message,'error');}};
+$('reset-password').onclick=async()=>{if(!selectedStudentData||!confirm(`${selectedStudentData.username} の仮パスワードを再発行しますか？既存セッションはすべて終了します。`))return;try{const d=await api(`/teacher/api/students/${selectedStudent}/reset-password`,'POST',{});$('credentials').textContent=`${d.username} の仮パスワード（今回のみ表示）: ${d.temporaryPassword}`;$('credentials').classList.remove('hidden');message('仮パスワードを再発行しました','success');}catch(err){message(err.message,'error');}};
+$('toggle-student').onclick=async()=>{if(!selectedStudentData)return;const active=!selectedStudentData.active;if(!confirm(`${selectedStudentData.username} のアカウントを${active?'再開':'停止'}しますか？`))return;try{await api(`/teacher/api/students/${selectedStudent}/active`,'POST',{active});await loadStudents();message(`アカウントを${active?'再開':'停止'}しました`,'success');}catch(err){message(err.message,'error');}};
+$('file-select').onchange=()=>{if(openSketchData)$('code').value=openSketchData.files[Number($('file-select').value)]?.content||'';};
+$('check-code').onclick=async()=>{checked=!checked;$('check-code').textContent=checked?'確認済みを解除':'確認済みにする';};
+$('save-review').onclick=async()=>{try{await api(`/teacher/api/students/${selectedStudent}/sketches/${selectedSketch}/review`,'PUT',{checked,comment:$('teacher-comment').value});message('確認状態とコメントを保存しました','success');await loadWorks();}catch(err){message(err.message,'error');}};
+$('post-comment').onclick=async()=>{const body=$('comment').value.trim();if(!body)return;try{await api(`/teacher/api/students/${selectedStudent}/sketches/${selectedSketch}/comments`,'POST',{body});$('comment').value='';await openSketch((await api(`/teacher/api/students/${selectedStudent}/sketches`)).sketches.find(x=>x.id===selectedSketch));}catch(err){message(err.message,'error');}};
+$('password-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);try{await api('/account/password','POST',{currentPassword:f.get('current'),newPassword:f.get('next')});currentUser.mustChangePassword=false;showLoggedIn();await loadClasses();message('パスワードを変更しました','success');}catch(err){message(err.message,'error');}};
+(async()=>{if(!token)return;try{const d=await api('/account/me');currentUser=d.user;if(currentUser.role!=='teacher')throw new Error('先生アカウントではありません');showLoggedIn();if(!currentUser.mustChangePassword)await loadClasses();}catch(e){token='';sessionStorage.removeItem(sessionKey);showLoggedIn();message(e.message,'error');}})();
+</script>
+</body>
+</html>

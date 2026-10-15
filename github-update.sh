@@ -76,6 +76,7 @@ FILES=(
   "www/index.html"
   "www/admin.html"
   "www/docs.html"
+  "www/teacher.html"
 )
 
 for f in "${FILES[@]}"; do
@@ -127,11 +128,16 @@ install -m 0644 -o root -g root \
   "$repo/www/docs.html" \
   "$APP_DIR/www/docs.html.new"
 
+install -m 0644 -o root -g root \
+  "$repo/www/teacher.html" \
+  "$APP_DIR/www/teacher.html.new"
+
 mv -f "$APP_DIR/arduino-helper.py.new" "$APP_DIR/arduino-helper.py"
 mv -f "$APP_DIR/arduino-build-run.new" "$APP_DIR/arduino-build-run"
 mv -f "$APP_DIR/www/index.html.new" "$APP_DIR/www/index.html"
 mv -f "$APP_DIR/www/admin.html.new" "$APP_DIR/www/admin.html"
 mv -f "$APP_DIR/www/docs.html.new" "$APP_DIR/www/docs.html"
+mv -f "$APP_DIR/www/teacher.html.new" "$APP_DIR/www/teacher.html"
 
 commit="$(git rev-parse --short HEAD)"
 log "ファイルを $commit に更新しました"
