@@ -1,3 +1,4 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <!DOCTYPE html>
 <html lang="ja" data-theme="dark">
 <head>
@@ -315,6 +316,42 @@ svg { display: block; flex-shrink: 0; }
 .tb-icon-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
 .tb-icon-btn svg { width: 16px; height: 16px; }
 
+/* アカウントボタン — ログイン状態表示 */
+#account-open-btn {
+  width: auto;
+  padding: 0 10px;
+  gap: 6px;
+  min-width: 34px;
+  max-width: 160px;
+}
+#account-open-btn .acct-name {
+  font-size: 11px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 110px;
+}
+#account-open-btn .acct-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--tx3);
+  flex-shrink: 0;
+  transition: background .3s;
+}
+#account-open-btn.logged-in {
+  background: rgba(52,201,122,0.18);
+  border: 1px solid rgba(52,201,122,0.35);
+  color: #fff;
+}
+#account-open-btn.logged-in .acct-dot {
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+}
+#account-open-btn.logged-in:hover {
+  background: rgba(52,201,122,0.28);
+}
+
 /* ==============================================================
    ツールバー — より洗練されたグラジエント
 ============================================================== */
@@ -429,6 +466,35 @@ svg { display: block; flex-shrink: 0; }
 .sb-new-btn:hover { background: var(--teal-lt); color: #063A3C; box-shadow: 0 0 8px rgba(14,165,168,0.4); }
 .sb-new-btn svg { width: 11px; height: 11px; }
 
+/* スケッチ検索バー */
+#sb-search-wrap {
+  padding: 6px 10px 4px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--bd0);
+}
+#sb-search {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--bd1);
+  border-radius: var(--radius);
+  padding: 5px 8px 5px 28px;
+  font-size: 12px;
+  color: var(--tx0);
+  transition: border-color .15s;
+}
+#sb-search:focus { border-color: var(--teal); box-shadow: 0 0 0 2px rgba(14,165,168,0.15); }
+#sb-search::placeholder { color: var(--tx3); }
+.sb-search-icon {
+  position: absolute;
+  left: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--tx3);
+}
+.sb-search-icon svg { width: 12px; height: 12px; }
+#sb-search-wrap { position: relative; }
+
 #sketch-list {
   flex: 1;
   overflow-y: auto;
@@ -472,6 +538,7 @@ svg { display: block; flex-shrink: 0; }
 }
 .sk-open-btn:focus-visible { outline-offset: -2px; }
 .sk-dirty { width: 6px; height: 6px; border-radius: 50%; background: var(--orange); flex-shrink: 0; }
+.sk-date { font-size: 10px; color: var(--tx3); white-space: nowrap; flex-shrink: 0; padding-right: 2px; }
 .sk-actions {
   position: absolute;
   top: 50%;
@@ -1755,7 +1822,9 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
 
   <div id="topbar-right">
     <button class="tb-icon-btn" id="account-open-btn" title="アカウントとクラウド保存" aria-label="アカウントとクラウド保存">
+      <span class="acct-dot" aria-hidden="true"></span>
       <i data-lucide="user-round" aria-hidden="true"></i>
+      <span class="acct-name" id="acct-name-label" hidden></span>
     </button>
     <button class="tb-icon-btn" id="theme-btn" title="テーマ切替" aria-label="ライトテーマに切り替え" aria-pressed="false">
       <span id="theme-icon" aria-hidden="true"><i data-lucide="sun"></i></span>
@@ -1838,6 +1907,10 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
         <i data-lucide="plus"></i>
         新規
       </button>
+    </div>
+    <div id="sb-search-wrap">
+      <span class="sb-search-icon"><i data-lucide="search" aria-hidden="true"></i></span>
+      <input type="search" id="sb-search" placeholder="スケッチを検索…" autocomplete="off" aria-label="スケッチを検索">
     </div>
     <div id="sketch-list"></div>
     <div id="sb-footer">
@@ -2225,7 +2298,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
       <p class="welcome-copy" id="usb-setup-description">まずはスケッチを作成して「検証」でコンパイルできます。サーバー接続が必要な場合は、コンパイルサーバーのURLとアクセストークンを設定してください。</p>
       <ol class="welcome-steps">
         <li><span class="welcome-step-copy"><strong>スケッチを作成・検証</strong>「新規」で作成し、「検証」でコンパイルします。</span></li>
-        <li><span class="welcome-step-copy"><strong>作品を保存・移行</strong>スケッチはこのブラウザー内に保存されます。別の端末へ移すときは「バックアップ」でZIPを書き出してください。</span></li>
+        <li><span class="welcome-step-copy"><strong>スケッチを保存・移行</strong>スケッチはこのブラウザー内に保存されます。別の端末へ移すときは「バックアップ」でZIPを書き出してください。</span></li>
       </ol>
       <section class="welcome-usb" aria-labelledby="welcome-usb-title">
         <h2 id="welcome-usb-title">USBボードを使う場合（任意）</h2>
@@ -2330,7 +2403,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
       <button class="modal-x" data-close="m-account" title="閉じる" aria-label="閉じる"><i data-lucide="x"></i></button>
     </div>
     <div class="modal-body">
-      <p class="account-status" id="account-status" role="status" aria-live="polite">アカウントを作成してログインすると、作品をサーバーに保存し、別の端末からも使えます。</p>
+      <p class="account-status" id="account-status" role="status" aria-live="polite">アカウントを作成してログインすると、スケッチをサーバーに保存し、別の端末からも使えます。</p>
       <form class="account-form" id="account-login-form" novalidate aria-labelledby="m-account-title">
         <div class="form-group" id="account-name-wrap" hidden>
           <label class="form-label" for="account-name">表示名（任意）</label>
@@ -2415,14 +2488,14 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
           </div>
         </details>
         <div class="account-session-actions">
-          <button class="btn btn-secondary" id="account-import-local" type="button">このブラウザーの未登録作品をアカウントへ取り込む</button>
+          <button class="btn btn-secondary" id="account-import-local" type="button">このブラウザーの未登録スケッチをアカウントへ取り込む</button>
           <button class="btn btn-secondary" id="account-sync-now" type="button">
             <span class="account-submit-spinner" id="account-sync-spinner" hidden aria-hidden="true"></span>
             今すぐ同期
           </button>
           <button class="btn btn-secondary" id="account-logout" type="button">ログアウト</button>
         </div>
-        <p class="form-hint">作品の変更は自動で同期します。別端末と同じ作品が競合した場合、どちらも残して確認できるようにします。共有端末では利用後にログアウトしてください。</p>
+        <p class="form-hint">スケッチの変更は自動で同期します。別の端末で同じスケッチを編集した場合、どちらも残して確認できます。共有端末では利用後にログアウトしてください。</p>
       </div>
     </div>
     <div class="modal-foot"><button class="btn btn-secondary" data-close="m-account">閉じる</button></div>
@@ -3767,20 +3840,39 @@ const Sk = {
     } catch (err) { toast('インポート失敗: ' + err.message, 'err'); }
   },
 
-  renderList() {
+  _fmtDate(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const now = new Date();
+    const diff = (now - d) / 1000;
+    if (diff < 60) return 'いま';
+    if (diff < 3600) return `${Math.floor(diff/60)}分前`;
+    if (diff < 86400) return `${Math.floor(diff/3600)}時間前`;
+    if (diff < 86400*7) return `${Math.floor(diff/86400)}日前`;
+    return `${d.getMonth()+1}/${d.getDate()}`;
+  },
+  renderList(filter) {
     const el = document.getElementById('sketch-list');
+    const q = (filter || document.getElementById('sb-search').value || '').toLowerCase();
+    const list = q ? S.sketches.filter(sk => sk.name.toLowerCase().includes(q)) : S.sketches;
     if (!S.sketches.length) {
       el.innerHTML = '<div class="sk-empty">スケッチがありません<br>「新規」ボタンで作成してください</div>';
       return;
     }
-    el.innerHTML = S.sketches.map(sk => {
+    if (!list.length) {
+      el.innerHTML = `<div class="sk-empty">「${escHtml(q)}」は見つかりません</div>`;
+      return;
+    }
+    el.innerHTML = list.map(sk => {
       const dirty = sk.files.some((_,i)=>S.dirty.has(`${sk.id}:${i}`));
       const active = sk.id === S.curId;
+      const dateStr = this._fmtDate(sk.updatedAt);
       return `<div class="sk-item${active?' active':''}" data-id="${sk.id}" role="group" aria-label="スケッチ: ${escHtml(sk.name)}">
         <button type="button" class="sk-open-btn" aria-label="スケッチを開く: ${escHtml(sk.name)}${dirty ? '、未保存の変更あり' : ''}">
           <span class="sk-icon"><i data-lucide="file-code-2" aria-hidden="true"></i></span>
           <span class="sk-name">${escHtml(sk.name)}</span>
           ${dirty ? '<span class="sk-dirty" aria-label="未保存の変更"></span>' : ''}
+          ${dateStr ? `<span class="sk-date">${dateStr}</span>` : ''}
         </button>
         <span class="sk-actions">
           <button type="button" class="sk-act-btn" data-act="rename" data-id="${sk.id}" title="名前変更" aria-label="${escHtml(sk.name)}の名前を変更">
@@ -4181,7 +4273,7 @@ const Account = {
         Sk.open(S.sketches[0].id);
       }
       const who = S.account.user.name || S.account.user.username;
-      document.getElementById('account-status').textContent = `${who} (@${S.account.user.username}) としてログイン中。作品はこのアカウントに同期されます。`;
+      document.getElementById('account-status').textContent = `${who} (@${S.account.user.username}) としてログイン中。スケッチはこのアカウントに同期されます。`;
       return true;
     } finally { S.account.syncing = false; }
   },
@@ -4199,6 +4291,7 @@ const Account = {
     document.getElementById('account-login-form').hidden = true;
     document.getElementById('account-logged-in').hidden = false;
     document.getElementById('account-user-label').textContent = `${user.name} (@${user.username})`;
+    if (typeof updateAccountBtn === 'function') updateAccountBtn();
     S.account.loading = true;
     try {
       await this.synchronize();
@@ -4212,7 +4305,7 @@ const Account = {
         throw err;
       }
       document.getElementById('account-status').textContent =
-        `ログインしましたが、作品の同期に失敗しました。ログイン状態は保持されています。${err.message}`;
+        `ログインしましたが、スケッチの同期に失敗しました。ログイン状態は保持されています。${err.message}`;
       return false;
     } finally { S.account.loading = false; }
     if (Ed.ta && !S.sketches.length) {
@@ -4244,8 +4337,8 @@ const Account = {
   async importLocal() {
     if (!S.account.user) return;
     const local = await IDB.getAll(S.localDb);
-    if (!local.length) { toast('このブラウザーに取り込める未登録作品はありません', 'info'); return; }
-    if (!confirm(`このブラウザーの未登録作品 ${local.length} 件を ${S.account.user.name} のアカウントに取り込みますか？`)) return;
+    if (!local.length) { toast('このブラウザーに取り込める未登録スケッチはありません', 'info'); return; }
+    if (!confirm(`このブラウザーの未登録スケッチ ${local.length} 件を ${S.account.user.name} のアカウントへ取り込みますか？`)) return;
     S.account.syncing = true;
     try {
       const remotes = await this.request('/account/sketches');
@@ -4265,7 +4358,7 @@ const Account = {
       S.sketches = await IDB.getAll(S.db);
       Sk.renderList();
       if (S.sketches.length) Sk.open(S.sketches[0].id);
-      toast(`${local.length} 件をアカウントに取り込みました`, 'ok');
+      toast(`${local.length} 件をアカウントへ取り込みました`, 'ok');
     } catch (err) { toast('取り込みに失敗しました: ' + err.message, 'err', 9000); }
     finally { S.account.syncing = false; }
   },
@@ -4282,6 +4375,7 @@ const Account = {
     document.getElementById('account-login-form').hidden = false;
     document.getElementById('account-logged-in').hidden = true;
     document.getElementById('account-status').textContent = message;
+    if (typeof updateAccountBtn === 'function') updateAccountBtn();
     if (S.sketches.length) Sk.open(S.sketches[0].id); else await Sk.create('sketch_' + Date.now(), 'basic');
     Sk.renderList();
   },
@@ -4289,7 +4383,7 @@ const Account = {
     if (!S.account.user) return;
     await Sk.saveAll();
     try { await this.request('/account/logout', 'POST', {}); } catch (err) { console.warn('Account logout request failed:', err); }
-    await this.clearSession('ログアウトしました。アカウントの作品はサーバーに保存されています。');
+    await this.clearSession('ログアウトしました。スケッチはサーバーに保存されています。');
   },
 };
 
@@ -6390,14 +6484,33 @@ function initEvents() {
     btn.disabled = loading;
     spinner.hidden = !loading;
   }
+  // アカウントボタンのUI状態を更新する
+  function updateAccountBtn() {
+    const btn = document.getElementById('account-open-btn');
+    const nameLabel = document.getElementById('acct-name-label');
+    if (S.account.user) {
+      const displayName = S.account.user.name || S.account.user.username;
+      btn.classList.add('logged-in');
+      btn.title = `ログイン中: ${displayName} (@${S.account.user.username})`;
+      btn.setAttribute('aria-label', `アカウント: ${displayName} (ログイン中)`);
+      nameLabel.textContent = displayName;
+      nameLabel.hidden = false;
+    } else {
+      btn.classList.remove('logged-in');
+      btn.title = 'アカウントとクラウド保存';
+      btn.setAttribute('aria-label', 'アカウントとクラウド保存 (未ログイン)');
+      nameLabel.hidden = true;
+    }
+  }
+
   document.getElementById('account-open-btn').addEventListener('click', () => {
     document.getElementById('account-login-form').hidden = !!S.account.user;
     document.getElementById('account-logged-in').hidden = !S.account.user;
     if (S.account.user) {
       document.getElementById('account-user-label').textContent = `${S.account.user.name} (@${S.account.user.username})`;
-      accountStatus('ログイン中。作品は自動で同期されます。', false);
+      accountStatus('ログイン中。スケッチは自動で同期されます。', false);
     } else {
-      accountStatus('アカウントを作成してログインすると、作品をサーバーに保存し、別の端末からも使えます。', false);
+      accountStatus('アカウントを作成してログインすると、スケッチをサーバーに保存し、別の端末からも使えます。', false);
     }
     openModal('m-account');
   });
@@ -6465,7 +6578,7 @@ function initEvents() {
       pwStrength.hidden = true; pwStrength.setAttribute('aria-hidden','true');
       setAccountMode(false);
       if (synchronized) {
-        accountStatus(`${result.user.name} としてログインしました。作品を同期しました。`, false);
+        accountStatus(`${result.user.name} としてログインしました。スケッチを同期しました。`, false);
       }
       Sk.renderList();
     } catch (err) {
@@ -6571,6 +6684,12 @@ function initEvents() {
     setHelperStatus(S.helper.ok ? (S.helper.authed ? 'ok' : 'warn') : 'pending',
       S.helper.ok ? (S.helper.authed ? '接続OK' + (S.helper.admin ? ' (管理者)' : ' (IDE用)') : 'トークン不正') : '未確認');
     openModal('m-helper');
+  });
+
+  // スケッチ検索フィルター
+  document.getElementById('sb-search').addEventListener('input', () => {
+    Sk.renderList();
+    renderLucideIcons(document.getElementById('sketch-list'));
   });
 
   // スケッチリスト(委譲)
@@ -7024,6 +7143,7 @@ async function boot_internal() {
 
     updateLoadMessage('イベントを設定しています...');
     initEvents();
+    updateAccountBtn();
     BoardUI.init();
     LibUI.init();
     Flash.init();
@@ -7206,3 +7326,5 @@ new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(fu
 </body>
 </html>
 <!-- webhook test -->
+
+</body></html>
