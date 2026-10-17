@@ -54,12 +54,38 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--teal-link); out
 .brand { color: #fff; font-weight: 700; text-decoration: none; }
 .top-actions { display: flex; align-items: center; gap: 12px; }
 .top-actions a { color: #d5ffff; text-underline-offset: 3px; }
-.theme-button { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 0; border-radius: 5px; color: rgba(255,255,255,.6); background: transparent; cursor: pointer; transition: background .15s, color .15s; }
-.theme-button:hover { background: rgba(255,255,255,.12); color: #fff; }
-.theme-button svg { width: 16px; height: 16px; }
-.theme-button .icon-moon { display: none; }
-[data-theme="light"] .theme-button .icon-sun { display: none; }
-[data-theme="light"] .theme-button .icon-moon { display: block; }
+.theme-button {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 999px;
+  background: rgba(0,0,0,.32);
+  color: #fff;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.theme-button::before {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #66747c;
+  content: "";
+  transition: transform .18s ease, background .18s ease;
+}
+[data-theme="dark"] .theme-button::before { transform: translateX(18px); background: #45545c; }
+.theme-button:hover { background: rgba(0,0,0,.48); }
+.theme-button:focus-visible { outline-color: var(--teal); }
+.theme-button svg { position: absolute; top: 4px; width: 12px; height: 12px; }
+.theme-button .icon-sun { left: 4px; display: none; }
+.theme-button .icon-moon { right: 4px; display: block; }
+[data-theme="light"] .theme-button .icon-sun { display: block; }
+[data-theme="light"] .theme-button .icon-moon { display: none; }
 .layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 48px; width: min(1180px, calc(100% - 40px)); margin: 36px auto 80px; }
 .toc { position: sticky; top: 88px; align-self: start; max-height: calc(100vh - 110px); overflow: auto; padding: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
 .toc h2 { margin: 0 0 10px; font-size: 14px; }
@@ -145,30 +171,93 @@ body {
 }
 .topbar {
   min-height: 62px;
-  padding: 0 max(24px, calc((100vw - 1280px) / 2));
+  display: grid;
+  grid-template-columns: 220px minmax(220px, 1fr) auto;
+  gap: 28px;
+  padding: 0 max(28px, calc((100vw - 1440px) / 2));
   background: rgba(8, 15, 22, .84);
   border-bottom-color: var(--border);
   backdrop-filter: blur(16px);
 }
-[data-theme="light"] .topbar { background: rgba(255, 255, 255, .88); color: #142331; }
+[data-theme="light"] .topbar { background: rgba(248, 251, 253, .92); color: #142331; }
 [data-theme="light"] .brand { color: #142331; }
 [data-theme="light"] .top-actions a { color: #087f7c; }
 [data-theme="light"] .theme-button { color: #52677f; }
-.brand { letter-spacing: -.02em; }
+.brand { display: flex; align-items: center; gap: 10px; letter-spacing: -.02em; }
+.brand-mark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(112, 238, 226, .3);
+  border-radius: 9px;
+  background: linear-gradient(145deg, rgba(65, 217, 207, .23), rgba(65, 217, 207, .06));
+  color: var(--teal-link);
+  font: 700 11px/1 Consolas, monospace;
+  letter-spacing: -.06em;
+}
+.brand-copy { display: grid; gap: 1px; }
+.brand-copy strong { font-size: 13px; }
+.brand-copy small { color: var(--subtle); font-size: 9px; font-weight: 700; letter-spacing: .15em; }
+.search-wrap { position: relative; width: min(100%, 690px); justify-self: center; }
+.search-box {
+  display: flex;
+  height: 38px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--subtle);
+  transition: border-color .16s ease, box-shadow .16s ease;
+}
+.search-box:focus-within { border-color: rgba(65, 217, 207, .55); box-shadow: 0 0 0 3px rgba(65, 217, 207, .1); }
+.search-box svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.search-box input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; }
+.search-box input::placeholder { color: var(--subtle); }
+.search-box kbd { min-width: 22px; padding: 2px 5px; color: var(--subtle); text-align: center; }
+.search-results {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  left: 0;
+  z-index: 5;
+  max-height: min(60vh, 420px);
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .35);
+}
+.search-result {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+}
+.search-result:hover, .search-result:focus-visible { background: var(--surface-raised); text-decoration: none; }
+.search-result strong { color: var(--teal-link); font-size: 13px; }
+.search-result span { overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.search-empty { padding: 14px 12px; color: var(--muted); font-size: 13px; }
 .top-actions a { font-size: 14px; font-weight: 650; }
-.theme-button { width: 38px; height: 38px; border: 1px solid var(--border); border-radius: 11px; }
 .layout {
-  grid-template-columns: 248px minmax(0, 1fr);
-  gap: clamp(28px, 5vw, 72px);
-  width: min(1240px, calc(100% - 48px));
-  margin: 48px auto 96px;
+  grid-template-columns: 216px minmax(0, 780px) 190px;
+  justify-content: center;
+  gap: clamp(24px, 3vw, 46px);
+  width: min(1440px, calc(100% - 56px));
+  margin: 32px auto 96px;
 }
 .toc {
-  top: 82px;
-  padding: 20px 14px;
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--surface) 90%, transparent);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, .12);
+  top: 86px;
+  padding: 16px 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 .toc h2 { padding: 0 10px 12px; border: 0; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--subtle); }
 .toc ul { display: grid; gap: 4px; padding: 0; list-style: none; }
@@ -183,7 +272,15 @@ body {
   transition: background .18s ease, color .18s ease, transform .18s ease;
 }
 .toc a:hover, .toc a[aria-current="location"] { transform: translateX(2px); background: var(--note-bg); color: var(--teal-link); }
-main { max-width: 850px; }
+main { max-width: 780px; }
+.page-nav { position: sticky; top: 86px; align-self: start; max-height: calc(100vh - 110px); overflow: auto; padding: 14px 0 14px 14px; border-left: 1px solid var(--border); }
+.page-nav h2 { margin: 0 0 12px; padding: 0; border: 0; color: var(--subtle); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; }
+.page-nav h2::before { display: none; }
+.page-nav ol { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.page-nav li { margin: 0; }
+.page-nav a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--muted); font-size: 11px; line-height: 1.5; text-decoration: none; }
+.page-nav a.sub-link { padding-left: 17px; color: var(--subtle); font-size: 10px; }
+.page-nav a:hover, .page-nav a[aria-current="location"] { background: var(--note-bg); color: var(--teal-link); }
 .hero {
   position: relative;
   overflow: hidden;
@@ -239,23 +336,30 @@ summary::marker { color: var(--teal); }
 .footer { margin-top: 32px; padding: 22px 4px 0; }
 @media (max-width: 900px) {
   html { scroll-padding-top: 138px; }
-  .layout { grid-template-columns: minmax(0, 1fr); gap: 20px; width: min(850px, calc(100% - 32px)); margin-top: 24px; }
-  .toc { position: sticky; top: 62px; z-index: 2; max-height: none; padding: 10px 12px; }
+  .topbar { grid-template-columns: 190px minmax(180px, 1fr) auto; gap: 16px; }
+  .layout { grid-template-columns: 200px minmax(0, 1fr); gap: 20px; width: min(1000px, calc(100% - 32px)); margin-top: 24px; }
+  .page-nav { display: none; }
+  .toc { top: 82px; max-height: calc(100vh - 100px); padding: 10px 8px; }
   .toc h2 { padding: 0 6px 6px; }
-  .toc ul { display: flex; overflow-x: auto; gap: 4px; padding-bottom: 2px; scrollbar-width: thin; }
-  .toc li { flex: 0 0 auto; }
-  .toc a { white-space: nowrap; }
-  main { max-width: none; }
+  .toc ul { display: grid; }
+  main { max-width: 780px; }
   section { scroll-margin-top: 138px; }
 }
 @media (max-width: 600px) {
   html { scroll-padding-top: 116px; }
   body { font-size: 15px; }
-  .topbar { min-height: 56px; padding: 0 16px; }
-  .layout { width: calc(100% - 24px); margin: 12px auto 48px; gap: 12px; }
-  .toc { top: 56px; padding: 8px; border-radius: 12px; }
+  .topbar { min-height: 58px; grid-template-columns: 1fr auto; gap: 8px 12px; padding: 8px 14px; }
+  .brand-mark { width: 30px; height: 30px; }
+  .search-wrap { grid-column: 1 / -1; grid-row: 2; width: 100%; }
+  .top-actions { grid-column: 2; grid-row: 1; gap: 9px; }
+  .top-actions a { font-size: 12px; }
+  .layout { grid-template-columns: minmax(0, 1fr); width: calc(100% - 20px); margin: 10px auto 48px; gap: 10px; }
+  .toc { position: sticky; top: 104px; z-index: 2; max-height: none; padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: color-mix(in srgb, var(--surface) 95%, transparent); backdrop-filter: blur(14px); }
   .toc h2 { display: none; }
-  .toc a { padding: 6px 9px; font-size: 12px; }
+  .toc ul { display: flex; overflow-x: auto; gap: 3px; padding: 0 0 2px; scrollbar-width: thin; }
+  .toc li { flex: 0 0 auto; }
+  .toc a { padding: 6px 9px; font-size: 11px; white-space: nowrap; }
+  main { max-width: none; }
   .hero { margin-bottom: 14px; padding: 24px 20px; border-radius: 18px; }
   h1 { font-size: 35px; }
   .lead { font-size: 15px; }
@@ -274,6 +378,9 @@ summary::marker { color: var(--teal); }
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
 @media print {
+  .topbar, .toc, .page-nav, .search-results, .theme-button, .skip-link { display: none !important; }
+  .layout { display: block; width: 100%; margin: 0; }
+  main { max-width: none; }
   .hero, section { box-shadow: none; border-color: #bbb; }
   .hero { background: #fff; }
 }
@@ -282,9 +389,20 @@ summary::marker { color: var(--teal); }
 <body>
 <a class="skip-link" href="#main-content">本文へ移動</a>
 <header class="topbar">
-  <a class="brand" href="/">Arduino Web IDE</a>
+  <a class="brand" href="/" aria-label="Arduino Web IDEに戻る">
+    <span class="brand-mark" aria-hidden="true">IDE</span>
+    <span class="brand-copy"><strong>Arduino Web IDE</strong><small>DOCUMENTATION</small></span>
+  </a>
+  <div class="search-wrap">
+    <label class="search-box" for="docs-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+      <input id="docs-search" type="search" placeholder="このガイドを検索" autocomplete="off" aria-label="このガイドを検索" aria-controls="search-results" aria-expanded="false">
+      <kbd>/</kbd>
+    </label>
+    <div class="search-results" id="search-results" role="listbox" aria-label="検索結果" hidden></div>
+  </div>
   <div class="top-actions">
-    <a href="/">IDEに戻る</a>
+    <a href="/">IDEへ戻る</a>
     <button class="theme-button" id="theme-toggle" type="button" title="ライトテーマに切り替え" aria-label="ライトテーマに切り替え" aria-pressed="false">
       <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
       <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6.5 6.5 0 0 0 8.268 8.268c.344-.215.825-.003.803.401"/></svg>
@@ -292,8 +410,8 @@ summary::marker { color: var(--teal); }
   </div>
 </header>
 <div class="layout">
-  <nav class="toc" aria-label="ページ内目次">
-    <h2>このページの内容</h2>
+  <nav class="toc" aria-label="ガイド">
+    <h2>ガイド</h2>
     <ul>
       <li><a href="#overview">このIDEについて</a></li>
       <li><a href="#requirements">使う前に</a></li>
@@ -316,7 +434,7 @@ summary::marker { color: var(--teal); }
 
     <section id="overview">
       <h2>このIDEについて</h2>
-      <p>Arduino Web IDEは、ブラウザー上のエディターと、Arduino CLIを動かすコンパイルサーバーを組み合わせて動作します。アプリのインストールをせずにコードを編集できますが、すべての処理がブラウザーだけで完結するわけではありません。</p>
+      <p>Arduino Web IDEは、ブラウザー上のエディターと、Arduino CLIを動かすコンパイルサーバーを組み合わせて動作します。Arduino Cloud Editorとは別のサービスで、このIDEではコンパイルサーバーとブラウザーのWeb Serial APIを使います。アプリのインストールをせずにコードを編集できますが、すべての処理がブラウザーだけで完結するわけではありません。</p>
       <div class="cards">
         <article class="card">
           <h3>ブラウザーで行うこと</h3>
@@ -335,7 +453,7 @@ summary::marker { color: var(--teal); }
       <ul>
         <li>IDEを開くためのURLと、必要に応じてサービス管理者から配布されたコンパイルサーバーURL／IDE用アクセストークンを用意します。配布リンクがある場合は、それを開くと設定が入力されます。</li>
         <li>コンパイルにはコンパイルサーバーへの接続が必要です。サーバーのURLやトークンがわからない場合は、管理者に確認してください。</li>
-        <li>ボードへの直接書き込みとシリアルモニターには、Web Serial APIに対応したブラウザー（ChromeまたはEdge）と安全な接続（通常はHTTPS）が必要です。</li>
+        <li>ボードへの直接書き込みとシリアルモニターには、Web Serial APIに対応したブラウザー（ChromeまたはEdge）と安全なコンテキスト（通常はHTTPS。ローカル開発ではlocalhostも利用できます）が必要です。</li>
         <li>初回起動時に表示される「Arduino Web IDEへようこそ」で「USBポートを許可」を押し、ブラウザーの選択画面から接続中のボードを選びます。複数台使う場合は1台ずつ許可してください。一度許可したポートは、ブラウザーのサイト設定で許可を取り消すまで再利用できます。</li>
         <li>書き込み対応はボードによって異なります。IDEに「ブラウザー書き込み未対応」と表示されるボードは、コンパイル結果をダウンロードして別の書き込み方法を使います。</li>
       </ul>
@@ -354,7 +472,7 @@ summary::marker { color: var(--teal); }
         <li><strong>スケッチをバックアップする</strong><br>「バックアップ」からスケッチをZIP形式で書き出せます。別のブラウザーや端末で使う場合、ブラウザー内の保存データは自動では移行されないため、定期的なバックアップをおすすめします。</li>
       </ol>
       <div class="note">コンパイルと書き込みは別の段階です。コンパイルが成功しても、ポート選択・USB接続・書き込み対応などの理由で書き込みが失敗することがあります。</div>
-      <div class="warning"><strong>USB検出と権限について:</strong> ブラウザーのセキュリティ仕様により、ページを開いただけでUSBポートを一括許可させることはできません。初回案内のボタンを押して選択画面を開き、ポートを1台ずつ許可してください。許可はこのサイトに保存され、ブラウザーのサイト設定から取り消せます。Chrome / EdgeとHTTPSが必要です。IDEの表示はUSBの接続・切断イベントに応じて更新しますが、ブラウザーのポート選択画面はページからリアルタイム更新できません。抜き差し後に一覧が変わらない場合は、選択画面を閉じてからもう一度開いてください。IDEが表示する台数は許可済みポートの数であり、物理的に接続中の台数とは限りません。複数ポートが許可されていても、機種を識別できたボードが1種類だけならその候補を表示します。異なる複数のボードを識別した場合や、USBシリアル変換器から機種を特定できない場合は手動選択してください。候補が表示されてもスケッチのボード設定は自動変更されず、利用者が適用を選びます。自動検出はシリアル通信の自動接続や書き込みを行うものではありません。カメラ・マイクなど、このIDEに不要な権限は要求しません。</div>
+      <div class="warning"><strong>USB検出と権限について:</strong> ブラウザーのセキュリティ仕様により、ページを開いただけでUSBポートを一括許可させることはできません。初回案内のボタンを押して選択画面を開き、ポートを1台ずつ許可してください。許可はこのサイトに保存され、ブラウザーのサイト設定から取り消せます。Chrome / Edgeと安全なコンテキスト（通常はHTTPS。ローカル開発ではlocalhostも利用できます）が必要です。IDEの表示はUSBの接続・切断イベントに応じて更新しますが、ブラウザーのポート選択画面はページからリアルタイム更新できません。抜き差し後に一覧が変わらない場合は、選択画面を閉じてからもう一度開いてください。IDEが表示する台数は許可済みポートの数であり、物理的に接続中の台数とは限りません。複数ポートが許可されていても、機種を識別できたボードが1種類だけならその候補を表示します。異なる複数のボードを識別した場合や、USBシリアル変換器から機種を特定できない場合は手動選択してください。候補が表示されてもスケッチのボード設定は自動変更されず、利用者が適用を選びます。自動検出はシリアル通信の自動接続や書き込みを行うものではありません。カメラ・マイクなど、このIDEに不要な権限は要求しません。</div>
     </section>
 
     <section id="screen">
@@ -401,7 +519,7 @@ summary::marker { color: var(--teal); }
       </div>
       <h3>どこに何が保存されるか</h3>
       <ul>
-        <li><strong>スケッチとIDE設定:</strong> 現在のブラウザーのIndexedDBに保存されます。同じ端末でも、別ブラウザー・別ブラウザープロファイル・別サイトURLとは共有されません。ブラウザーのデータを消すと失われる場合があります。</li>
+        <li><strong>スケッチとIDE設定:</strong> このIDEでは現在のブラウザーのIndexedDBに保存されます。Arduino CLI / Arduino IDEでいうSketchbook（ユーザーディレクトリ）とは別の保存場所です。同じ端末でも、別ブラウザー・別ブラウザープロファイル・別サイトURLとは共有されません。ブラウザーのデータを消すと失われる場合があります。</li>
         <li><strong>アカウントにログイン中のスケッチ:</strong> アカウントのサーバー領域にも同期されます。同じアカウントでログインすると、別の端末からも利用できます。既存のブラウザー内のスケッチは、アカウント画面から取り込んだ場合に同期対象になります。</li>
         <li><strong>コンパイル処理:</strong> コンパイル時にはスケッチがコンパイルサーバーへ送信され、サーバー上の作業領域で処理されます。組織や管理者の利用ルールに従ってください。</li>
         <li><strong>ボードパッケージとライブラリ:</strong> コンパイルサーバー側で共有管理されます。個々の利用者のブラウザーだけにインストールされるものではありません。</li>
@@ -443,7 +561,7 @@ summary::marker { color: var(--teal); }
       </details>
       <details>
         <summary>コンパイルは成功するが、書き込みができない</summary>
-        <p>USBケーブルがデータ通信に対応しているか、ボードが接続されているか、書き込み対象のボードが選ばれているかを確認します。ChromeまたはEdgeでHTTPSページを開き、ポート選択ダイアログで正しい機器を選んでください。ダイアログにArduinoがない場合は、いったん閉じてUSBを挿し直してから、書き込みボタンを押して開き直します。ボードによってはブラウザーからの直接書き込みに対応していません。</p>
+        <p>USBケーブルがデータ通信に対応しているか、ボードが接続されているか、書き込み対象のボードが選ばれているかを確認します。ChromeまたはEdgeの安全なコンテキスト（通常はHTTPS。ローカル開発ではlocalhostも利用できます）で開き、ポート選択ダイアログから正しい機器を選んでください。ダイアログにArduinoがない場合は、いったん閉じてUSBを挿し直してから、書き込みボタンを押して開き直します。ボードによってはブラウザーからの直接書き込みに対応していません。</p>
         <p>AVRボードの書き込みに失敗した場合、コンソールにブラウザー情報、許可済みポートと選択ポートのUSB VID/PID、書き込みが止まった段階を記録します。コンソールを消さず、診断行とエラー全文を管理者に伝えてください。VID/PIDが取得できない、または機種を特定できないUSBシリアル変換器の場合、ブラウザーからボード機種を確定することはできません。</p>
       </details>
       <details>
@@ -471,7 +589,7 @@ summary::marker { color: var(--teal); }
         <article class="card"><h3>コンパイル</h3><p>プログラムを、選択したボードが実行できる形式へ変換する処理です。</p></article>
         <article class="card"><h3>書き込み</h3><p>コンパイルしたプログラムをUSBなどを通じてボードへ転送する処理です。</p></article>
         <article class="card"><h3>コンパイルサーバー（ヘルパー）</h3><p>Arduino CLIを動かし、コンパイルや共有パッケージ管理を行うサーバーです。</p></article>
-        <article class="card"><h3>ボードパッケージ（コア）</h3><p>特定のボード向けにコンパイルするための定義やツールの一式です。</p></article>
+        <article class="card"><h3>ボードプラットフォーム</h3><p>Arduino CLIでは、ボード定義やビルド設定、必要なツールなどを含む一式をplatformと呼びます。coreはその中の構成要素で、platformと同じ意味ではありません。このIDEの管理画面では「ボードパッケージ」と表記しています。</p></article>
         <article class="card"><h3>シリアルモニター</h3><p>USBシリアル通信を使って、ボードとの文字データの送受信を確認する画面です。</p></article>
       </div>
     </section>
@@ -481,11 +599,17 @@ summary::marker { color: var(--teal); }
       <p><a href="/">Arduino Web IDEに戻る</a></p>
     </footer>
   </main>
+    <aside class="page-nav" aria-label="このページの見出し">
+      <h2>このページ</h2>
+      <ol id="page-nav-list"></ol>
+    </aside>
 </div>
 <script>
 (function () {
   var root = document.documentElement;
   var button = document.getElementById('theme-toggle');
+  var searchInput = document.getElementById('docs-search');
+  var searchResults = document.getElementById('search-results');
   var themeStorageKey = 'arduino_ide_theme';
   var theme = 'dark';
   try {
@@ -510,6 +634,95 @@ summary::marker { color: var(--teal); }
     } catch (_) {}
   });
   var tocLinks = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var pageNavList = document.getElementById('page-nav-list');
+  var pageNavLinks = [];
+  document.querySelectorAll('main section[id]').forEach(function (section) {
+    var sectionHeading = section.querySelector('h2');
+    if (!sectionHeading) return;
+    sectionHeading.id = section.id + '-heading';
+    var item = document.createElement('li');
+    var link = document.createElement('a');
+    link.href = '#' + sectionHeading.id;
+    link.textContent = sectionHeading.textContent.trim();
+    item.appendChild(link);
+    pageNavList.appendChild(item);
+    pageNavLinks.push(link);
+    section.querySelectorAll('h3').forEach(function (heading, index) {
+      heading.id = section.id + '-topic-' + (index + 1);
+      var subItem = document.createElement('li');
+      var subLink = document.createElement('a');
+      subLink.href = '#' + heading.id;
+      subLink.className = 'sub-link';
+      subLink.textContent = heading.textContent.trim();
+      subItem.appendChild(subLink);
+      pageNavList.appendChild(subItem);
+      pageNavLinks.push(subLink);
+    });
+  });
+  function closeSearch() {
+    searchResults.hidden = true;
+    searchInput.setAttribute('aria-expanded', 'false');
+  }
+  searchInput.addEventListener('input', function () {
+    var query = searchInput.value.trim();
+    searchResults.replaceChildren();
+    if (!query) {
+      closeSearch();
+      return;
+    }
+    var normalizedQuery = query.toLocaleLowerCase();
+    var matches = Array.prototype.slice.call(document.querySelectorAll('main section[id]'))
+      .map(function (section) {
+        var content = section.textContent.replace(/\s+/g, ' ').trim();
+        var index = content.toLocaleLowerCase().indexOf(normalizedQuery);
+        return index < 0 ? null : {
+          id: section.id,
+          title: section.querySelector('h2').textContent.trim(),
+          excerpt: content.slice(Math.max(0, index - 35), index + query.length + 65)
+        };
+      })
+      .filter(Boolean)
+      .slice(0, 8);
+    if (!matches.length) {
+      var empty = document.createElement('div');
+      empty.className = 'search-empty';
+      empty.textContent = '一致する項目はありません';
+      searchResults.appendChild(empty);
+    } else {
+      matches.forEach(function (match) {
+        var link = document.createElement('a');
+        link.className = 'search-result';
+        link.href = '#' + match.id;
+        link.setAttribute('role', 'option');
+        var title = document.createElement('strong');
+        title.textContent = match.title;
+        var excerpt = document.createElement('span');
+        excerpt.textContent = match.excerpt;
+        link.appendChild(title);
+        link.appendChild(excerpt);
+        link.addEventListener('click', closeSearch);
+        searchResults.appendChild(link);
+      });
+    }
+    searchResults.hidden = false;
+    searchInput.setAttribute('aria-expanded', 'true');
+  });
+  searchInput.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') closeSearch();
+    if (event.key === 'Enter') {
+      var firstResult = searchResults.querySelector('.search-result');
+      if (firstResult) firstResult.click();
+    }
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) {
+      event.preventDefault();
+      searchInput.focus();
+    }
+  });
+  document.addEventListener('click', function (event) {
+    if (!event.target.closest('.search-wrap')) closeSearch();
+  });
   if ('IntersectionObserver' in window) {
     var sectionObserver = new IntersectionObserver(function (entries) {
       var visible = entries.filter(function (entry) { return entry.isIntersecting; })
@@ -522,6 +735,19 @@ summary::marker { color: var(--teal); }
       });
     }, { rootMargin: '-12% 0px -68% 0px', threshold: [0, .2, .5, .8] });
     document.querySelectorAll('main section[id]').forEach(function (section) { sectionObserver.observe(section); });
+    var headingObserver = new IntersectionObserver(function (entries) {
+      var visible = entries.filter(function (entry) { return entry.isIntersecting; })
+        .sort(function (a, b) { return b.intersectionRatio - a.intersectionRatio; });
+      if (!visible.length) return;
+      var currentHeading = '#' + visible[0].target.id;
+      pageNavLinks.forEach(function (link) {
+        if (link.hash === currentHeading) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+      });
+    }, { rootMargin: '-10% 0px -78% 0px', threshold: [0, .2, .5, .8] });
+    document.querySelectorAll('main section[id] h2, main section[id] h3').forEach(function (heading) {
+      headingObserver.observe(heading);
+    });
   }
   window.addEventListener('storage', function (event) {
     if (event.key === themeStorageKey && (event.newValue === 'light' || event.newValue === 'dark')) {

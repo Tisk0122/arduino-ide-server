@@ -315,6 +315,35 @@ svg { display: block; flex-shrink: 0; }
 }
 .tb-icon-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
 .tb-icon-btn svg { width: 16px; height: 16px; }
+.theme-switch {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 999px;
+  background: rgba(0,0,0,0.32);
+  color: #fff;
+  transition: background .15s, border-color .15s;
+}
+.theme-switch::before {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #66747c;
+  content: "";
+  transition: transform .18s ease, background .18s ease;
+}
+[data-theme="dark"] .theme-switch::before { transform: translateX(18px); background: #45545c; }
+.theme-switch:hover { background: rgba(0,0,0,0.48); }
+.theme-switch:focus-visible { outline-color: var(--teal-lt); }
+.theme-switch #theme-icon { position: absolute; z-index: 1; top: 4px; left: 4px; width: 12px; height: 12px; }
+.theme-switch #theme-icon svg { width: 12px; height: 12px; }
+[data-theme="dark"] .theme-switch #theme-icon { left: 23px; }
 
 /* アカウントボタン — ログイン状態表示 */
 #account-open-btn {
@@ -1916,8 +1945,8 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
       <i data-lucide="user-round" aria-hidden="true"></i>
       <span class="acct-name" id="acct-name-label" hidden></span>
     </button>
-    <button class="tb-icon-btn" id="theme-btn" title="テーマ切替" aria-label="ライトテーマに切り替え" aria-pressed="false">
-      <span id="theme-icon" aria-hidden="true"><i data-lucide="sun"></i></span>
+    <button class="tb-icon-btn theme-switch" id="theme-btn" title="ライトテーマに切り替え" aria-label="ライトテーマに切り替え" aria-pressed="false">
+      <span id="theme-icon" aria-hidden="true"><i data-lucide="moon"></i></span>
     </button>
     <button class="tb-icon-btn" id="settings-open-btn" title="設定 (Ctrl+,)" aria-label="設定を開く">
       <i data-lucide="settings" aria-hidden="true"></i>
@@ -4802,7 +4831,7 @@ const Flash = {
 
   async go() {
     if (this.busy || !this.plan || !this.plan.main) return;
-    if (!('serial' in navigator)) { toast('Web Serial API が利用できません (Chrome / Edge, HTTPS が必要)', 'err'); return; }
+    if (!('serial' in navigator)) { toast('Web Serial API が利用できません (Chrome / Edge、安全な接続が必要。通常はHTTPS、ローカルではlocalhost)', 'err'); return; }
     this.busy = true;
     const go = document.getElementById('flash-go-btn');
     go.disabled = true;
@@ -6157,7 +6186,7 @@ const Cfg = {
   applyToUI() {
     document.querySelector('html').setAttribute('data-theme', S.cfg.theme);
     const icon = document.getElementById('theme-icon');
-    setLucideIcon(icon, S.cfg.theme === 'dark' ? 'sun' : 'moon');
+    setLucideIcon(icon, S.cfg.theme === 'dark' ? 'moon' : 'sun');
     const themeButton = document.getElementById('theme-btn');
     themeButton.setAttribute('aria-label', S.cfg.theme === 'dark' ? 'ライトテーマに切り替え' : 'ダークテーマに切り替え');
     themeButton.setAttribute('aria-pressed', String(S.cfg.theme === 'light'));
@@ -7309,8 +7338,8 @@ function updateUsbSetupStatus() {
   allow.textContent = total ? '別のUSBポートも許可' : 'USBポートを許可';
   allow.disabled = !S.serial.supported;
   support.textContent = S.serial.supported
-    ? 'Web Serial API対応のChrome / EdgeとHTTPSが必要です。USBの接続・切断はIDEの表示に反映されます。ポート選択画面の一覧は自動更新できないため、抜き差し後は閉じて開き直してください。'
-    : 'このブラウザーではUSBシリアルを利用できません。Chrome / EdgeでHTTPSのページを開いてください。';
+    ? 'Web Serial API対応のChrome / Edgeと安全な接続が必要です（通常はHTTPS、ローカルではlocalhost）。USBの接続・切断はIDEの表示に反映されます。ポート選択画面の一覧は自動更新できないため、抜き差し後は閉じて開き直してください。'
+    : 'このブラウザーではUSBシリアルを利用できません。Chrome / Edgeを使用し、通常はHTTPS、ローカルではlocalhostでページを開いてください。';
 }
 
 function rememberOnboardingDismissal() {

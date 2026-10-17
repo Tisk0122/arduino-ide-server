@@ -134,21 +134,37 @@ code,.mono { font-family: var(--ff-mono); }
   flex-wrap: wrap;
 }
 .tb-spacer { flex: 1 1 auto; }
-.theme-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--radius);
-  color: rgba(255,255,255,0.6);
-  transition: background .15s, color .15s;
+.theme-switch {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 999px;
+  background: rgba(0,0,0,0.32);
+  color: #fff;
+  transition: background .15s, border-color .15s;
 }
-.theme-toggle:hover { background: rgba(255,255,255,0.12); color: #fff; }
-.theme-toggle svg { width: 16px; height: 16px; }
-.theme-toggle .icon-moon { display: none; }
-[data-theme="light"] .theme-toggle .icon-sun { display: none; }
-[data-theme="light"] .theme-toggle .icon-moon { display: block; }
+.theme-switch::before {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #66747c;
+  content: "";
+  transition: transform .18s ease, background .18s ease;
+}
+[data-theme="dark"] .theme-switch::before { transform: translateX(18px); background: #45545c; }
+.theme-switch:hover { background: rgba(0,0,0,0.48); }
+.theme-switch:focus-visible { outline-color: var(--teal-lt); }
+.theme-switch > svg { position: absolute; top: 4px; width: 12px; height: 12px; }
+.theme-switch .icon-sun { left: 4px; display: none; }
+.theme-switch .icon-moon { right: 4px; display: block; }
+[data-theme="light"] .theme-switch .icon-sun { display: block; }
+[data-theme="light"] .theme-switch .icon-moon { display: none; }
 .dot {
   display: inline-block;
   width: 8px; height: 8px;
@@ -478,8 +494,7 @@ td.wrap-cell { white-space: normal; overflow-wrap: anywhere; word-break: normal;
 }
 .login-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .login-head h1 { flex: 1; min-width: 0; }
-.login-theme-toggle { flex: none; margin: -7px -7px 0 0; color: var(--tx2); }
-.login-theme-toggle:hover { background: var(--bg3); color: var(--tx0); }
+.login-theme-toggle { margin: -7px -7px 0 0; }
 .login-box h1 { font-size: 18px; margin-bottom: 5px; letter-spacing: -0.3px; }
 .login-box h1 span { color: var(--teal-lt); }
 .login-box .lead { color: var(--tx2); font-size: 12px; margin-bottom: 22px; }
@@ -590,7 +605,7 @@ footer {
   <div class="login-box">
     <div class="login-head">
       <h1>Arduino Helper <span>管理コンソール</span></h1>
-      <button class="theme-toggle login-theme-toggle" id="btn-login-theme" type="button" title="ライトテーマに切り替え" aria-label="ライトテーマに切り替え" aria-pressed="false">
+      <button class="theme-toggle theme-switch login-theme-toggle" id="btn-login-theme" type="button" title="ライトテーマに切り替え" aria-label="ライトテーマに切り替え" aria-pressed="false">
         <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
         <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6.5 6.5 0 0 0 8.268 8.268c.344-.215.825-.003.803.401"/></svg>
       </button>
@@ -627,7 +642,7 @@ footer {
         <input type="checkbox" id="auto-refresh" checked style="accent-color:var(--teal-lt)"> 自動更新
       </label>
       <button class="btn btn-sm" id="btn-reload" title="サーバー状態と利用履歴を更新" aria-label="サーバー状態と利用履歴を更新">更新</button>
-      <button class="theme-toggle" id="btn-theme" type="button" title="ライトテーマに切り替え" aria-label="ライトテーマに切り替え" aria-pressed="false">
+      <button class="theme-toggle theme-switch" id="btn-theme" type="button" title="ライトテーマに切り替え" aria-label="ライトテーマに切り替え" aria-pressed="false">
         <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
         <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6.5 6.5 0 0 0 8.268 8.268c.344-.215.825-.003.803.401"/></svg>
       </button>
