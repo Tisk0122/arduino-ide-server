@@ -2356,6 +2356,81 @@ class Handler(BaseHTTPRequestHandler):
     def _dispatch_remainder(self, method, path, q, role):
         if path.startswith("/admin/api/teachers"):
             raise ApiError(404, "先生アカウント機能は提供していません")
+
+        # ── 管理者用アカウント管理API ──────────────────────────────────────
+        if path.startswith("/admin/api/accounts"):
+            self._need(role, True)
+            with ACCOUNT_LOCK, account_db() as conn:
+                # GET /admin/api/accounts  → ユーザー一覧（スケッチ数付き）
+                if method == "GET" and path == "/admin/api/accounts":
+                    rows = conn.execute(
+                        "SELECT u.id, u.username, u.display_name, u.active, u.created_at, "
+                        "COUNT(s.id) AS sketch_count "
+                        "FROM account_users u "
+                        "LEFT JOIN account_sketches s ON s.user_id = u.id "
+                        "GROUP BY u.id ORDER BY u.created_at DESC"
+                    ).fetchall()
+                    users = []
+                    for r in rows:
+                        users.append({
+                            "id": r["id"],
+                            "username": r["username"],
+                            "name": r["display_name"],
+                            "active": bool(r["active"]),
+                            "createdAt": r["created_at"],
+                            "sketchCount": r["sketch_count"],
+                        })
+                    return self._send(200, {"ok": True, "users": users})
+
+                # GET /admin/api/accounts/<uid>/sketches  → ユーザーのスケッチ一覧
+                m = re.fullmatch(r"/admin/api/accounts/([A-Za-z0-9_-]{1,80})/sketches", path)
+                if method == "GET" and m:
+                    uid = m.group(1)
+                    rows = conn.execute(
+                        "SELECT * FROM account_sketches WHERE user_id=? ORDER BY updated_at DESC", (uid,)
+                    ).fetchall()
+                    return self._send(200, {"ok": True, "sketches": [_account_sketch_view(r) for r in rows]})
+
+                # GET /admin/api/accounts/<uid>/sketches/<sid>  → スケッチの中身
+                m2 = re.fullmatch(r"/admin/api/accounts/([A-Za-z0-9_-]{1,80})/sketches/([A-Za-z0-9_-]{1,80})", path)
+                if method == "GET" and m2:
+                    uid, sid = m2.group(1), m2.group(2)
+                    row = conn.execute(
+                        "SELECT * FROM account_sketches WHERE user_id=? AND id=?", (uid, sid)
+                    ).fetchone()
+                    if not row:
+                        raise ApiError(404, "スケッチが見つかりません")
+                    return self._send(200, {"ok": True, "sketch": _account_sketch_view(row)})
+
+                # DELETE /admin/api/accounts/<uid>  → ユーザー削除（スケッチも含む）
+                m3 = re.fullmatch(r"/admin/api/accounts/([A-Za-z0-9_-]{1,80})", path)
+                if method == "DELETE" and m3:
+                    uid = m3.group(1)
+                    row = conn.execute("SELECT id FROM account_users WHERE id=?", (uid,)).fetchone()
+                    if not row:
+                        raise ApiError(404, "ユーザーが見つかりません")
+                    conn.execute("DELETE FROM account_sketch_versions WHERE user_id=?", (uid,))
+                    conn.execute("DELETE FROM account_sketches WHERE user_id=?", (uid,))
+                    conn.execute("DELETE FROM account_sessions WHERE user_id=?", (uid,))
+                    conn.execute("DELETE FROM account_users WHERE id=?", (uid,))
+                    return self._send(200, {"ok": True, "deleted": uid})
+
+                # POST /admin/api/accounts/<uid>/toggle  → アカウント有効/無効切替
+                m4 = re.fullmatch(r"/admin/api/accounts/([A-Za-z0-9_-]{1,80})/toggle", path)
+                if method == "POST" and m4:
+                    uid = m4.group(1)
+                    row = conn.execute("SELECT active FROM account_users WHERE id=?", (uid,)).fetchone()
+                    if not row:
+                        raise ApiError(404, "ユーザーが見つかりません")
+                    new_active = 0 if row["active"] else 1
+                    conn.execute("UPDATE account_users SET active=? WHERE id=?", (new_active, uid))
+                    if not new_active:
+                        conn.execute("DELETE FROM account_sessions WHERE user_id=?", (uid,))
+                    return self._send(200, {"ok": True, "active": bool(new_active)})
+
+                raise ApiError(404, "不明な管理APIエンドポイント: %s %s" % (method, path[:80]))
+        # ── end 管理者用アカウント管理API ──────────────────────────────────
+
         if method == "DELETE" and path == "/admin/api/history":
             self._need(role, True)
             deleted = clear_history()

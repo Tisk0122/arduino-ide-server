@@ -1199,7 +1199,97 @@ svg { display: block; flex-shrink: 0; }
 .form-hint { font-size: 11.5px; color: var(--tx3); margin-top: 5px; }
 
 /* アカウントフォームとネイティブ入力欄をテーマに合わせる */
-.modal-account { width: 460px; }
+.modal-account { width: 560px; max-height: min(90vh,700px); display: flex; flex-direction: column; }
+.modal-account .modal-body { flex: 1; overflow-y: auto; padding: 0; display: flex; flex-direction: column; }
+
+/* アカウントタブ */
+.acct-tabs { display: flex; border-bottom: 1px solid var(--bd1); background: var(--bg2); flex-shrink: 0; }
+.acct-tab {
+  padding: 10px 18px; font-size: 13px; font-weight: 500; color: var(--tx2);
+  border-bottom: 2px solid transparent; cursor: pointer; transition: color .15s, border-color .15s;
+  background: none; border-top: none; border-left: none; border-right: none;
+  white-space: nowrap;
+}
+.acct-tab:hover { color: var(--tx1); }
+.acct-tab.active { color: var(--teal-lt); border-bottom-color: var(--teal); }
+.acct-tab-panel { display: none; padding: 18px 20px; flex: 1; overflow-y: auto; }
+.acct-tab-panel.active { display: flex; flex-direction: column; gap: 14px; }
+
+/* スケッチ一覧パネル */
+.cloud-sketch-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  flex-shrink: 0;
+}
+.cloud-sketch-search {
+  flex: 1; height: 34px; padding: 0 10px; background: var(--bg-input);
+  border: 1px solid var(--bd2); border-radius: var(--radius); color: var(--tx0);
+  font-size: 12.5px;
+}
+.cloud-sketch-search:focus { border-color: var(--teal); box-shadow: 0 0 0 2px rgba(14,165,168,.14); }
+.cloud-sketch-count { font-size: 11.5px; color: var(--tx3); white-space: nowrap; }
+.cloud-sketch-list {
+  flex: 1; overflow-y: auto; border: 1px solid var(--bd1); border-radius: var(--radius);
+  background: var(--bg1); min-height: 200px; max-height: 340px;
+}
+.cloud-sketch-list::-webkit-scrollbar { width: 5px; }
+.cloud-sketch-list::-webkit-scrollbar-thumb { background: var(--bd2); border-radius: 3px; }
+.cloud-sk-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  border-bottom: 1px solid var(--bd0); cursor: pointer; transition: background .1s;
+}
+.cloud-sk-item:last-child { border-bottom: none; }
+.cloud-sk-item:hover { background: var(--bg-hover); }
+.cloud-sk-item.active { background: rgba(14,165,168,.08); border-left: 2px solid var(--teal); }
+.cloud-sk-icon { color: var(--teal); flex-shrink: 0; opacity: .8; }
+.cloud-sk-icon svg { width: 15px; height: 15px; display: block; }
+.cloud-sk-info { flex: 1; min-width: 0; }
+.cloud-sk-name { font-size: 13px; font-weight: 500; color: var(--tx0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cloud-sk-meta { font-size: 11px; color: var(--tx3); margin-top: 2px; }
+.cloud-sk-files { font-size: 11px; color: var(--tx3); margin-left: 4px; }
+.cloud-sk-actions { display: flex; gap: 4px; flex-shrink: 0; opacity: 0; transition: opacity .15s; }
+.cloud-sk-item:hover .cloud-sk-actions, .cloud-sk-item:focus-within .cloud-sk-actions { opacity: 1; }
+.cloud-sk-act {
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius); color: var(--tx2); transition: background .1s, color .1s; border: none;
+  cursor: pointer; background: none;
+}
+.cloud-sk-act:hover { background: var(--bg3); color: var(--tx0); }
+.cloud-sk-act.del:hover { color: var(--err); }
+.cloud-sk-act svg { width: 13px; height: 13px; }
+.cloud-sk-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 40px 20px; color: var(--tx3); text-align: center; gap: 10px; }
+.cloud-sk-empty svg { width: 36px; height: 36px; opacity: .35; }
+
+/* 統計バナー */
+.cloud-stats-bar {
+  display: flex; gap: 18px; padding: 10px 14px; background: var(--bg2);
+  border: 1px solid var(--bd1); border-radius: var(--radius); flex-shrink: 0;
+}
+.cloud-stat { text-align: center; flex: 1; }
+.cloud-stat-val { font-size: 20px; font-weight: 700; color: var(--teal-lt); line-height: 1.2; }
+.cloud-stat-lbl { font-size: 11px; color: var(--tx3); margin-top: 2px; }
+
+/* アカウント情報バナー */
+.acct-info-banner {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+  background: var(--bg2); border: 1px solid var(--bd1);
+  border-left: 3px solid var(--teal); border-radius: var(--radius);
+}
+.acct-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--teal-dk), var(--teal));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; color: #fff; flex-shrink: 0;
+  text-transform: uppercase;
+}
+.acct-info-text { flex: 1; min-width: 0; }
+.acct-info-name { font-size: 13px; font-weight: 600; color: var(--tx0); }
+.acct-info-uname { font-size: 11.5px; color: var(--tx3); }
+.acct-sync-badge {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 11px;
+  padding: 3px 8px; border-radius: 999px; background: rgba(52,201,122,.12);
+  color: var(--ok); border: 1px solid rgba(52,201,122,.2); white-space: nowrap;
+}
+.acct-sync-badge svg { width: 11px; height: 11px; }
 .account-status {
   margin: 0 0 20px;
   padding: 12px 14px;
@@ -2403,99 +2493,168 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
       <button class="modal-x" data-close="m-account" title="閉じる" aria-label="閉じる"><i data-lucide="x"></i></button>
     </div>
     <div class="modal-body">
-      <p class="account-status" id="account-status" role="status" aria-live="polite">アカウントを作成してログインすると、スケッチをサーバーに保存し、別の端末からも使えます。</p>
-      <form class="account-form" id="account-login-form" novalidate aria-labelledby="m-account-title">
-        <div class="form-group" id="account-name-wrap" hidden>
-          <label class="form-label" for="account-name">表示名（任意）</label>
-          <input class="form-input" id="account-name" autocomplete="name" maxlength="80" aria-describedby="account-name-err">
-          <span class="account-field-err" id="account-name-err" role="alert" aria-live="assertive" hidden></span>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="account-username">ユーザー名</label>
-          <input class="form-input" id="account-username" autocomplete="username" minlength="3" maxlength="64" required
-                 aria-describedby="account-username-hint account-username-err" aria-required="true">
-          <span class="form-hint" id="account-username-hint">英数字・ドット・アンダースコア・ハイフン（3〜64文字）</span>
-          <span class="account-field-err" id="account-username-err" role="alert" aria-live="assertive" hidden></span>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="account-password">パスワード</label>
-          <div class="account-pw-wrap">
-            <input class="form-input" id="account-password" type="password" autocomplete="current-password" minlength="10" required
-                   aria-describedby="account-password-hint account-password-err" aria-required="true">
-            <button type="button" class="account-pw-toggle" id="account-pw-show" aria-label="パスワードを表示" title="パスワードを表示/非表示">
-              <i data-lucide="eye" aria-hidden="true"></i>
+      <!-- ログイン前フォーム -->
+      <div id="account-login-area" style="padding:18px 20px;display:flex;flex-direction:column;gap:14px;">
+        <p class="account-status" id="account-status" role="status" aria-live="polite">アカウントを作成してログインすると、スケッチをサーバーに保存し、別の端末からも使えます。</p>
+        <form class="account-form" id="account-login-form" novalidate aria-labelledby="m-account-title">
+          <div class="form-group" id="account-name-wrap" hidden>
+            <label class="form-label" for="account-name">表示名（任意）</label>
+            <input class="form-input" id="account-name" autocomplete="name" maxlength="80" aria-describedby="account-name-err">
+            <span class="account-field-err" id="account-name-err" role="alert" aria-live="assertive" hidden></span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="account-username">ユーザー名</label>
+            <input class="form-input" id="account-username" autocomplete="username" minlength="3" maxlength="64" required
+                   aria-describedby="account-username-hint account-username-err" aria-required="true">
+            <span class="form-hint" id="account-username-hint">英数字・ドット・アンダースコア・ハイフン（3〜64文字）</span>
+            <span class="account-field-err" id="account-username-err" role="alert" aria-live="assertive" hidden></span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="account-password">パスワード</label>
+            <div class="account-pw-wrap">
+              <input class="form-input" id="account-password" type="password" autocomplete="current-password" minlength="10" required
+                     aria-describedby="account-password-hint account-password-err" aria-required="true">
+              <button type="button" class="account-pw-toggle" id="account-pw-show" aria-label="パスワードを表示" title="パスワードを表示/非表示">
+                <i data-lucide="eye" aria-hidden="true"></i>
+              </button>
+            </div>
+            <span class="form-hint" id="account-password-hint">10文字以上</span>
+            <div class="account-pw-strength" id="account-pw-strength" hidden aria-hidden="true">
+              <div class="account-pw-strength-bar" id="account-pw-strength-bar"></div>
+              <span class="account-pw-strength-label" id="account-pw-strength-label"></span>
+            </div>
+            <span class="account-field-err" id="account-password-err" role="alert" aria-live="assertive" hidden></span>
+          </div>
+          <div class="form-group" id="account-confirm-wrap" hidden>
+            <label class="form-label" for="account-confirm-password">パスワードを再入力</label>
+            <div class="account-pw-wrap">
+              <input class="form-input" id="account-confirm-password" type="password" autocomplete="new-password" minlength="10"
+                     aria-describedby="account-confirm-err">
+              <button type="button" class="account-pw-toggle" id="account-confirm-pw-show" aria-label="確認用パスワードを表示" title="パスワードを表示/非表示">
+                <i data-lucide="eye" aria-hidden="true"></i>
+              </button>
+            </div>
+            <span class="account-field-err" id="account-confirm-err" role="alert" aria-live="assertive" hidden></span>
+          </div>
+          <div class="account-form-actions">
+            <button class="btn btn-primary" id="account-submit" type="submit">
+              <span class="account-submit-spinner" id="account-submit-spinner" hidden aria-hidden="true"></span>
+              <span id="account-submit-label">ログイン</span>
             </button>
+            <button class="btn btn-secondary" id="account-mode-toggle" type="button">アカウントを作成</button>
           </div>
-          <span class="form-hint" id="account-password-hint">10文字以上</span>
-          <div class="account-pw-strength" id="account-pw-strength" hidden aria-hidden="true">
-            <div class="account-pw-strength-bar" id="account-pw-strength-bar"></div>
-            <span class="account-pw-strength-label" id="account-pw-strength-label"></span>
-          </div>
-          <span class="account-field-err" id="account-password-err" role="alert" aria-live="assertive" hidden></span>
-        </div>
-        <div class="form-group" id="account-confirm-wrap" hidden>
-          <label class="form-label" for="account-confirm-password">パスワードを再入力</label>
-          <div class="account-pw-wrap">
-            <input class="form-input" id="account-confirm-password" type="password" autocomplete="new-password" minlength="10"
-                   aria-describedby="account-confirm-err">
-            <button type="button" class="account-pw-toggle" id="account-confirm-pw-show" aria-label="確認用パスワードを表示" title="パスワードを表示/非表示">
-              <i data-lucide="eye" aria-hidden="true"></i>
-            </button>
-          </div>
-          <span class="account-field-err" id="account-confirm-err" role="alert" aria-live="assertive" hidden></span>
-        </div>
-        <div class="account-form-actions">
-          <button class="btn btn-primary" id="account-submit" type="submit">
-            <span class="account-submit-spinner" id="account-submit-spinner" hidden aria-hidden="true"></span>
-            <span id="account-submit-label">ログイン</span>
-          </button>
-          <button class="btn btn-secondary" id="account-mode-toggle" type="button">アカウントを作成</button>
-        </div>
-      </form>
+        </form>
+      </div>
+
+      <!-- ログイン後: タブ式UI -->
       <div class="account-logged-in" id="account-logged-in" hidden>
-        <p class="account-user-label" id="account-user-label"></p>
-        <details class="account-pw-section" id="account-pw-section">
-          <summary class="account-pw-summary">パスワードを変更</summary>
-          <div class="account-password-fields">
-            <div class="form-group">
-              <label class="form-label" for="account-current-password">現在のパスワード</label>
-              <div class="account-pw-wrap">
-                <input class="form-input" id="account-current-password" type="password" autocomplete="current-password">
-                <button type="button" class="account-pw-toggle" id="account-cur-pw-show" aria-label="現在のパスワードを表示">
-                  <i data-lucide="eye" aria-hidden="true"></i>
-                </button>
-              </div>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="account-new-password">新しいパスワード（10文字以上）</label>
-              <div class="account-pw-wrap">
-                <input class="form-input" id="account-new-password" type="password" autocomplete="new-password" minlength="10">
-                <button type="button" class="account-pw-toggle" id="account-new-pw-show" aria-label="新しいパスワードを表示">
-                  <i data-lucide="eye" aria-hidden="true"></i>
-                </button>
-              </div>
-              <div class="account-pw-strength" id="account-new-pw-strength" hidden aria-hidden="true">
-                <div class="account-pw-strength-bar" id="account-new-pw-strength-bar"></div>
-                <span class="account-pw-strength-label" id="account-new-pw-strength-label"></span>
-              </div>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="account-new-password-confirm">新しいパスワードを再入力</label>
-              <input class="form-input" id="account-new-password-confirm" type="password" autocomplete="new-password" minlength="10">
-            </div>
-            <span class="account-field-err" id="account-change-pw-err" role="alert" aria-live="assertive" hidden></span>
-            <button class="btn btn-primary" id="account-change-password" type="button">パスワードを変更</button>
-          </div>
-        </details>
-        <div class="account-session-actions">
-          <button class="btn btn-secondary" id="account-import-local" type="button">このブラウザーの未登録スケッチをアカウントへ取り込む</button>
-          <button class="btn btn-secondary" id="account-sync-now" type="button">
-            <span class="account-submit-spinner" id="account-sync-spinner" hidden aria-hidden="true"></span>
-            今すぐ同期
+        <!-- タブナビ -->
+        <div class="acct-tabs" id="acct-tabs">
+          <button class="acct-tab active" data-tab="acct-sketches">
+            <i data-lucide="cloud" style="width:13px;height:13px;vertical-align:-2px;margin-right:5px;" aria-hidden="true"></i>スケッチ一覧
           </button>
-          <button class="btn btn-secondary" id="account-logout" type="button">ログアウト</button>
+          <button class="acct-tab" data-tab="acct-settings">
+            <i data-lucide="settings" style="width:13px;height:13px;vertical-align:-2px;margin-right:5px;" aria-hidden="true"></i>設定
+          </button>
         </div>
-        <p class="form-hint">スケッチの変更は自動で同期します。別の端末で同じスケッチを編集した場合、どちらも残して確認できます。共有端末では利用後にログアウトしてください。</p>
+
+        <!-- スケッチ一覧タブ -->
+        <div class="acct-tab-panel active" id="acct-sketches">
+          <!-- ユーザー情報バナー -->
+          <div class="acct-info-banner" id="acct-info-banner">
+            <div class="acct-avatar" id="acct-avatar">?</div>
+            <div class="acct-info-text">
+              <div class="acct-info-name" id="acct-info-name">-</div>
+              <div class="acct-info-uname" id="acct-info-uname">-</div>
+            </div>
+            <span class="acct-sync-badge" id="acct-sync-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              同期済み
+            </span>
+          </div>
+          <!-- 統計 -->
+          <div class="cloud-stats-bar" id="cloud-stats-bar">
+            <div class="cloud-stat">
+              <div class="cloud-stat-val" id="cloud-stat-count">0</div>
+              <div class="cloud-stat-lbl">スケッチ</div>
+            </div>
+            <div class="cloud-stat">
+              <div class="cloud-stat-val" id="cloud-stat-files">0</div>
+              <div class="cloud-stat-lbl">ファイル合計</div>
+            </div>
+            <div class="cloud-stat">
+              <div class="cloud-stat-val" id="cloud-stat-synced" style="font-size:12px;padding-top:4px;">-</div>
+              <div class="cloud-stat-lbl">最終同期</div>
+            </div>
+          </div>
+          <!-- 検索 -->
+          <div class="cloud-sketch-header">
+            <input type="search" class="cloud-sketch-search" id="cloud-sk-search" placeholder="スケッチを検索…" autocomplete="off" aria-label="クラウドスケッチを検索">
+            <span class="cloud-sketch-count" id="cloud-sk-count"></span>
+            <button class="btn btn-sm btn-secondary" id="account-sync-now" title="今すぐ同期" style="gap:5px;white-space:nowrap;">
+              <span class="account-submit-spinner" id="account-sync-spinner" hidden aria-hidden="true"></span>
+              <i data-lucide="refresh-cw" style="width:12px;height:12px;" aria-hidden="true"></i>
+              同期
+            </button>
+          </div>
+          <!-- リスト -->
+          <div class="cloud-sketch-list" id="cloud-sketch-list" role="list" aria-label="クラウドに保存されたスケッチ">
+            <div class="cloud-sk-empty" id="cloud-sk-empty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
+              <div>スケッチがありません</div>
+              <div style="font-size:11.5px;">新規スケッチを作成すると自動でクラウドに保存されます</div>
+            </div>
+          </div>
+          <button class="btn btn-secondary" id="account-import-local" type="button" style="width:100%;justify-content:center;font-size:12px;">
+            <i data-lucide="upload" style="width:13px;height:13px;" aria-hidden="true"></i>
+            このブラウザーの未登録スケッチをアカウントへ取り込む
+          </button>
+        </div>
+
+        <!-- 設定タブ -->
+        <div class="acct-tab-panel" id="acct-settings">
+          <p class="account-user-label" id="account-user-label"></p>
+          <details class="account-pw-section" id="account-pw-section">
+            <summary class="account-pw-summary">パスワードを変更</summary>
+            <div class="account-password-fields">
+              <div class="form-group">
+                <label class="form-label" for="account-current-password">現在のパスワード</label>
+                <div class="account-pw-wrap">
+                  <input class="form-input" id="account-current-password" type="password" autocomplete="current-password">
+                  <button type="button" class="account-pw-toggle" id="account-cur-pw-show" aria-label="現在のパスワードを表示">
+                    <i data-lucide="eye" aria-hidden="true"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="account-new-password">新しいパスワード（10文字以上）</label>
+                <div class="account-pw-wrap">
+                  <input class="form-input" id="account-new-password" type="password" autocomplete="new-password" minlength="10">
+                  <button type="button" class="account-pw-toggle" id="account-new-pw-show" aria-label="新しいパスワードを表示">
+                    <i data-lucide="eye" aria-hidden="true"></i>
+                  </button>
+                </div>
+                <div class="account-pw-strength" id="account-new-pw-strength" hidden aria-hidden="true">
+                  <div class="account-pw-strength-bar" id="account-new-pw-strength-bar"></div>
+                  <span class="account-pw-strength-label" id="account-new-pw-strength-label"></span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="account-new-password-confirm">新しいパスワードを再入力</label>
+                <input class="form-input" id="account-new-password-confirm" type="password" autocomplete="new-password" minlength="10">
+              </div>
+              <span class="account-field-err" id="account-change-pw-err" role="alert" aria-live="assertive" hidden></span>
+              <button class="btn btn-primary" id="account-change-password" type="button">パスワードを変更</button>
+            </div>
+          </details>
+          <div class="account-session-actions">
+            <button class="btn btn-secondary" id="account-logout" type="button" style="justify-content:center;">
+              <i data-lucide="log-out" style="width:14px;height:14px;" aria-hidden="true"></i>
+              ログアウト
+            </button>
+          </div>
+          <p class="form-hint">スケッチの変更は自動で同期します。別の端末で同じスケッチを編集した場合、どちらも残して確認できます。共有端末では利用後にログアウトしてください。</p>
+        </div>
       </div>
     </div>
     <div class="modal-foot"><button class="btn btn-secondary" data-close="m-account">閉じる</button></div>
@@ -4288,10 +4447,12 @@ const Account = {
     S.dirty.clear();
     sessionStorage.setItem(this.key, token);
     S.db = accountDb;
+    document.getElementById('account-login-area').hidden = true;
     document.getElementById('account-login-form').hidden = true;
     document.getElementById('account-logged-in').hidden = false;
     document.getElementById('account-user-label').textContent = `${user.name} (@${user.username})`;
     if (typeof updateAccountBtn === 'function') updateAccountBtn();
+    if (typeof CloudSketchList !== 'undefined') CloudSketchList.render();
     S.account.loading = true;
     try {
       await this.synchronize();
@@ -4372,6 +4533,7 @@ const Account = {
     S.sketches.sort((a,b)=>b.updatedAt-a.updatedAt);
     S.curId = null;
     S.dirty.clear();
+    document.getElementById('account-login-area').hidden = false;
     document.getElementById('account-login-form').hidden = false;
     document.getElementById('account-logged-in').hidden = true;
     document.getElementById('account-status').textContent = message;
@@ -6356,6 +6518,96 @@ function updateAccountBtn() {
   }
 }
 
+/* ================================================================
+   クラウドスケッチ一覧 UI
+================================================================ */
+const CloudSketchList = {
+  _fmtDate(ts) {
+    if (!ts) return '-';
+    const d = new Date(ts * 1000);
+    const now = new Date();
+    const diff = (now - d) / 1000;
+    if (diff < 60) return 'いま';
+    if (diff < 3600) return `${Math.floor(diff/60)}分前`;
+    if (diff < 86400) return `${Math.floor(diff/3600)}時間前`;
+    if (diff < 86400*7) return `${Math.floor(diff/86400)}日前`;
+    return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+  },
+  render() {
+    if (!S.account.user) return;
+    const list = S.sketches || [];
+    const q = (document.getElementById('cloud-sk-search').value || '').toLowerCase().trim();
+    const filtered = q ? list.filter(sk => sk.name.toLowerCase().includes(q)) : list;
+    // 統計更新
+    document.getElementById('cloud-stat-count').textContent = list.length;
+    const totalFiles = list.reduce((sum, sk) => sum + (sk.files ? sk.files.length : 0), 0);
+    document.getElementById('cloud-stat-files').textContent = totalFiles;
+    const latest = list.reduce((max, sk) => Math.max(max, sk.updatedAt || 0), 0);
+    document.getElementById('cloud-stat-synced').textContent = latest ? this._fmtDate(Math.floor(latest/1000)||latest) : '-';
+    document.getElementById('cloud-sk-count').textContent = q ? `${filtered.length}/${list.length}件` : `${list.length}件`;
+    // アバター・名前
+    const user = S.account.user;
+    const displayName = user.name || user.username;
+    document.getElementById('acct-avatar').textContent = displayName.charAt(0);
+    document.getElementById('acct-info-name').textContent = displayName;
+    document.getElementById('acct-info-uname').textContent = `@${user.username}`;
+    document.getElementById('account-user-label').textContent = `${displayName} (@${user.username})`;
+    // スケッチリスト描画
+    const el = document.getElementById('cloud-sketch-list');
+    const emptyEl = document.getElementById('cloud-sk-empty');
+    if (!filtered.length) {
+      emptyEl.hidden = false;
+      emptyEl.querySelector('div').textContent = q ? `「${q}」は見つかりません` : 'スケッチがありません';
+      emptyEl.querySelectorAll('div')[1].textContent = q ? '' : '新規スケッチを作成すると自動でクラウドに保存されます';
+      [...el.querySelectorAll('.cloud-sk-item')].forEach(n => n.remove());
+      return;
+    }
+    emptyEl.hidden = true;
+    el.innerHTML = filtered.map(sk => {
+      const dirty = sk.files && sk.files.some((_,i) => S.dirty.has(`${sk.id}:${i}`));
+      const active = sk.id === S.curId;
+      const fileCount = sk.files ? sk.files.length : 0;
+      const dt = this._fmtDate(sk.updatedAt ? (sk.updatedAt > 9999999999 ? Math.floor(sk.updatedAt/1000) : sk.updatedAt) : 0);
+      return `<div class="cloud-sk-item${active?' active':''}" data-id="${escHtml(sk.id)}" role="listitem">
+        <span class="cloud-sk-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg></span>
+        <div class="cloud-sk-info">
+          <div class="cloud-sk-name">${escHtml(sk.name)}${dirty ? ' <span style="color:var(--warn);font-size:10px;">●</span>' : ''}</div>
+          <div class="cloud-sk-meta">${dt}<span class="cloud-sk-files">${fileCount}ファイル${sk.board ? ' · '+escHtml((sk.board||'').split(':').pop()) : ''}</span></div>
+        </div>
+        <span class="cloud-sk-actions">
+          <button class="cloud-sk-act" data-act="open" data-id="${escHtml(sk.id)}" title="開く" aria-label="${escHtml(sk.name)}を開く">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+          <button class="cloud-sk-act del" data-act="delete" data-id="${escHtml(sk.id)}" title="削除" aria-label="${escHtml(sk.name)}を削除">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6m4-6v6"/><path d="M9 6V4h6v2"/></svg>
+          </button>
+        </span>
+      </div>`;
+    }).join('');
+    renderLucideIcons(el);
+  },
+};
+// クラウドスケッチリストのクリック処理
+document.addEventListener('click', e => {
+  const item = e.target.closest('.cloud-sk-item');
+  if (!item) return;
+  const act = e.target.closest('[data-act]');
+  const id = (act || item).dataset.id;
+  if (!id) return;
+  if (act && act.dataset.act === 'open') {
+    Sk.open(id);
+    closeModal('m-account');
+  } else if (act && act.dataset.act === 'delete') {
+    const sk = S.sketches.find(s => s.id === id);
+    if (sk && confirm(`「${sk.name}」を削除しますか？`)) {
+      Sk.delete(id).then(() => CloudSketchList.render()).catch(err => toast('削除に失敗しました: ' + err.message, 'err'));
+    }
+  } else if (!act) {
+    Sk.open(id);
+    closeModal('m-account');
+  }
+});
+
 function initEvents() {
   // ---- ツールバー ----
   document.getElementById('verify-btn').addEventListener('click', () => Build.verify());
@@ -6503,11 +6755,14 @@ function initEvents() {
     spinner.hidden = !loading;
   }
   document.getElementById('account-open-btn').addEventListener('click', () => {
-    document.getElementById('account-login-form').hidden = !!S.account.user;
-    document.getElementById('account-logged-in').hidden = !S.account.user;
-    if (S.account.user) {
+    const loggedIn = !!S.account.user;
+    document.getElementById('account-login-area').hidden = loggedIn;
+    document.getElementById('account-login-form').hidden = loggedIn;
+    document.getElementById('account-logged-in').hidden = !loggedIn;
+    if (loggedIn) {
       document.getElementById('account-user-label').textContent = `${S.account.user.name} (@${S.account.user.username})`;
       accountStatus('ログイン中。スケッチは自動で同期されます。', false);
+      setTimeout(() => CloudSketchList.render(), 50);
     } else {
       accountStatus('アカウントを作成してログインすると、スケッチをサーバーに保存し、別の端末からも使えます。', false);
     }
@@ -6647,13 +6902,29 @@ function initEvents() {
     const spinner = document.getElementById('account-sync-spinner');
     const btn = document.getElementById('account-sync-now');
     btn.disabled = true; spinner.hidden = false;
-    try { await Sk.saveAll(); await Account.synchronize(); toast('同期しました', 'ok'); }
+    try { await Sk.saveAll(); await Account.synchronize(); toast('同期しました', 'ok'); CloudSketchList.render(); }
     catch (err) { toast('同期に失敗しました: ' + err.message, 'err'); }
     finally { btn.disabled = false; spinner.hidden = true; }
   });
   document.getElementById('account-logout').addEventListener('click', async () => {
     try { await Account.logout(); closeModal('m-account'); }
     catch (err) { toast('ログアウト前の保存に失敗しました。接続を確認してください: ' + err.message, 'err', 9000); }
+  });
+  // アカウントタブ切り替え
+  document.getElementById('acct-tabs').addEventListener('click', e => {
+    const btn = e.target.closest('.acct-tab');
+    if (!btn) return;
+    document.querySelectorAll('.acct-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.acct-tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'acct-sketches') CloudSketchList.render();
+  });
+  // クラウドスケッチ検索
+  document.getElementById('cloud-sk-search').addEventListener('input', () => CloudSketchList.render());
+  // アカウントモーダル表示時にスケッチ一覧を更新
+  document.getElementById('m-account').addEventListener('transitionend', () => {
+    if (document.getElementById('m-account').classList.contains('open') && S.account.user) CloudSketchList.render();
   });
   document.getElementById('help-open-btn').addEventListener('click', () => openModal('m-help'));
   document.getElementById('board-select').addEventListener('change', e => {

@@ -194,7 +194,11 @@ code,.mono { font-family: var(--ff-mono); }
 .btn-ghost { background: transparent; border-color: transparent; }
 .btn-ghost:hover { background: rgba(255,255,255,0.10); }
 [data-theme="light"] .btn-ghost:hover { background: var(--bg3); }
+.btn-secondary { background: var(--bg3); border-color: var(--bd2); color: var(--tx1); }
+.btn-secondary:hover { background: var(--bg4); border-color: var(--bd2); color: var(--tx0); }
 .btn-sm { padding: 4px 10px; font-size: 11px; }
+.input { background: var(--bg-input, var(--bg2)); border: 1px solid var(--bd2); border-radius: var(--radius); color: var(--tx0); padding: 5px 10px; font-size: 12px; outline: none; transition: border-color .15s; }
+.input:focus { border-color: var(--teal); box-shadow: 0 0 0 2px rgba(14,165,168,.14); }
 
 /* ---- レイアウト ---- */
 main { max-width: 1320px; margin: 0 auto; padding: 20px 18px 0; }
@@ -806,12 +810,78 @@ footer {
         <span class="sub" id="hist-count"></span>
       </div>
     </section>
+
+    <!-- ユーザー管理セクション -->
+    <section id="sec-users">
+      <div class="sec-head">
+        <h2>ユーザー管理</h2>
+        <span class="sec-note">登録ユーザーとクラウド保存スケッチを管理します</span>
+      </div>
+      <div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <input class="input" id="user-search" type="search" placeholder="ユーザー名・表示名で検索…" style="flex:1;min-width:160px;max-width:300px;">
+        <span class="sub" id="user-count"></span>
+        <button class="btn btn-sm" id="btn-reload-users">ユーザー一覧を更新</button>
+      </div>
+      <div class="tbl-wrap">
+        <table id="user-table">
+          <thead><tr>
+            <th>状態</th><th>ユーザー名</th><th>表示名</th><th>スケッチ数</th><th>登録日</th><th>操作</th>
+          </tr></thead>
+          <tbody id="user-body"></tbody>
+        </table>
+      </div>
+
+      <!-- スケッチ一覧パネル -->
+      <div id="user-sketch-panel" hidden style="margin-top:18px;border:1px solid var(--bd1);border-radius:var(--radius-lg);overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--bg2);border-bottom:1px solid var(--bd1);">
+          <div>
+            <span style="font-weight:600;font-size:13px;" id="sketch-panel-title">スケッチ一覧</span>
+            <span class="sub" id="sketch-panel-note" style="margin-left:8px;"></span>
+          </div>
+          <button class="btn btn-sm btn-ghost" id="sketch-panel-close" title="閉じる">✕ 閉じる</button>
+        </div>
+        <div class="tbl-wrap">
+          <table id="sketch-table">
+            <thead><tr>
+              <th>スケッチ名</th><th>ファイル数</th><th>ボード</th><th>更新日時</th><th>リビジョン</th><th>操作</th>
+            </tr></thead>
+            <tbody id="sketch-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- スケッチ中身ビューアー -->
+      <div id="sketch-viewer-panel" hidden style="margin-top:14px;border:1px solid var(--bd1);border-radius:var(--radius-lg);overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--bg2);border-bottom:1px solid var(--bd1);">
+          <div>
+            <span style="font-weight:600;font-size:13px;" id="viewer-title">スケッチの中身</span>
+            <span class="sub" id="viewer-files-note" style="margin-left:8px;"></span>
+          </div>
+          <button class="btn btn-sm btn-ghost" id="viewer-close">✕ 閉じる</button>
+        </div>
+        <div id="viewer-tabs" style="display:flex;border-bottom:1px solid var(--bd1);background:var(--bg1);overflow-x:auto;"></div>
+        <div id="viewer-code" style="padding:14px 16px;font-family:var(--ff-mono);font-size:12px;white-space:pre;overflow:auto;max-height:420px;background:var(--bg0);color:var(--tx1);line-height:1.6;"></div>
+      </div>
+    </section>
   </main>
+
+  <!-- 削除確認モーダル -->
+  <div id="confirm-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);align-items:center;justify-content:center;">
+    <div style="background:var(--bg-modal);border:1px solid var(--bd2);border-radius:var(--radius-lg);padding:24px;width:min(380px,94vw);box-shadow:var(--sh-lg);">
+      <h3 style="font-size:15px;font-weight:700;color:var(--err);margin-bottom:10px;" id="confirm-title">確認</h3>
+      <p style="font-size:13px;color:var(--tx1);margin-bottom:20px;line-height:1.6;" id="confirm-msg"></p>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button class="btn btn-secondary" id="confirm-cancel">キャンセル</button>
+        <button class="btn" id="confirm-ok" style="background:var(--err);color:#fff;border:none;">削除する</button>
+      </div>
+    </div>
+  </div>
 
   <footer>
     arduino-helper 管理コンソール — API: <code>GET /admin/api/overview</code> /
     <code>GET /admin/api/history</code> /
-    <code>DELETE /admin/api/history</code>
+    <code>DELETE /admin/api/history</code> /
+    <code>GET /admin/api/accounts</code>
   </footer>
 </div>
 
@@ -1617,10 +1687,257 @@ function refresh(withHistory) {
   });
 }
 
+/* ================================================================
+   ユーザー管理
+================================================================ */
+var userMgr = {
+  users: [],
+  currentUid: null,
+  sketches: [],
+
+  fmtRelDate: function(ts) {
+    if (!ts) return '-';
+    var diff = Math.floor(Date.now() / 1000) - ts;
+    if (diff < 60) return 'いま';
+    if (diff < 3600) return Math.floor(diff / 60) + '分前';
+    if (diff < 86400) return Math.floor(diff / 3600) + '時間前';
+    if (diff < 86400 * 30) return Math.floor(diff / 86400) + '日前';
+    return fmtTime(ts).slice(0, 10);
+  },
+
+  load: function() {
+    var btn = $('#btn-reload-users');
+    btn.disabled = true;
+    btn.textContent = '読み込み中…';
+    api('/admin/api/accounts', 10000)
+      .then(function(d) {
+        userMgr.users = d.users || [];
+        userMgr.renderUsers();
+        $('#user-count').textContent = userMgr.users.length + '人のユーザー';
+      })
+      .catch(function(err) {
+        toast('ユーザー一覧の取得に失敗しました: ' + err.message, 'err');
+      })
+      .finally(function() {
+        btn.disabled = false;
+        btn.textContent = 'ユーザー一覧を更新';
+      });
+  },
+
+  renderUsers: function() {
+    var q = ($('#user-search').value || '').toLowerCase().trim();
+    var list = q
+      ? userMgr.users.filter(function(u) {
+          return u.username.toLowerCase().includes(q) || u.name.toLowerCase().includes(q);
+        })
+      : userMgr.users;
+    $('#user-count').textContent = q
+      ? list.length + '/' + userMgr.users.length + '人'
+      : userMgr.users.length + '人のユーザー';
+
+    var tbody = $('#user-body');
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--tx3);padding:20px;">' +
+        (q ? '「' + esc(q) + '」は見つかりません' : 'ユーザーがいません') + '</td></tr>';
+      return;
+    }
+    tbody.innerHTML = list.map(function(u) {
+      var statusDot = u.active
+        ? '<span style="color:var(--ok);">●</span> 有効'
+        : '<span style="color:var(--err);">●</span> 無効';
+      return '<tr data-uid="' + esc(u.id) + '">' +
+        '<td>' + statusDot + '</td>' +
+        '<td><strong>' + esc(u.username) + '</strong></td>' +
+        '<td>' + esc(u.name) + '</td>' +
+        '<td style="text-align:center;">' +
+          '<button class="btn btn-sm btn-ghost" data-act="sketches" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '" style="font-weight:600;color:var(--teal-lt);">' +
+            esc(String(u.sketchCount)) + ' 件</button></td>' +
+        '<td>' + fmtTime(u.createdAt) + '</td>' +
+        '<td style="display:flex;gap:6px;flex-wrap:wrap;">' +
+          '<button class="btn btn-sm btn-ghost" data-act="sketches" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '">スケッチ一覧</button>' +
+          '<button class="btn btn-sm btn-ghost" data-act="toggle" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '" data-active="' + (u.active ? '1' : '0') + '">' +
+            (u.active ? '無効化' : '有効化') + '</button>' +
+          '<button class="btn btn-sm" data-act="delete" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '" style="background:rgba(224,82,82,.15);color:var(--err);border:1px solid rgba(224,82,82,.3);">削除</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+  },
+
+  loadSketches: function(uid, uname) {
+    userMgr.currentUid = uid;
+    var panel = $('#user-sketch-panel');
+    var tbody = $('#sketch-body');
+    $('#sketch-panel-title').textContent = '@' + uname + ' のスケッチ';
+    $('#sketch-panel-note').textContent = '読み込み中…';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:18px;color:var(--tx3);">読み込み中…</td></tr>';
+    panel.hidden = false;
+    $('#sketch-viewer-panel').hidden = true;
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    api('/admin/api/accounts/' + encodeURIComponent(uid) + '/sketches', 10000)
+      .then(function(d) {
+        userMgr.sketches = d.sketches || [];
+        userMgr.renderSketches(uname);
+      })
+      .catch(function(err) {
+        toast('スケッチ一覧の取得に失敗: ' + err.message, 'err');
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--err);padding:18px;">取得に失敗しました</td></tr>';
+        $('#sketch-panel-note').textContent = '';
+      });
+  },
+
+  renderSketches: function(uname) {
+    var list = userMgr.sketches;
+    $('#sketch-panel-note').textContent = list.length + '件';
+    var tbody = $('#sketch-body');
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--tx3);padding:20px;">スケッチがありません</td></tr>';
+      return;
+    }
+    tbody.innerHTML = list.map(function(sk) {
+      var board = sk.board ? sk.board.split(':').pop() : '-';
+      var fileCount = sk.files ? sk.files.length : 0;
+      return '<tr>' +
+        '<td><strong>' + esc(sk.name || sk.id) + '</strong><br><span class="sub" style="font-size:11px;font-family:var(--ff-mono);">' + esc(sk.id) + '</span></td>' +
+        '<td style="text-align:center;">' + fileCount + '</td>' +
+        '<td><span class="mono" style="font-size:11px;">' + esc(board) + '</span></td>' +
+        '<td>' + fmtTime(sk.updatedAt || 0) + '</td>' +
+        '<td style="text-align:center;">' + esc(String(sk.revision || 0)) + '</td>' +
+        '<td><button class="btn btn-sm btn-ghost" data-act="view" data-sid="' + esc(sk.id) + '" data-sname="' + esc(sk.name || sk.id) + '">中身を見る</button></td>' +
+      '</tr>';
+    }).join('');
+  },
+
+  viewSketch: function(sid, sname) {
+    var uid = userMgr.currentUid;
+    var panel = $('#sketch-viewer-panel');
+    $('#viewer-title').textContent = sname;
+    $('#viewer-files-note').textContent = '読み込み中…';
+    $('#viewer-tabs').innerHTML = '';
+    $('#viewer-code').textContent = '読み込み中…';
+    panel.hidden = false;
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    api('/admin/api/accounts/' + encodeURIComponent(uid) + '/sketches/' + encodeURIComponent(sid), 10000)
+      .then(function(d) {
+        var sk = d.sketch;
+        var files = sk.files || [];
+        $('#viewer-files-note').textContent = files.length + 'ファイル · rev.' + (sk.revision || 0);
+        var tabs = $('#viewer-tabs');
+        tabs.innerHTML = files.map(function(f, i) {
+          return '<button class="viewer-tab-btn' + (i === 0 ? ' active' : '') + '" data-idx="' + i + '" style="' +
+            'padding:7px 14px;font-size:12px;background:none;border:none;cursor:pointer;' +
+            'border-bottom:2px solid ' + (i === 0 ? 'var(--teal)' : 'transparent') + ';' +
+            'color:' + (i === 0 ? 'var(--teal-lt)' : 'var(--tx2)') + ';white-space:nowrap;">' +
+            esc(f.name) + '</button>';
+        }).join('');
+        function showFile(idx) {
+          var f = files[idx];
+          $('#viewer-code').textContent = f ? f.content : '';
+          tabs.querySelectorAll('.viewer-tab-btn').forEach(function(b, i) {
+            b.style.borderBottomColor = i === idx ? 'var(--teal)' : 'transparent';
+            b.style.color = i === idx ? 'var(--teal-lt)' : 'var(--tx2)';
+          });
+        }
+        tabs.addEventListener('click', function(e) {
+          var btn = e.target.closest('.viewer-tab-btn');
+          if (btn) showFile(+btn.dataset.idx);
+        });
+        if (files.length) showFile(0);
+        else $('#viewer-code').textContent = '(ファイルなし)';
+      })
+      .catch(function(err) {
+        $('#viewer-code').textContent = '取得に失敗しました: ' + err.message;
+        $('#viewer-files-note').textContent = '';
+      });
+  },
+
+  toggleUser: function(uid, uname, currentActive) {
+    var label = currentActive ? '無効化' : '有効化';
+    if (!confirm('@' + uname + ' を' + label + 'しますか？' + (currentActive ? '\n\n無効化するとログインできなくなります。' : ''))) return;
+    api('/admin/api/accounts/' + encodeURIComponent(uid) + '/toggle', 8000, 'POST', {})
+      .then(function(d) {
+        toast('@' + uname + ' を' + (d.active ? '有効化' : '無効化') + 'しました', 'ok');
+        userMgr.users = userMgr.users.map(function(u) {
+          if (u.id === uid) return Object.assign({}, u, { active: d.active });
+          return u;
+        });
+        userMgr.renderUsers();
+      })
+      .catch(function(err) { toast(label + 'に失敗しました: ' + err.message, 'err'); });
+  },
+
+  deleteUser: function(uid, uname) {
+    confirmDialog(
+      '@' + uname + ' を削除',
+      'ユーザー「@' + uname + '」とそのすべてのスケッチ・セッションを完全に削除します。\n\nこの操作は元に戻せません。',
+      function() {
+        api('/admin/api/accounts/' + encodeURIComponent(uid), 10000, 'DELETE')
+          .then(function() {
+            toast('@' + uname + ' を削除しました', 'ok');
+            userMgr.users = userMgr.users.filter(function(u) { return u.id !== uid; });
+            userMgr.renderUsers();
+            if (userMgr.currentUid === uid) {
+              $('#user-sketch-panel').hidden = true;
+              $('#sketch-viewer-panel').hidden = true;
+              userMgr.currentUid = null;
+            }
+          })
+          .catch(function(err) { toast('削除に失敗しました: ' + err.message, 'err'); });
+      }
+    );
+  }
+};
+
+function confirmDialog(title, msg, onOk) {
+  var modal = $('#confirm-modal');
+  $('#confirm-title').textContent = title;
+  $('#confirm-msg').textContent = msg;
+  modal.style.display = 'flex';
+  var okBtn = $('#confirm-ok');
+  var cancelBtn = $('#confirm-cancel');
+  function cleanup() { modal.style.display = 'none'; okBtn.onclick = null; cancelBtn.onclick = null; }
+  okBtn.onclick = function() { cleanup(); onOk(); };
+  cancelBtn.onclick = cleanup;
+}
+
+// ユーザー管理イベントデリゲーション
+document.addEventListener('click', function(e) {
+  // テーブル行アクション
+  var actBtn = e.target.closest('[data-act]');
+  if (actBtn) {
+    var act = actBtn.dataset.act;
+    var uid = actBtn.dataset.uid;
+    var uname = actBtn.dataset.uname;
+    if (act === 'sketches' && uid) { userMgr.loadSketches(uid, uname); return; }
+    if (act === 'toggle' && uid) { userMgr.toggleUser(uid, uname, actBtn.dataset.active === '1'); return; }
+    if (act === 'delete' && uid) { userMgr.deleteUser(uid, uname); return; }
+    if (act === 'view') { userMgr.viewSketch(actBtn.dataset.sid, actBtn.dataset.sname); return; }
+  }
+  // スケッチパネル閉じる
+  if (e.target.closest('#sketch-panel-close')) {
+    $('#user-sketch-panel').hidden = true;
+    $('#sketch-viewer-panel').hidden = true;
+    return;
+  }
+  if (e.target.closest('#viewer-close')) {
+    $('#sketch-viewer-panel').hidden = true;
+    return;
+  }
+  // 確認モーダル外クリックで閉じる
+  if (e.target === $('#confirm-modal')) {
+    $('#confirm-modal').style.display = 'none';
+  }
+});
+
+$('#user-search').addEventListener('input', function() { userMgr.renderUsers(); });
+$('#btn-reload-users').addEventListener('click', function() { userMgr.load(); });
+
 function boot() {
   showApp();
   refresh(true);
   startAuto();
+  userMgr.load();
 }
 
 if (state.token) boot();
