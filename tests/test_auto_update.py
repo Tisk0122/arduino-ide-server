@@ -18,7 +18,6 @@ class AutoUpdateContractTests(unittest.TestCase):
             "www/index.html",
             "www/admin.html",
             "www/docs.html",
-            "www/teacher.html",
             "configure-github-webhook.sh",
             "github-update.sh",
             "arduino-helper-update.service",
@@ -28,14 +27,6 @@ class AutoUpdateContractTests(unittest.TestCase):
         self.assertIn("configure-github-webhook.sh) printf", updater)
         self.assertIn('"http://127.0.0.1:$health_port/account"', updater)
         self.assertIn("アカウントとクラウド保存", updater)
-
-    def test_legacy_updater_required_teacher_page_remains_as_retired_stub(self):
-        updater = (ROOT / "github-update.sh").read_text(encoding="utf-8")
-        teacher_page = (ROOT / "www" / "teacher.html").read_text(encoding="utf-8")
-        self.assertIn('"www/teacher.html"', updater)
-        self.assertIn('url=/account', teacher_page)
-        self.assertIn("先生用画面は廃止されました", teacher_page)
-        self.assertNotIn("teacher.html", (ROOT / "arduino-helper.py").read_text(encoding="utf-8"))
 
     def test_periodic_update_checks_remote_commit_and_records_success(self):
         updater = (ROOT / "github-update.sh").read_text(encoding="utf-8")
