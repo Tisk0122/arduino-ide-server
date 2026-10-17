@@ -292,6 +292,22 @@ class ServerLimitTests(unittest.TestCase):
 
         self.assertEqual(error.exception.code, 502)
 
+    def test_cli_failure_returns_bounded_readable_diagnostic(self):
+        output = "\x1b[31mError:\x1b[0m failed to fetch package index: connection refused"
+        with patch.object(server, "run_cli", return_value=(2, output)):
+            with self.assertRaises(server.ApiError) as error:
+                server.run_cli_json(["lib", "search", "servo"])
+
+        self.assertIn("パッケージ情報を取得または処理できませんでした", error.exception.msg)
+        self.assertIn("failed to fetch package index: connection refused", error.exception.msg)
+        self.assertNotIn("\x1b", error.exception.msg)
+
+        with patch.object(server, "run_cli", return_value=(2, "x" * 1000)):
+            with self.assertRaises(server.ApiError) as truncated:
+                server.run_cli_json(["lib", "list"])
+        self.assertLess(len(truncated.exception.msg), 700)
+        self.assertIn("…", truncated.exception.msg)
+
     def test_exit_code_one_is_not_allowed_for_cli_list(self):
         with patch.object(server, "run_cli", return_value=(1, '{"libraries": []}')):
             with self.assertRaises(server.ApiError) as error:

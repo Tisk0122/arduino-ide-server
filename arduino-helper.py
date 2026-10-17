@@ -325,6 +325,16 @@ def run_cli(args, timeout=120, on_line=None, cancel_file=None, cleanup=()):
     return p.returncode, "\n".join(lines)
 
 
+def _cli_error_detail(output, limit=600):
+    """認証済みAPIに返すため、CLI診断を短く読みやすく整形する。"""
+    detail = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", output or "")
+    detail = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]+", " ", detail)
+    detail = " ".join(detail.split())
+    if len(detail) > limit:
+        detail = "…" + detail[-(limit - 1):]
+    return detail
+
+
 def run_cli_json(args, timeout=120):
     rc, out = run_cli(list(args) + ["--format", "json"], timeout=timeout)
     # arduino-cli v1.5+ は検索結果があっても rc=1 を返すことがあるため、
@@ -347,7 +357,16 @@ def run_cli_json(args, timeout=120):
     allows_search_rc1 = args[:2] in (["core", "search"], ["lib", "search"])
     if rc != 0 and not (rc == 1 and allows_search_rc1):
         log("arduino-cli がエラーを返しました (rc=%d, args=%s): %s" % (rc, args, out[-200:]))
-        raise ApiError(502, "arduino-cli の処理に失敗しました。ネットワークやパッケージインデックスを確認してください")
+        detail = _cli_error_detail(out)
+        if detail:
+            if re.search(r"network|index|download|lookup|connection|timeout|certificate|tls|proxy|dns|"
+                         r"no such host|failed to fetch|temporary failure", detail, re.I):
+                message = "arduino-cli がパッケージ情報を取得または処理できませんでした: " + detail
+            else:
+                message = "arduino-cli がエラーを返しました (終了コード %d): %s" % (rc, detail)
+        else:
+            message = "arduino-cli がエラーを返しました (終了コード %d)。サーバーログを確認してください" % rc
+        raise ApiError(502, message)
     if rc != 0:
         log("arduino-cli rc=%d %s (JSON パースを試みます): %s" % (rc, args, out[-200:]))
     # 1) 全体をそのままパース
@@ -389,7 +408,13 @@ def run_cli_json(args, timeout=120):
             except ValueError:
                 continue
     log("arduino-cli JSON 解析失敗 (args=%s) 出力先頭: %r" % (args, out[:300]))
-    raise ApiError(502, "arduino-cli から有効な応答を取得できません。ネットワークやパッケージインデックスを確認してください")
+    detail = _cli_error_detail(out)
+    message = "arduino-cli から有効な応答を取得できませんでした"
+    if detail:
+        message += ": " + detail
+    else:
+        message += "。サーバーログを確認してください"
+    raise ApiError(502, message)
 
 
 def _record_library_search_flag(args, supported, result=None):
