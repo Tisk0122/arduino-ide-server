@@ -2141,6 +2141,12 @@ class Handler(BaseHTTPRequestHandler):
         if method == "GET" and path in ("/docs", "/docs.html"):
             return self._send_html(Path(__file__).resolve().parent / "www" / "docs.html")
 
+        if method == "GET" and path == "/favicon.ico":
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+
         if method == "GET" and path == "/public-config":
             settings = load_admin_settings()
             config = {"prefillStudentToken": settings["prefillStudentToken"]}
@@ -2176,6 +2182,8 @@ class Handler(BaseHTTPRequestHandler):
             self._need(role, True)
             if path.startswith("/admin/api/teachers"):
                 raise ApiError(404, "先生アカウント機能は提供していません")
+            if path.startswith("/admin/api/accounts"):
+                return self._dispatch_remainder(method, path, q, role)
             if path == "/admin/api/overview":
                 return self._send(200, admin_overview())
             if path == "/admin/api/history":

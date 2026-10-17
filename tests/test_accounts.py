@@ -185,6 +185,21 @@ class AccountApiTests(unittest.TestCase):
         )
         self.assertEqual(status, 404)
 
+    def test_admin_account_list_endpoint_is_reachable(self):
+        self.register()
+        status, result = self.request(
+            "/admin/api/accounts",
+            headers={"Authorization": "Bearer " + server.ADMIN_TOKEN},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(len(result["users"]), 1)
+        self.assertEqual(result["users"][0]["username"], "member01")
+
+    def test_favicon_is_available_without_authentication(self):
+        status, body = self.request("/favicon.ico")
+        self.assertEqual(status, 204)
+        self.assertEqual(body, {})
+
     def test_legacy_school_account_data_is_purged_once_during_schema_upgrade(self):
         db_path = Path(self.temp.name) / "accounts.sqlite3"
         conn = sqlite3.connect(str(db_path))
