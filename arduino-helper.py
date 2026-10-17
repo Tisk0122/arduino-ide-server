@@ -346,6 +346,10 @@ def run_cli_json(args, timeout=120):
         log("arduino-cli が中断されました (rc=%d, args=%s): %s" % (rc, args, out[-200:]))
         raise ApiError(504 if rc == 124 else 503,
                        "arduino-cli の処理が時間切れまたは中断になりました")
+    detail = _cli_error_detail(out)
+    if re.search(r"sorry.*(?:can't|cannot|not allowed)|not allowed to run|a password is required",
+                 detail, re.I):
+        raise ApiError(502, "arduino-cli の実行権限が拒否されました。サーバーの sudoers 設定を確認してください: " + detail)
     unsupported_flag = "--omit-releases-details" in args and re.search(
         r"(?:unknown|unrecognized|unsupported|not defined|not recognized).{0,100}--omit-releases-details|"
         r"--omit-releases-details.{0,100}(?:unknown|unrecognized|unsupported|not defined|not recognized)",
@@ -357,7 +361,6 @@ def run_cli_json(args, timeout=120):
     allows_search_rc1 = args[:2] in (["core", "search"], ["lib", "search"])
     if rc != 0 and not (rc == 1 and allows_search_rc1):
         log("arduino-cli がエラーを返しました (rc=%d, args=%s): %s" % (rc, args, out[-200:]))
-        detail = _cli_error_detail(out)
         if detail:
             if re.search(r"network|index|download|lookup|connection|timeout|certificate|tls|proxy|dns|"
                          r"no such host|failed to fetch|temporary failure", detail, re.I):

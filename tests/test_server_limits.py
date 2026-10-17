@@ -308,6 +308,15 @@ class ServerLimitTests(unittest.TestCase):
         self.assertLess(len(truncated.exception.msg), 700)
         self.assertIn("…", truncated.exception.msg)
 
+    def test_cli_sudoers_denial_is_reported_as_permission_failure(self):
+        output = "sudo: I'm sorry arduino-helper. I'm afraid I can't do that"
+        with patch.object(server, "run_cli", return_value=(1, output)):
+            with self.assertRaises(server.ApiError) as error:
+                server.run_cli_json(["lib", "search", "servo"])
+
+        self.assertIn("実行権限が拒否されました", error.exception.msg)
+        self.assertIn(output, error.exception.msg)
+
     def test_exit_code_one_is_not_allowed_for_cli_list(self):
         with patch.object(server, "run_cli", return_value=(1, '{"libraries": []}')):
             with self.assertRaises(server.ApiError) as error:

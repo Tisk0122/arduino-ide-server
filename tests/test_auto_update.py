@@ -65,6 +65,12 @@ class AutoUpdateContractTests(unittest.TestCase):
         self.assertIn("/usr/bin/systemctl --no-block start arduino-helper-update.service", configure)
         self.assertIn("/usr/bin/systemctl --no-block start arduino-helper-update.service", installer)
 
+    def test_installer_sudoers_allows_arguments_only_for_validating_wrapper(self):
+        installer = (ROOT / "install.sh").read_text(encoding="utf-8")
+        self.assertIn('echo "$H_USER ALL=($B_USER) NOPASSWD: $WRAP *"', installer)
+        self.assertIn('sudo -n -u "$B_USER" "$WRAP" -- --timeout 15 -- version', installer)
+        self.assertNotIn('echo "$H_USER ALL=($B_USER) NOPASSWD: ALL"', installer)
+
 
 if __name__ == "__main__":
     unittest.main()

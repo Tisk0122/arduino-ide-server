@@ -189,9 +189,11 @@ for defaults in \
   ""
 do
   {
-    echo "# arduino-helper が arduino-build としてラッパーだけを実行できる"
+    echo "# arduino-helper は引数を検証するラッパーだけを arduino-build として実行できる"
     [ -n "$defaults" ] && echo "Defaults:$H_USER $defaults"
-    echo "$H_USER ALL=($B_USER) NOPASSWD: $WRAP"
+    # sudo-rs では引数なしのコマンド指定が引数付き実行に一致しないため、明示的に許可する。
+    # ラッパー側が許可する Arduino CLI コマンドと引数を検証する。
+    echo "$H_USER ALL=($B_USER) NOPASSWD: $WRAP *"
     echo "$H_USER ALL=(root) NOPASSWD: /usr/bin/systemctl --no-block start arduino-helper-update.service"
   } > "$sudoers_tmp"
   if visudo -cf "$sudoers_tmp" >/dev/null 2>&1; then sudoers_ok=1; break; fi
@@ -299,7 +301,7 @@ say "8/8 動作確認"
 fail=0
 if curl -fsS "http://127.0.0.1:$HELPER_PORT/ping" | grep -q '"ok": true'; then echo "[OK] サーバーが応答しています"; else echo "[NG] サーバーが応答しません: journalctl -u arduino-helper -n 50"; fail=1; fi
 
-if sudo -u "$H_USER" sudo -n -u "$B_USER" "$WRAP" -- version >/dev/null 2>&1; then echo "[OK] arduino-helper → arduino-build の切り替え"; else echo "[NG] sudo の切り替えに失敗: sudo -u $H_USER sudo -n -u $B_USER $WRAP -- version"; fail=1; fi
+if sudo -u "$H_USER" sudo -n -u "$B_USER" "$WRAP" -- --timeout 15 -- version >/dev/null 2>&1; then echo "[OK] arduino-helper → arduino-build の切り替え"; else echo "[NG] sudo の切り替えに失敗: sudo -u $H_USER sudo -n -u $B_USER $WRAP -- --timeout 15 -- version"; fail=1; fi
 
 if sudo -u "$B_USER" cat "$H_HOME/token" >/dev/null 2>&1 || sudo -u "$B_USER" cat "$H_HOME/admin-token" >/dev/null 2>&1; then
   echo "[NG] arduino-build がトークンを読めてしまいます (権限の設定を確認してください)"; fail=1
