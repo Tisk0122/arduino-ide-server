@@ -112,6 +112,171 @@ details p { margin-bottom: 0; color: var(--muted); }
   section { break-inside: avoid; }
   a { color: inherit; }
 }
+
+/* Refined documentation layout */
+:root {
+  --bg: #080d14;
+  --surface: #101923;
+  --surface-raised: #152330;
+  --border: rgba(159, 190, 211, .13);
+  --teal: #41d9cf;
+  --teal-link: #70eee2;
+  --teal-link-hover: #a1fff5;
+  --note-bg: rgba(65, 217, 207, .09);
+  --warn-bg: rgba(255, 184, 91, .1);
+  --radius: 14px;
+}
+[data-theme="light"] {
+  --bg: #eef3f7;
+  --surface: #fff;
+  --surface-raised: #f5f8fa;
+  --border: rgba(28, 53, 73, .12);
+  --teal: #087f7c;
+  --teal-link: #087f7c;
+  --teal-link-hover: #055e5b;
+  --note-bg: rgba(8, 127, 124, .08);
+  --warn-bg: rgba(180, 101, 0, .09);
+}
+body {
+  background:
+    radial-gradient(ellipse at 76% 0%, rgba(19, 126, 133, .16), transparent 36rem),
+    var(--bg);
+  line-height: 1.85;
+}
+.topbar {
+  min-height: 62px;
+  padding: 0 max(24px, calc((100vw - 1280px) / 2));
+  background: rgba(8, 15, 22, .84);
+  border-bottom-color: var(--border);
+  backdrop-filter: blur(16px);
+}
+[data-theme="light"] .topbar { background: rgba(255, 255, 255, .88); color: #142331; }
+[data-theme="light"] .brand { color: #142331; }
+[data-theme="light"] .top-actions a { color: #087f7c; }
+[data-theme="light"] .theme-button { color: #52677f; }
+.brand { letter-spacing: -.02em; }
+.top-actions a { font-size: 14px; font-weight: 650; }
+.theme-button { width: 38px; height: 38px; border: 1px solid var(--border); border-radius: 11px; }
+.layout {
+  grid-template-columns: 248px minmax(0, 1fr);
+  gap: clamp(28px, 5vw, 72px);
+  width: min(1240px, calc(100% - 48px));
+  margin: 48px auto 96px;
+}
+.toc {
+  top: 82px;
+  padding: 20px 14px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .12);
+}
+.toc h2 { padding: 0 10px 12px; border: 0; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--subtle); }
+.toc ul { display: grid; gap: 4px; padding: 0; list-style: none; }
+.toc li { margin: 0; color: var(--text); }
+.toc a {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 9px;
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: none;
+  transition: background .18s ease, color .18s ease, transform .18s ease;
+}
+.toc a:hover, .toc a[aria-current="location"] { transform: translateX(2px); background: var(--note-bg); color: var(--teal-link); }
+main { max-width: 850px; }
+.hero {
+  position: relative;
+  overflow: hidden;
+  margin: 0 0 48px;
+  padding: clamp(28px, 5vw, 52px);
+  border: 1px solid rgba(112, 238, 226, .2);
+  border-radius: 24px;
+  background:
+    radial-gradient(ellipse at 88% 10%, rgba(65, 217, 207, .2), transparent 28rem),
+    linear-gradient(135deg, #101e2b, #0d1721 72%);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, .22);
+}
+[data-theme="light"] .hero { background: radial-gradient(ellipse at 88% 10%, rgba(8, 127, 124, .12), transparent 28rem), linear-gradient(135deg, #fff, #e6f1f2); }
+.hero::after {
+  position: absolute;
+  right: -36px;
+  bottom: -100px;
+  width: 240px;
+  height: 240px;
+  border: 1px solid rgba(112, 238, 226, .15);
+  border-radius: 50%;
+  box-shadow: 0 0 0 28px rgba(112, 238, 226, .035), 0 0 0 58px rgba(112, 238, 226, .025);
+  content: "";
+  pointer-events: none;
+}
+.eyebrow { display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid rgba(112, 238, 226, .22); border-radius: 999px; background: rgba(65, 217, 207, .08); font-size: 11px; letter-spacing: .08em; }
+.eyebrow::before { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 12px var(--teal); content: ""; }
+h1 { max-width: 660px; margin-top: 20px; font-size: clamp(34px, 5.2vw, 56px); line-height: 1.2; letter-spacing: -.045em; }
+.lead { max-width: 650px; font-size: clamp(16px, 2vw, 18px); line-height: 1.9; }
+.hero-note { position: relative; z-index: 1; max-width: 660px; margin-top: 26px; border: 1px solid var(--border); border-left: 3px solid var(--teal); border-radius: 10px; background: rgba(255, 255, 255, .035); font-size: 13px; }
+section { margin: 0 0 24px; padding: clamp(22px, 3.5vw, 34px); border: 1px solid var(--border); border-radius: 18px; background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: 0 14px 40px rgba(0, 0, 0, .08); scroll-margin-top: 90px; }
+h2 { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 14px; border-color: var(--border); font-size: clamp(21px, 3vw, 26px); letter-spacing: -.025em; }
+h2::before { width: 4px; height: 24px; flex: 0 0 4px; border-radius: 999px; background: var(--teal); box-shadow: 0 0 14px rgba(65, 217, 207, .35); content: ""; }
+h3 { margin-top: 28px; letter-spacing: -.015em; }
+.cards { gap: 12px; }
+.card, .steps li { border-radius: 13px; transition: border-color .18s ease, transform .18s ease, background .18s ease; }
+.card:hover, .steps li:hover { transform: translateY(-2px); border-color: rgba(65, 217, 207, .32); background: var(--surface-raised); }
+.steps { gap: 10px; }
+.steps li { padding: 14px 16px 14px 60px; }
+.steps li::before { color: #061315; background: var(--teal); box-shadow: 0 4px 14px rgba(65, 217, 207, .22); }
+.flow { border: 1px solid var(--border); background: var(--surface-raised); }
+.flow span { border-radius: 999px; padding: 5px 12px; font-size: 13px; }
+.flow b { color: var(--teal-link); }
+.note, .warning { border: 1px solid var(--border); border-left: 3px solid var(--teal); border-radius: 10px; }
+.warning { border-left-color: #f0a34b; }
+.table-wrap { border-radius: 12px; }
+th { font-size: 13px; white-space: nowrap; }
+td { font-size: 14px; }
+details { border-radius: 12px; transition: border-color .18s ease; }
+details[open] { border-color: rgba(65, 217, 207, .32); }
+summary { padding: 2px 0; }
+summary::marker { color: var(--teal); }
+.footer { margin-top: 32px; padding: 22px 4px 0; }
+@media (max-width: 900px) {
+  html { scroll-padding-top: 138px; }
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 20px; width: min(850px, calc(100% - 32px)); margin-top: 24px; }
+  .toc { position: sticky; top: 62px; z-index: 2; max-height: none; padding: 10px 12px; }
+  .toc h2 { padding: 0 6px 6px; }
+  .toc ul { display: flex; overflow-x: auto; gap: 4px; padding-bottom: 2px; scrollbar-width: thin; }
+  .toc li { flex: 0 0 auto; }
+  .toc a { white-space: nowrap; }
+  main { max-width: none; }
+  section { scroll-margin-top: 138px; }
+}
+@media (max-width: 600px) {
+  html { scroll-padding-top: 116px; }
+  body { font-size: 15px; }
+  .topbar { min-height: 56px; padding: 0 16px; }
+  .layout { width: calc(100% - 24px); margin: 12px auto 48px; gap: 12px; }
+  .toc { top: 56px; padding: 8px; border-radius: 12px; }
+  .toc h2 { display: none; }
+  .toc a { padding: 6px 9px; font-size: 12px; }
+  .hero { margin-bottom: 14px; padding: 24px 20px; border-radius: 18px; }
+  h1 { font-size: 35px; }
+  .lead { font-size: 15px; }
+  section { margin-bottom: 12px; padding: 20px 16px; border-radius: 15px; scroll-margin-top: 116px; }
+  h2 { font-size: 21px; }
+  .cards { grid-template-columns: 1fr; }
+  .steps li { padding: 12px 12px 12px 50px; }
+  .steps li::before { left: 12px; top: 12px; width: 26px; height: 26px; }
+  .flow { gap: 6px; padding: 12px; }
+  .flow span { font-size: 12px; }
+  .flow b { display: none; }
+  table { min-width: 600px; }
+  th, td { padding: 9px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
+@media print {
+  .hero, section { box-shadow: none; border-color: #bbb; }
+  .hero { background: #fff; }
+}
 </style>
 </head>
 <body>
@@ -120,7 +285,7 @@ details p { margin-bottom: 0; color: var(--muted); }
   <a class="brand" href="/">Arduino Web IDE</a>
   <div class="top-actions">
     <a href="/">IDEに戻る</a>
-    <button class="theme-button" id="theme-toggle" type="button" title="テーマ切替" aria-label="ライトテーマに切り替え" aria-pressed="false">
+    <button class="theme-button" id="theme-toggle" type="button" title="ライトテーマに切り替え" aria-label="ライトテーマに切り替え" aria-pressed="false">
       <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
       <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6.5 6.5 0 0 0 8.268 8.268c.344-.215.825-.003.803.401"/></svg>
     </button>
@@ -135,14 +300,15 @@ details p { margin-bottom: 0; color: var(--muted); }
       <li><a href="#quick-start">基本の使い方</a></li>
       <li><a href="#screen">画面の見方</a></li>
       <li><a href="#architecture">しくみと保存先</a></li>
-      <li><a href="#accounts">トークンと権限</a></li>
+      <li><a href="#accounts">アカウントと同期</a></li>
+      <li><a href="#tokens">トークンと権限</a></li>
       <li><a href="#troubleshooting">困ったとき</a></li>
       <li><a href="#glossary">用語集</a></li>
     </ul>
   </nav>
   <main id="main-content">
     <div class="hero">
-      <div class="eyebrow">はじめての方向けガイド</div>
+      <div class="eyebrow">はじめての方向けガイド · 使い方としくみ</div>
       <h1>Arduino Web IDE<br>使い方・しくみ</h1>
       <p class="lead">ブラウザーでArduinoのプログラムを書き、コンパイルして、対応するボードに書き込むためのIDEです。画面の操作方法から、コンパイルサーバーとの関係まで順番に説明します。</p>
       <div class="hero-note">このページは一般利用者向けの案内です。サーバーの設置・ネットワーク公開・トークン発行は、サービス管理者の案内に従ってください。</div>
@@ -170,7 +336,7 @@ details p { margin-bottom: 0; color: var(--muted); }
         <li>IDEを開くためのURLと、必要に応じてサービス管理者から配布されたコンパイルサーバーURL／IDE用アクセストークンを用意します。配布リンクがある場合は、それを開くと設定が入力されます。</li>
         <li>コンパイルにはコンパイルサーバーへの接続が必要です。サーバーのURLやトークンがわからない場合は、管理者に確認してください。</li>
         <li>ボードへの直接書き込みとシリアルモニターには、Web Serial APIに対応したブラウザー（ChromeまたはEdge）と安全な接続（通常はHTTPS）が必要です。</li>
-        <li>初回起動時の「Arduino Web IDEへようこそ」で「USBポートを許可」を押し、ブラウザーの選択画面から接続中のボードを選びます。複数台使う場合は1台ずつ追加できます。許可済みポートは次回以降も確認されます。</li>
+        <li>初回起動時に表示される「Arduino Web IDEへようこそ」で「USBポートを許可」を押し、ブラウザーの選択画面から接続中のボードを選びます。複数台使う場合は1台ずつ許可してください。一度許可したポートは、ブラウザーのサイト設定で許可を取り消すまで再利用できます。</li>
         <li>書き込み対応はボードによって異なります。IDEに「ブラウザー書き込み未対応」と表示されるボードは、コンパイル結果をダウンロードして別の書き込み方法を使います。</li>
       </ul>
       <div class="warning"><strong>安全上の注意:</strong> 管理者用トークンはボードパッケージやライブラリの変更に使えるため、他の人に共有しないでください。通常の利用ではIDE用トークンを使います。</div>
@@ -185,7 +351,7 @@ details p { margin-bottom: 0; color: var(--muted); }
         <li><strong>コンパイルして確認する</strong><br>「検証」を押すか <kbd>Ctrl</kbd>+<kbd>Enter</kbd> を押します。進捗やエラーは下部の「コンソール」に表示されます。エラーが出た場合は、表示されたファイル名・行番号とメッセージを確認します。</li>
         <li><strong>ボードに書き込む</strong><br>対応ボードをUSB接続し、「書き込み」を押します。コンパイル後にポートを選び、処理が完了するまでケーブルを抜かないでください。ボードが未対応の場合は、画面に案内されるダウンロード結果を使ってください。</li>
         <li><strong>必要に応じてシリアルを確認する</strong><br>「シリアル」または接続状態の表示を押し、ポートとボーレートを設定します。スケッチ側の <code>Serial.begin(...)</code> と同じボーレートを選ぶと、送受信内容を確認できます。</li>
-        <li><strong>作品をバックアップする</strong><br>「バックアップ」からスケッチをZIP形式で書き出せます。別のブラウザーや端末で使う場合、ブラウザー内の保存データは自動で移らないため、定期的なバックアップをおすすめします。</li>
+        <li><strong>スケッチをバックアップする</strong><br>「バックアップ」からスケッチをZIP形式で書き出せます。別のブラウザーや端末で使う場合、ブラウザー内の保存データは自動では移行されないため、定期的なバックアップをおすすめします。</li>
       </ol>
       <div class="note">コンパイルと書き込みは別の段階です。コンパイルが成功しても、ポート選択・USB接続・書き込み対応などの理由で書き込みが失敗することがあります。</div>
       <div class="warning"><strong>USB検出と権限について:</strong> ブラウザーのセキュリティ仕様により、ページを開いただけでUSBポートを一括許可させることはできません。初回案内のボタンを押して選択画面を開き、ポートを1台ずつ許可してください。許可はこのサイトに保存され、ブラウザーのサイト設定から取り消せます。Chrome / EdgeとHTTPSが必要です。IDEの表示はUSBの接続・切断イベントに応じて更新しますが、ブラウザーのポート選択画面はページからリアルタイム更新できません。抜き差し後に一覧が変わらない場合は、選択画面を閉じてからもう一度開いてください。IDEが表示する台数は許可済みポートの数であり、物理的に接続中の台数とは限りません。複数ポートが許可されていても、機種を識別できたボードが1種類だけならその候補を表示します。異なる複数のボードを識別した場合や、USBシリアル変換器から機種を特定できない場合は手動選択してください。候補が表示されてもスケッチのボード設定は自動変更されず、利用者が適用を選びます。自動検出はシリアル通信の自動接続や書き込みを行うものではありません。カメラ・マイクなど、このIDEに不要な権限は要求しません。</div>
@@ -236,8 +402,8 @@ details p { margin-bottom: 0; color: var(--muted); }
       <h3>どこに何が保存されるか</h3>
       <ul>
         <li><strong>スケッチとIDE設定:</strong> 現在のブラウザーのIndexedDBに保存されます。同じ端末でも、別ブラウザー・別ブラウザープロファイル・別サイトURLとは共有されません。ブラウザーのデータを消すと失われる場合があります。</li>
-        <li><strong>アカウントにログインした作品:</strong> アカウントのサーバーデータベースにも同期されます。同じアカウントでログインすると、別の端末から作品を読み込めます。既存のブラウザー作品は、アカウント画面の「未登録作品を取り込む」を選んだ場合だけ移行されます。</li>
-        <li><strong>コンパイル処理:</strong> サーバーが受け取り、コンパイル用の作業領域で処理します。コンパイルしたソースはサーバーへ送信されるため、組織や管理者の利用ルールに従ってください。</li>
+        <li><strong>アカウントにログイン中のスケッチ:</strong> アカウントのサーバー領域にも同期されます。同じアカウントでログインすると、別の端末からも利用できます。既存のブラウザー内のスケッチは、アカウント画面から取り込んだ場合に同期対象になります。</li>
+        <li><strong>コンパイル処理:</strong> コンパイル時にはスケッチがコンパイルサーバーへ送信され、サーバー上の作業領域で処理されます。組織や管理者の利用ルールに従ってください。</li>
         <li><strong>ボードパッケージとライブラリ:</strong> コンパイルサーバー側で共有管理されます。個々の利用者のブラウザーだけにインストールされるものではありません。</li>
         <li><strong>物理ボードへの書き込み・シリアル通信:</strong> 対応ブラウザーからUSBポートを直接利用します。コンパイルサーバーがUSB機器に接続するわけではありません。</li>
         <li><strong>バックアップ:</strong> スケッチをZIPに書き出し、端末のダウンロード領域などに保管できます。大切なコードはIDE内の自動保存だけに頼らず、別の場所にも保存してください。</li>
@@ -245,18 +411,24 @@ details p { margin-bottom: 0; color: var(--muted); }
     </section>
 
     <section id="accounts">
+      <h2>アカウントとスケッチの同期</h2>
+      <p>アカウント画面からユーザー名とパスワードで新規登録し、ログインできます。ログイン中のスケッチはアカウントのサーバー領域に同期され、同じアカウントで別の端末からも利用できます。ブラウザーに保存済みのスケッチを取り込む場合は、アカウント画面で「このブラウザーの未登録スケッチをアカウントへ取り込む」を選んでください。</p>
+      <div class="warning"><strong>スケッチの閲覧について:</strong> スケッチはアカウントごとに分けて保存されます。ただし、管理者用トークンを持つ管理者は、管理コンソールから登録ユーザーのスケッチ一覧と内容を閲覧できます。個人情報、パスワード、その他の秘密情報はスケッチに含めないでください。</div>
+      <p>ログインセッションは12時間で期限切れになります。パスワードを変更すると、他の端末を含めてすべてのセッションが終了します。メールアドレスによるパスワード再設定機能はありません。パスワードは安全に管理し、第三者と共有しないでください。</p>
+      <p>サーバー障害や運営終了に備え、大切なスケッチはZIPにも書き出して別の場所に保管してください。サーバーのURLや利用できる機能は、設置者の構成によって異なります。</p>
+    </section>
+
+    <section id="tokens">
       <h2>トークンと権限</h2>
       <div class="table-wrap">
         <table>
           <thead><tr><th>種類</th><th>主な用途</th><th>取り扱い</th></tr></thead>
           <tbody>
-            <tr><td>IDE 用トークン</td><td>コンパイル、ボードやライブラリ情報の閲覧など</td><td>公開掲示板やソースコードに貼り付けないでください。</td></tr>
+            <tr><td>IDE 用トークン</td><td>コンパイル、ボードやライブラリ情報の閲覧など</td><td>公開サイトやリポジトリに掲載しないでください。</td></tr>
             <tr><td>管理者用トークン</td><td>ボードパッケージやライブラリの追加・削除、管理画面の利用</td><td>管理者だけが使用します。一般利用者に配布しないでください。</td></tr>
           </tbody>
         </table>
       </div>
-      <p>IDEのアカウント画面から、ユーザー名とパスワードで新規登録してログインできます。メールアドレスによるパスワード再設定は現在ありません。パスワードを忘れないよう安全に管理し、第三者と共有しないでください。ログインセッションは12時間で期限切れになり、パスワードを変更すると他の端末を含めてすべてのセッションが終了します。</p>
-      <p>アカウントにログインした作品はサーバーに保存され、同じアカウントで別の端末から読み込めます。作品データはアカウント間で分離され、管理者が通常の管理画面から作品を閲覧することはできません。個人情報やパスワードなどをコードに書かないでください。サーバー障害・運営終了・ブラウザー故障に備えて、重要な作品はZIPにも書き出してください。サーバーのURLや利用可能な機能は、設置者の構成によって異なります。</p>
     </section>
 
     <section id="troubleshooting">
@@ -266,7 +438,7 @@ details p { margin-bottom: 0; color: var(--muted); }
         <p>ヘルパー設定でURLとトークンを確認します。ネットワークに接続できるか、サーバーが起動しているか、URLの変更がないかを管理者に確認してください。HTTPSのIDEから一般のHTTPサーバーへ接続すると、ブラウザーに拒否されることがあります。</p>
       </details>
       <details>
-        <summary>認証エラー・トークンが正しくないと表示される</summary>
+        <summary>「トークンが正しくありません」と表示される</summary>
         <p>トークンの種類と入力ミスを確認してください。期限切れや再発行後の古いトークンは使えません。管理者用トークンが必要な操作を行っている場合は、管理者に相談してください。管理者トークンをIDE用欄に入力して共有しないでください。</p>
       </details>
       <details>
@@ -337,6 +509,20 @@ details p { margin-bottom: 0; color: var(--muted); }
       localStorage.setItem('arduino_docs_theme', theme);
     } catch (_) {}
   });
+  var tocLinks = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  if ('IntersectionObserver' in window) {
+    var sectionObserver = new IntersectionObserver(function (entries) {
+      var visible = entries.filter(function (entry) { return entry.isIntersecting; })
+        .sort(function (a, b) { return b.intersectionRatio - a.intersectionRatio; });
+      if (!visible.length) return;
+      var currentId = visible[0].target.id;
+      tocLinks.forEach(function (link) {
+        if (link.hash === '#' + currentId) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+      });
+    }, { rootMargin: '-12% 0px -68% 0px', threshold: [0, .2, .5, .8] });
+    document.querySelectorAll('main section[id]').forEach(function (section) { sectionObserver.observe(section); });
+  }
   window.addEventListener('storage', function (event) {
     if (event.key === themeStorageKey && (event.newValue === 'light' || event.newValue === 'dark')) {
       applyTheme(event.newValue);
