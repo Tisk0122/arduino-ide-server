@@ -6338,6 +6338,24 @@ function toggleSidebar() {
   setTimeout(fitClearLabel, 0);
 }
 
+function updateAccountBtn() {
+  const btn = document.getElementById('account-open-btn');
+  const nameLabel = document.getElementById('acct-name-label');
+  if (S.account.user) {
+    const displayName = S.account.user.name || S.account.user.username;
+    btn.classList.add('logged-in');
+    btn.title = `ログイン中: ${displayName} (@${S.account.user.username})`;
+    btn.setAttribute('aria-label', `アカウント: ${displayName} (ログイン中)`);
+    nameLabel.textContent = displayName;
+    nameLabel.hidden = false;
+  } else {
+    btn.classList.remove('logged-in');
+    btn.title = 'アカウントとクラウド保存';
+    btn.setAttribute('aria-label', 'アカウントとクラウド保存 (未ログイン)');
+    nameLabel.hidden = true;
+  }
+}
+
 function initEvents() {
   // ---- ツールバー ----
   document.getElementById('verify-btn').addEventListener('click', () => Build.verify());
@@ -6484,25 +6502,6 @@ function initEvents() {
     btn.disabled = loading;
     spinner.hidden = !loading;
   }
-  // アカウントボタンのUI状態を更新する
-  function updateAccountBtn() {
-    const btn = document.getElementById('account-open-btn');
-    const nameLabel = document.getElementById('acct-name-label');
-    if (S.account.user) {
-      const displayName = S.account.user.name || S.account.user.username;
-      btn.classList.add('logged-in');
-      btn.title = `ログイン中: ${displayName} (@${S.account.user.username})`;
-      btn.setAttribute('aria-label', `アカウント: ${displayName} (ログイン中)`);
-      nameLabel.textContent = displayName;
-      nameLabel.hidden = false;
-    } else {
-      btn.classList.remove('logged-in');
-      btn.title = 'アカウントとクラウド保存';
-      btn.setAttribute('aria-label', 'アカウントとクラウド保存 (未ログイン)');
-      nameLabel.hidden = true;
-    }
-  }
-
   document.getElementById('account-open-btn').addEventListener('click', () => {
     document.getElementById('account-login-form').hidden = !!S.account.user;
     document.getElementById('account-logged-in').hidden = !S.account.user;
