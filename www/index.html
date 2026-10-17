@@ -1196,6 +1196,53 @@ svg { display: block; flex-shrink: 0; }
 .account-session-actions { display: grid; gap: 10px; }
 .account-session-actions .btn { min-height: 40px; justify-content: center; white-space: normal; }
 .account-logged-in .form-hint { margin: -5px 0 0; line-height: 1.65; }
+.account-field-err { display: block; font-size: 11.5px; color: var(--red, #e05252); margin-top: 5px; line-height: 1.5; }
+.account-field-err[hidden] { display: none; }
+.account-pw-wrap { position: relative; display: flex; align-items: stretch; }
+.account-pw-wrap .form-input { flex: 1; padding-right: 40px; }
+.account-pw-toggle {
+  position: absolute; right: 0; top: 0; bottom: 0;
+  width: 38px; display: flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer;
+  color: var(--tx3); border-radius: 0 var(--radius) var(--radius) 0;
+  transition: color .15s;
+}
+.account-pw-toggle:hover { color: var(--tx1); }
+.account-pw-toggle svg { width: 15px; height: 15px; }
+.account-pw-strength { margin-top: 7px; display: flex; align-items: center; gap: 8px; }
+.account-pw-strength[hidden] { display: none; }
+.account-pw-strength-bar {
+  flex: 1; height: 4px; border-radius: 2px;
+  background: var(--bd2); position: relative; overflow: hidden;
+}
+.account-pw-strength-bar::after {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+  width: var(--pw-strength, 0%);
+  background: var(--pw-color, var(--red, #e05252));
+  border-radius: 2px; transition: width .3s, background .3s;
+}
+.account-pw-strength-label { font-size: 11px; color: var(--tx3); white-space: nowrap; min-width: 48px; }
+.account-submit-spinner {
+  display: inline-block; width: 14px; height: 14px; margin-right: 6px;
+  border: 2px solid currentColor; border-top-color: transparent;
+  border-radius: 50%; animation: acct-spin .7s linear infinite;
+  vertical-align: middle;
+}
+.account-submit-spinner[hidden] { display: none; }
+@keyframes acct-spin { to { transform: rotate(360deg); } }
+.account-pw-section { border: 1px solid var(--bd1); border-radius: var(--radius); overflow: hidden; }
+.account-pw-summary {
+  padding: 11px 14px; cursor: pointer; font-size: 13px; font-weight: 600;
+  color: var(--tx1); background: var(--bg2); list-style: none;
+  user-select: none;
+}
+.account-pw-summary::-webkit-details-marker { display: none; }
+.account-pw-summary::after { content: ' ›'; color: var(--tx3); }
+.account-pw-section[open] .account-pw-summary::after { content: ' ‹'; }
+.account-pw-section .account-password-fields { padding: 14px; display: grid; gap: 13px; }
+.account-pw-section .form-group { margin: 0; }
+.account-pw-section .form-label { margin-bottom: 6px; }
+.account-pw-section .btn { min-height: 40px; margin-top: 2px; }
 
 /* ボタン */
 .btn {
@@ -2279,38 +2326,100 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
 <div class="modal-overlay" id="m-account">
   <div class="modal modal-account">
     <div class="modal-head">
-      <span class="modal-title">アカウントとクラウド保存</span>
+      <span class="modal-title" id="m-account-title">アカウントとクラウド保存</span>
       <button class="modal-x" data-close="m-account" title="閉じる" aria-label="閉じる"><i data-lucide="x"></i></button>
     </div>
     <div class="modal-body">
-      <p class="account-status" id="account-status" role="status">アカウントを作成してログインすると、作品をサーバーに保存し、別の端末からも使えます。</p>
-      <form class="account-form" id="account-login-form">
-        <div class="form-group" id="account-name-wrap" hidden><label class="form-label" for="account-name">表示名（任意）</label><input class="form-input" id="account-name" autocomplete="name" maxlength="80"></div>
-        <div class="form-group"><label class="form-label" for="account-username">ユーザー名</label><input class="form-input" id="account-username" autocomplete="username" minlength="3" maxlength="64" required></div>
-        <div class="form-group"><label class="form-label" for="account-password">パスワード（10文字以上）</label><input class="form-input" id="account-password" type="password" autocomplete="current-password" minlength="10" required></div>
-        <div class="form-group" id="account-confirm-wrap" hidden><label class="form-label" for="account-confirm-password">パスワードを再入力</label><input class="form-input" id="account-confirm-password" type="password" autocomplete="new-password" minlength="10"></div>
-        <div class="account-form-actions"><button class="btn btn-primary" id="account-submit" type="submit">ログイン</button><button class="btn btn-secondary" id="account-mode-toggle" type="button">アカウントを作成</button></div>
+      <p class="account-status" id="account-status" role="status" aria-live="polite">アカウントを作成してログインすると、作品をサーバーに保存し、別の端末からも使えます。</p>
+      <form class="account-form" id="account-login-form" novalidate aria-labelledby="m-account-title">
+        <div class="form-group" id="account-name-wrap" hidden>
+          <label class="form-label" for="account-name">表示名（任意）</label>
+          <input class="form-input" id="account-name" autocomplete="name" maxlength="80" aria-describedby="account-name-err">
+          <span class="account-field-err" id="account-name-err" role="alert" aria-live="assertive" hidden></span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="account-username">ユーザー名</label>
+          <input class="form-input" id="account-username" autocomplete="username" minlength="3" maxlength="64" required
+                 aria-describedby="account-username-hint account-username-err" aria-required="true">
+          <span class="form-hint" id="account-username-hint">英数字・ドット・アンダースコア・ハイフン（3〜64文字）</span>
+          <span class="account-field-err" id="account-username-err" role="alert" aria-live="assertive" hidden></span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="account-password">パスワード</label>
+          <div class="account-pw-wrap">
+            <input class="form-input" id="account-password" type="password" autocomplete="current-password" minlength="10" required
+                   aria-describedby="account-password-hint account-password-err" aria-required="true">
+            <button type="button" class="account-pw-toggle" id="account-pw-show" aria-label="パスワードを表示" title="パスワードを表示/非表示">
+              <i data-lucide="eye" aria-hidden="true"></i>
+            </button>
+          </div>
+          <span class="form-hint" id="account-password-hint">10文字以上</span>
+          <div class="account-pw-strength" id="account-pw-strength" hidden aria-hidden="true">
+            <div class="account-pw-strength-bar" id="account-pw-strength-bar"></div>
+            <span class="account-pw-strength-label" id="account-pw-strength-label"></span>
+          </div>
+          <span class="account-field-err" id="account-password-err" role="alert" aria-live="assertive" hidden></span>
+        </div>
+        <div class="form-group" id="account-confirm-wrap" hidden>
+          <label class="form-label" for="account-confirm-password">パスワードを再入力</label>
+          <div class="account-pw-wrap">
+            <input class="form-input" id="account-confirm-password" type="password" autocomplete="new-password" minlength="10"
+                   aria-describedby="account-confirm-err">
+            <button type="button" class="account-pw-toggle" id="account-confirm-pw-show" aria-label="確認用パスワードを表示" title="パスワードを表示/非表示">
+              <i data-lucide="eye" aria-hidden="true"></i>
+            </button>
+          </div>
+          <span class="account-field-err" id="account-confirm-err" role="alert" aria-live="assertive" hidden></span>
+        </div>
+        <div class="account-form-actions">
+          <button class="btn btn-primary" id="account-submit" type="submit">
+            <span class="account-submit-spinner" id="account-submit-spinner" hidden aria-hidden="true"></span>
+            <span id="account-submit-label">ログイン</span>
+          </button>
+          <button class="btn btn-secondary" id="account-mode-toggle" type="button">アカウントを作成</button>
+        </div>
       </form>
       <div class="account-logged-in" id="account-logged-in" hidden>
         <p class="account-user-label" id="account-user-label"></p>
-        <div class="account-password-fields" id="account-password-settings">
-          <div class="form-group">
-            <label class="form-label" for="account-current-password">現在のパスワード</label>
-            <input class="form-input" id="account-current-password" type="password" autocomplete="current-password">
+        <details class="account-pw-section" id="account-pw-section">
+          <summary class="account-pw-summary">パスワードを変更</summary>
+          <div class="account-password-fields">
+            <div class="form-group">
+              <label class="form-label" for="account-current-password">現在のパスワード</label>
+              <div class="account-pw-wrap">
+                <input class="form-input" id="account-current-password" type="password" autocomplete="current-password">
+                <button type="button" class="account-pw-toggle" id="account-cur-pw-show" aria-label="現在のパスワードを表示">
+                  <i data-lucide="eye" aria-hidden="true"></i>
+                </button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="account-new-password">新しいパスワード（10文字以上）</label>
+              <div class="account-pw-wrap">
+                <input class="form-input" id="account-new-password" type="password" autocomplete="new-password" minlength="10">
+                <button type="button" class="account-pw-toggle" id="account-new-pw-show" aria-label="新しいパスワードを表示">
+                  <i data-lucide="eye" aria-hidden="true"></i>
+                </button>
+              </div>
+              <div class="account-pw-strength" id="account-new-pw-strength" hidden aria-hidden="true">
+                <div class="account-pw-strength-bar" id="account-new-pw-strength-bar"></div>
+                <span class="account-pw-strength-label" id="account-new-pw-strength-label"></span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="account-new-password-confirm">新しいパスワードを再入力</label>
+              <input class="form-input" id="account-new-password-confirm" type="password" autocomplete="new-password" minlength="10">
+            </div>
+            <span class="account-field-err" id="account-change-pw-err" role="alert" aria-live="assertive" hidden></span>
+            <button class="btn btn-primary" id="account-change-password" type="button">パスワードを変更</button>
           </div>
-          <div class="form-group">
-            <label class="form-label" for="account-new-password">新しいパスワード（10文字以上）</label>
-            <input class="form-input" id="account-new-password" type="password" autocomplete="new-password" minlength="10">
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="account-new-password-confirm">新しいパスワードを再入力</label>
-            <input class="form-input" id="account-new-password-confirm" type="password" autocomplete="new-password" minlength="10">
-          </div>
-          <button class="btn btn-primary" id="account-change-password" type="button">パスワードを変更</button>
-        </div>
+        </details>
         <div class="account-session-actions">
           <button class="btn btn-secondary" id="account-import-local" type="button">このブラウザーの未登録作品をアカウントへ取り込む</button>
-          <button class="btn btn-secondary" id="account-sync-now" type="button">今すぐ同期</button>
+          <button class="btn btn-secondary" id="account-sync-now" type="button">
+            <span class="account-submit-spinner" id="account-sync-spinner" hidden aria-hidden="true"></span>
+            今すぐ同期
+          </button>
           <button class="btn btn-secondary" id="account-logout" type="button">ログアウト</button>
         </div>
         <p class="form-hint">作品の変更は自動で同期します。別端末と同じ作品が競合した場合、どちらも残して確認できるようにします。共有端末では利用後にログアウトしてください。</p>
@@ -4072,7 +4181,7 @@ const Account = {
         Sk.open(S.sketches[0].id);
       }
       const who = S.account.user.name || S.account.user.username;
-      document.getElementById('account-status').textContent = `${who} としてログイン中。作品はこのアカウントに同期されます。`;
+      document.getElementById('account-status').textContent = `${who} (@${S.account.user.username}) としてログイン中。作品はこのアカウントに同期されます。`;
       return true;
     } finally { S.account.syncing = false; }
   },
@@ -4089,7 +4198,7 @@ const Account = {
     S.db = accountDb;
     document.getElementById('account-login-form').hidden = true;
     document.getElementById('account-logged-in').hidden = false;
-    document.getElementById('account-user-label').textContent = `${user.name} (${user.username})`;
+    document.getElementById('account-user-label').textContent = `${user.name} (@${user.username})`;
     S.account.loading = true;
     try {
       await this.synchronize();
@@ -6197,93 +6306,238 @@ function initEvents() {
     Cfg.save();
   });
   document.getElementById('settings-open-btn').addEventListener('click', () => { Cfg.applyToUI(); openModal('m-settings'); });
+  // ---- アカウントモーダル ----
+  // パスワード強度スコア計算 (0-4)
+  function pwStrengthScore(pw) {
+    if (!pw) return 0;
+    let score = 0;
+    if (pw.length >= 10) score++;
+    if (pw.length >= 16) score++;
+    if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
+    if (/[0-9]/.test(pw)) score++;
+    if (/[^A-Za-z0-9]/.test(pw)) score++;
+    return Math.min(4, score);
+  }
+  const PW_STRENGTH_LABELS = ['弱い', '普通', '良い', '強い', '非常に強い'];
+  const PW_STRENGTH_COLORS = ['#e05252', '#e08c52', '#d4b94a', '#52a852', '#3d9f6f'];
+  function updatePwStrength(inputId, barId, labelId, strengthEl) {
+    const pw = document.getElementById(inputId).value;
+    const el = document.getElementById(strengthEl);
+    if (!pw) { el.hidden = true; el.setAttribute('aria-hidden','true'); return; }
+    const score = pwStrengthScore(pw);
+    const pct = ((score + 1) / 5 * 100).toFixed(0) + '%';
+    const color = PW_STRENGTH_COLORS[score];
+    const bar = document.getElementById(barId);
+    bar.style.setProperty('--pw-strength', pct);
+    bar.style.setProperty('--pw-color', color);
+    document.getElementById(labelId).textContent = PW_STRENGTH_LABELS[score];
+    document.getElementById(labelId).style.color = color;
+    el.hidden = false; el.setAttribute('aria-hidden','false');
+  }
+  // パスワード表示トグル
+  function setupPwToggle(toggleId, inputId) {
+    const btn = document.getElementById(toggleId);
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      const inp = document.getElementById(inputId);
+      const show = inp.type === 'password';
+      inp.type = show ? 'text' : 'password';
+      btn.setAttribute('aria-label', show ? 'パスワードを非表示' : 'パスワードを表示');
+      // lucide icon swap
+      const icon = btn.querySelector('i[data-lucide]');
+      if (icon) { icon.setAttribute('data-lucide', show ? 'eye-off' : 'eye'); if(window.lucide) lucide.createIcons({nodes:[icon]}); }
+    });
+  }
+  setupPwToggle('account-pw-show', 'account-password');
+  setupPwToggle('account-confirm-pw-show', 'account-confirm-password');
+  setupPwToggle('account-cur-pw-show', 'account-current-password');
+  setupPwToggle('account-new-pw-show', 'account-new-password');
+  // パスワード入力時の強度バー更新
+  document.getElementById('account-password').addEventListener('input', () => {
+    updatePwStrength('account-password', 'account-pw-strength-bar', 'account-pw-strength-label', 'account-pw-strength');
+  });
+  document.getElementById('account-new-password').addEventListener('input', () => {
+    updatePwStrength('account-new-password', 'account-new-pw-strength-bar', 'account-new-pw-strength-label', 'account-new-pw-strength');
+  });
+  // フィールドエラー表示ヘルパー
+  function setFieldErr(errId, inputId, msg) {
+    const errEl = document.getElementById(errId);
+    const inp = document.getElementById(inputId);
+    if (!errEl) return;
+    if (msg) {
+      errEl.textContent = msg;
+      errEl.hidden = false;
+      if (inp) inp.setAttribute('aria-invalid', 'true');
+    } else {
+      errEl.hidden = true;
+      if (inp) inp.removeAttribute('aria-invalid');
+    }
+  }
+  function clearFieldErrs() {
+    ['account-username-err','account-password-err','account-confirm-err','account-name-err'].forEach(id => setFieldErr(id, id.replace('-err',''), ''));
+  }
+  // ステータスメッセージ更新 (エラー/通常)
+  function accountStatus(msg, isError) {
+    const el = document.getElementById('account-status');
+    el.textContent = msg;
+    el.style.borderLeftColor = isError ? 'var(--red, #e05252)' : '';
+    el.setAttribute('aria-live', isError ? 'assertive' : 'polite');
+  }
+  // 送信ボタンのローディング切替
+  function setAccountSubmitting(loading) {
+    const btn = document.getElementById('account-submit');
+    const spinner = document.getElementById('account-submit-spinner');
+    btn.disabled = loading;
+    spinner.hidden = !loading;
+  }
   document.getElementById('account-open-btn').addEventListener('click', () => {
     document.getElementById('account-login-form').hidden = !!S.account.user;
     document.getElementById('account-logged-in').hidden = !S.account.user;
     if (S.account.user) {
-      document.getElementById('account-user-label').textContent = `${S.account.user.name} (${S.account.user.username})`;
-      document.getElementById('account-status').textContent = 'ログイン中。作品は自動で同期されます。';
+      document.getElementById('account-user-label').textContent = `${S.account.user.name} (@${S.account.user.username})`;
+      accountStatus('ログイン中。作品は自動で同期されます。', false);
+    } else {
+      accountStatus('アカウントを作成してログインすると、作品をサーバーに保存し、別の端末からも使えます。', false);
     }
     openModal('m-account');
   });
   let accountSignupMode = false;
   const setAccountMode = signup => {
     accountSignupMode = signup;
+    clearFieldErrs();
     document.getElementById('account-name-wrap').hidden = !signup;
     document.getElementById('account-confirm-wrap').hidden = !signup;
     document.getElementById('account-name').required = false;
     document.getElementById('account-confirm-password').required = signup;
-    document.getElementById('account-submit').textContent = signup ? 'アカウントを作成' : 'ログイン';
+    document.getElementById('account-submit-label').textContent = signup ? 'アカウントを作成' : 'ログイン';
     document.getElementById('account-mode-toggle').textContent = signup ? 'ログインへ戻る' : '新規アカウントを作成';
     document.getElementById('account-password').autocomplete = signup ? 'new-password' : 'current-password';
+    // パスワード強度バーをサインアップ時のみ表示
+    const pwStrength = document.getElementById('account-pw-strength');
+    if (!signup) { pwStrength.hidden = true; pwStrength.setAttribute('aria-hidden','true'); }
     if (!S.account.user) {
-      document.getElementById('account-status').textContent = signup
-        ? 'ユーザー名とパスワードを設定してアカウントを作成します。'
-        : 'ユーザー名とパスワードでログインしてください。';
+      accountStatus(signup ? 'ユーザー名とパスワードを設定してアカウントを作成します。' : 'ユーザー名とパスワードでログインしてください。', false);
     }
   };
   document.getElementById('account-mode-toggle').addEventListener('click', () => {
     setAccountMode(!accountSignupMode);
+    // フォームをリセット
+    document.getElementById('account-login-form').reset();
+    setTimeout(() => document.getElementById('account-username').focus(), 50);
   });
   document.getElementById('account-login-form').addEventListener('submit', async e => {
     e.preventDefault();
+    clearFieldErrs();
     const username = document.getElementById('account-username').value.trim();
     const password = document.getElementById('account-password').value;
-    const status = document.getElementById('account-status');
-    if (accountSignupMode && password !== document.getElementById('account-confirm-password').value) {
-      status.textContent = 'パスワードが一致しません。再入力してください。';
-      return;
+    const confirmPassword = document.getElementById('account-confirm-password').value;
+    const displayName = document.getElementById('account-name').value.trim();
+    // クライアントサイドバリデーション
+    let hasErr = false;
+    if (!username || username.length < 3) {
+      setFieldErr('account-username-err', 'account-username', 'ユーザー名は3文字以上で入力してください');
+      hasErr = true;
+    } else if (!/^[A-Za-z0-9_.@-]{3,64}$/.test(username)) {
+      setFieldErr('account-username-err', 'account-username', '英数字と . _ @ - のみ使えます');
+      hasErr = true;
     }
-    const submit = document.getElementById('account-submit');
-    submit.disabled = true;
-    status.textContent = accountSignupMode ? 'アカウントを作成しています…' : 'ログインしています…';
+    if (!password || password.length < 10) {
+      setFieldErr('account-password-err', 'account-password', 'パスワードは10文字以上で入力してください');
+      hasErr = true;
+    }
+    if (accountSignupMode && password !== confirmPassword) {
+      setFieldErr('account-confirm-err', 'account-confirm-password', 'パスワードが一致しません');
+      hasErr = true;
+    }
+    if (hasErr) return;
+    setAccountSubmitting(true);
+    accountStatus(accountSignupMode ? 'アカウントを作成しています…' : 'ログインしています…', false);
     try {
-      const result = await Account.request(accountSignupMode ? '/account/register' : '/account/login',
-        'POST', { username, password, name: document.getElementById('account-name').value.trim() }, '');
+      const result = await Account.request(
+        accountSignupMode ? '/account/register' : '/account/login',
+        'POST',
+        { username, password, ...(accountSignupMode ? { name: displayName } : {}) },
+        ''
+      );
       const synchronized = await Account.enter(result.token, result.user);
-      document.getElementById('account-password').value = '';
-      document.getElementById('account-confirm-password').value = '';
-      document.getElementById('account-name').value = '';
+      document.getElementById('account-login-form').reset();
+      const pwStrength = document.getElementById('account-pw-strength');
+      pwStrength.hidden = true; pwStrength.setAttribute('aria-hidden','true');
       setAccountMode(false);
       if (synchronized) {
-        status.textContent = `${result.user.name} としてログインしました。作品を同期しました。`;
-      } else {
-        status.setAttribute('role', 'alert');
+        accountStatus(`${result.user.name} としてログインしました。作品を同期しました。`, false);
       }
       Sk.renderList();
     } catch (err) {
       document.getElementById('account-login-form').hidden = false;
       document.getElementById('account-logged-in').hidden = true;
-      status.textContent = err.message;
-      status.setAttribute('role', 'alert');
+      // HTTPステータスに応じたフィールドレベルエラー
+      if (err.status === 409) {
+        setFieldErr('account-username-err', 'account-username', 'このユーザー名はすでに使われています');
+      } else if (err.status === 401 || err.status === 403) {
+        setFieldErr('account-password-err', 'account-password', 'ユーザー名またはパスワードが正しくありません');
+      } else if (err.status === 429) {
+        accountStatus(err.message || '試行回数が多すぎます。しばらくしてから再試行してください。', true);
+      } else {
+        accountStatus(err.message || 'エラーが発生しました', true);
+      }
     } finally {
-      submit.disabled = false;
+      setAccountSubmitting(false);
     }
   });
   document.getElementById('account-change-password').addEventListener('click', async () => {
     const currentPassword = document.getElementById('account-current-password').value;
     const newPassword = document.getElementById('account-new-password').value;
-    if (newPassword !== document.getElementById('account-new-password-confirm').value) {
-      document.getElementById('account-status').textContent = '新しいパスワードが一致しません。';
+    const newPasswordConfirm = document.getElementById('account-new-password-confirm').value;
+    const errEl = document.getElementById('account-change-pw-err');
+    errEl.hidden = true;
+    if (!newPassword || newPassword.length < 10) {
+      errEl.textContent = '新しいパスワードは10文字以上で入力してください';
+      errEl.hidden = false;
+      document.getElementById('account-new-password').focus();
       return;
     }
+    if (newPassword !== newPasswordConfirm) {
+      errEl.textContent = '新しいパスワードが一致しません';
+      errEl.hidden = false;
+      document.getElementById('account-new-password-confirm').focus();
+      return;
+    }
+    const btn = document.getElementById('account-change-password');
+    btn.disabled = true;
     try {
       await Sk.saveAll();
       await Account.request('/account/password', 'POST', { currentPassword, newPassword });
       document.getElementById('account-current-password').value = '';
       document.getElementById('account-new-password').value = '';
       document.getElementById('account-new-password-confirm').value = '';
+      const pwStr = document.getElementById('account-new-pw-strength');
+      if (pwStr) { pwStr.hidden = true; pwStr.setAttribute('aria-hidden','true'); }
+      document.getElementById('account-pw-section').removeAttribute('open');
       await Account.clearSession('パスワードを変更しました。安全のため、もう一度ログインしてください。');
       setAccountMode(false);
       toast('パスワードを変更しました。再度ログインしてください。', 'ok');
     } catch (err) {
-      document.getElementById('account-status').textContent = err.message;
+      if (err.status === 403) {
+        errEl.textContent = '現在のパスワードが正しくありません';
+      } else if (err.status === 429) {
+        errEl.textContent = '試行回数が多すぎます。しばらくしてから再試行してください。';
+      } else {
+        errEl.textContent = err.message || 'エラーが発生しました';
+      }
+      errEl.hidden = false;
+    } finally {
+      btn.disabled = false;
     }
   });
   document.getElementById('account-import-local').addEventListener('click', () => Account.importLocal());
   document.getElementById('account-sync-now').addEventListener('click', async () => {
+    const spinner = document.getElementById('account-sync-spinner');
+    const btn = document.getElementById('account-sync-now');
+    btn.disabled = true; spinner.hidden = false;
     try { await Sk.saveAll(); await Account.synchronize(); toast('同期しました', 'ok'); }
     catch (err) { toast('同期に失敗しました: ' + err.message, 'err'); }
+    finally { btn.disabled = false; spinner.hidden = true; }
   });
   document.getElementById('account-logout').addEventListener('click', async () => {
     try { await Account.logout(); closeModal('m-account'); }

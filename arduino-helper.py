@@ -2214,6 +2214,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(display_name, str) or len(display_name.strip()) > 80 \
                         or any(ord(char) < 32 for char in display_name):
                     raise ApiError(400, "表示名は80文字以内で入力してください")
+                # パスワードチェックを重複確認より先に行い、レスポンスタイムによるユーザー名列挙を防ぐ
                 salt, digest = _account_password(password)
                 if conn.execute("SELECT 1 FROM account_users WHERE username=? COLLATE NOCASE",
                                 (username,)).fetchone():

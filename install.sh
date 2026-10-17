@@ -46,6 +46,19 @@ for f in arduino-helper.py arduino-build-run github-update.sh arduino-helper-upd
 done
 command -v systemctl >/dev/null || die "systemd が必要です"
 
+# Windows 環境で作成された場合に CRLF が混入することがあるため、
+# シェルスクリプト・systemd ユニット・Python ファイルを自動的に LF に変換する
+for f in arduino-helper.py arduino-build-run github-update.sh arduino-helper-update.service arduino-helper-update.timer configure-github-webhook.sh backup-arduino-helper.sh; do
+  if grep -qU $'\r' "$HERE/$f" 2>/dev/null; then
+    warn "$f に Windows 改行 (CRLF) が含まれています。自動的に LF に変換します"
+    if command -v dos2unix >/dev/null 2>&1; then
+      dos2unix "$HERE/$f" 2>/dev/null || sed -i 's/\r//' "$HERE/$f"
+    else
+      sed -i 's/\r//' "$HERE/$f"
+    fi
+  fi
+done
+
 say "1/8 必要なパッケージ"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
