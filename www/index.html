@@ -438,6 +438,9 @@ svg { display: block; flex-shrink: 0; }
 }
 .tool-sep { width: 1px; height: 22px; background: rgba(255,255,255,0.18); margin: 0 4px; }
 #toolbar .t-space { flex: 1; }
+.font-size-controls { display: flex; align-items: center; gap: 3px; margin: 0 5px; }
+.font-size-controls .tool-btn { justify-content: center; min-width: 34px; padding: 5px 8px; }
+.font-size-controls .font-size-value { min-width: 42px; color: #fff; font-size: 11px; text-align: center; font-variant-numeric: tabular-nums; }
 
 /* ==============================================================
    メイン3カラム
@@ -454,6 +457,7 @@ svg { display: block; flex-shrink: 0; }
 #sidebar {
   width: var(--sidebar-w);
   min-width: var(--sidebar-w);
+  flex: 0 0 var(--sidebar-w);
   background: var(--bg1);
   border-right: 1px solid var(--bd0);
   display: flex;
@@ -461,7 +465,33 @@ svg { display: block; flex-shrink: 0; }
   overflow: hidden;
   transition: width .2s ease, min-width .2s ease;
 }
-#sidebar.hidden { width: 0; min-width: 0; }
+#sidebar.hidden { width: 0; min-width: 0; flex-basis: 0; }
+#sidebar-resizer {
+  position: relative;
+  z-index: 5;
+  flex: 0 0 6px;
+  margin-left: -3px;
+  margin-right: -3px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+#sidebar-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  background: transparent;
+  transition: background .15s;
+}
+#sidebar-resizer:hover::after,
+#sidebar-resizer:focus-visible::after,
+#workspace.resizing-sidebar #sidebar-resizer::after { background: var(--teal); }
+#sidebar-resizer[aria-hidden="true"] { display: none; }
+#workspace.resizing-sidebar,
+#workspace.resizing-sidebar * { cursor: ew-resize !important; user-select: none !important; }
+#workspace.resizing-sidebar #sidebar { transition: none; }
 
 #sb-header {
   display: flex;
@@ -972,6 +1002,37 @@ svg { display: block; flex-shrink: 0; }
 .cl-line.t-info .cl-msg { color: var(--co-info); }
 .cl-link { color: var(--teal-link); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .cl-link:hover { color: var(--teal-link-hover); }
+.compile-help {
+  margin: 4px 14px;
+  border: 1px solid rgba(240,128,64,.45);
+  border-left: 3px solid var(--orange);
+  border-radius: var(--radius);
+  background: var(--bg2);
+  color: var(--tx1);
+  font-family: var(--ff-ui);
+}
+.compile-help[hidden] { display: none; }
+.compile-help summary { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 4px 9px; cursor: pointer; list-style: none; }
+.compile-help summary::-webkit-details-marker { display: none; }
+.compile-help-title { flex: 0 0 auto; color: var(--tx0); font-weight: 700; }
+.compile-help-preview { min-width: 0; overflow: hidden; color: var(--tx2); text-overflow: ellipsis; white-space: nowrap; }
+.compile-help summary::after { content: '詳細を表示'; flex: 0 0 auto; margin-left: auto; color: var(--teal-link); font-size: 11px; }
+.compile-help[open] summary::after { content: '閉じる'; }
+.compile-help-content { max-height: 90px; overflow-y: auto; padding: 0 10px 8px; }
+.compile-help-list { display: grid; gap: 8px; padding-left: 21px; }
+.compile-help-list li { padding-left: 2px; line-height: 1.6; }
+.compile-help-list strong { color: var(--tx0); }
+.compile-help-cause { color: var(--tx1); }
+.compile-help-fix { margin-top: 2px; color: var(--tx2); }
+.compile-help-source {
+  margin: 4px 0 0;
+  padding: 0;
+  color: var(--teal-link);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.compile-help-original { margin-top: 7px; color: var(--tx3); font: 11px var(--ff-mono); white-space: pre-wrap; }
 
 /* ---- シリアルモニター ---- */
 #serial-log {
@@ -1118,6 +1179,7 @@ svg { display: block; flex-shrink: 0; }
 .save-indicator[data-state="saving"] { color: #B8E0FF; }
 .save-indicator[data-state="saved"] { color: #A6F6C0; }
 .save-indicator[data-state="error"] { color: #FFC4BA; }
+#status-save-location { color: rgba(255,255,255,0.85); }
 #status-save-announcement {
   position: absolute;
   width: 1px;
@@ -1573,6 +1635,42 @@ svg { display: block; flex-shrink: 0; }
 .welcome-actions { display: flex; gap: 8px; }
 .welcome-actions .btn { padding-inline: 12px; }
 .modal-foot.welcome-foot { align-items: center; justify-content: space-between; gap: 12px; }
+.tutorial-content { display: grid; gap: 16px; min-height: 190px; align-content: start; }
+.tutorial-step-count { color: var(--teal-link); font-size: 12px; font-weight: 700; }
+.tutorial-progress { height: 4px; border-radius: 4px; background: var(--bg3); overflow: hidden; }
+.tutorial-progress-fill { width: 0; height: 100%; background: var(--teal); transition: width .18s ease; }
+.tutorial-step-title { color: var(--tx0); font-size: 18px; font-weight: 700; }
+.tutorial-step-description { color: var(--tx1); line-height: 1.8; white-space: pre-line; }
+.tutorial-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tutorial-nav { display: flex; gap: 8px; }
+#m-tutorial { background: transparent; backdrop-filter: none; pointer-events: none; }
+#m-tutorial .tutorial-shade {
+  position: fixed;
+  z-index: 0;
+  background: rgba(0,0,0,.72);
+  pointer-events: auto;
+}
+#m-tutorial .tutorial-spotlight {
+  position: fixed;
+  z-index: 1;
+  border: 3px solid var(--teal-lt);
+  border-radius: 7px;
+  box-shadow: 0 0 18px rgba(45,212,216,.7);
+  pointer-events: auto;
+}
+#m-tutorial .tutorial-highlight {
+  outline: 3px solid var(--teal-lt);
+  outline-offset: 4px;
+  border-radius: 5px;
+}
+#m-tutorial .tutorial-callout {
+  position: fixed;
+  z-index: 2;
+  width: min(400px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100vh - 32px);
+  pointer-events: auto;
+}
 @media (max-width: 600px) {
   .modal.modal-welcome { width: 100%; }
   .welcome-steps { grid-template-columns: 1fr; }
@@ -1581,6 +1679,11 @@ svg { display: block; flex-shrink: 0; }
   .welcome-actions .btn { justify-content: center; padding-inline: 6px; white-space: normal; }
   #usb-setup-done-btn { width: 100%; justify-content: center; }
   .modal-account { width: 100%; }
+  .tutorial-controls { align-items: stretch; flex-direction: column-reverse; }
+  .tutorial-controls > .btn, .tutorial-nav .btn { flex: 1; justify-content: center; }
+  #m-help .modal-foot { flex-wrap: wrap; }
+  #m-help .modal-foot a { flex: 1 0 100%; justify-content: center; }
+  #m-tutorial .tutorial-callout { width: calc(100vw - 32px); }
 }
 .jc-advice { display: none; margin-top: 8px; padding: 8px 10px; border-left: 2px solid var(--orange); border-radius: 3px; background: var(--bg-hover); color: var(--tx1); line-height: 1.55; white-space: normal; overflow-wrap: anywhere; }
 .jc-advice.show { display: block; }
@@ -1959,6 +2062,11 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
 
 <!-- ========== ツールバー ========== -->
 <div id="toolbar">
+  <button class="tool-btn" id="sidebar-toggle-btn" title="サイドバー切替 (Ctrl+B)" aria-label="サイドバーを閉じる" aria-controls="sidebar" aria-expanded="true">
+    <i data-lucide="panel-left" aria-hidden="true"></i>
+  </button>
+  <div class="tool-sep"></div>
+
   <button class="tool-btn" id="verify-btn" title="検証・コンパイル (Ctrl+Enter)">
     <i data-lucide="check"></i>
     <span>検証</span>
@@ -2003,9 +2111,15 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
 
   <div class="t-space"></div>
 
-  <button class="tool-btn" id="sidebar-toggle-btn" title="サイドバー切替 (Ctrl+B)" aria-label="サイドバーを閉じる" aria-controls="sidebar" aria-expanded="true">
-    <i data-lucide="panel-left" aria-hidden="true"></i>
-  </button>
+  <div class="font-size-controls" role="group" aria-label="エディターの文字サイズ">
+    <button type="button" class="tool-btn" id="font-size-decrease" aria-label="文字を小さく" title="エディターの文字を小さく">
+      <span aria-hidden="true">A−</span>
+    </button>
+    <span class="font-size-value" id="font-size-value" aria-live="polite">13px</span>
+    <button type="button" class="tool-btn" id="font-size-increase" aria-label="文字を大きく" title="エディターの文字を大きく">
+      <span aria-hidden="true">A＋</span>
+    </button>
+  </div>
 
   <div class="tool-sep"></div>
 
@@ -2047,6 +2161,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
       </button>
     </div>
   </div>
+  <div id="sidebar-resizer" role="separator" aria-label="サイドバーの幅を調整" aria-orientation="vertical" aria-valuemin="160" aria-valuemax="500" aria-valuenow="230" tabindex="0" title="ドラッグしてサイドバーの幅を調整"></div>
 
   <!-- メインエディタエリア -->
   <div id="main">
@@ -2118,6 +2233,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
       <div id="panel-body">
         <!-- コンソール -->
         <div class="panel-pane active" id="console-pane" role="tabpanel" aria-labelledby="console-tab" aria-hidden="false">
+          <details id="compile-help" class="compile-help" aria-live="polite" hidden></details>
           <div id="console-log"><div class="log-empty">コンソール出力はまだありません</div></div>
         </div>
         <!-- シリアルモニター -->
@@ -2176,6 +2292,8 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
   <span id="status-msg" role="status" aria-live="polite">IDEを準備しています…</span>
   <span class="sb-item save-indicator" id="status-save" data-state="saved" role="status" aria-live="off">保存済み</span>
   <span id="status-save-announcement" role="status" aria-live="polite" aria-atomic="true"></span>
+  <div class="sb-div"></div>
+  <span class="sb-item" id="status-save-location">保存先: このブラウザーのみ</span>
   <div class="sb-div"></div>
   <span class="sb-item" id="status-board">
     <i data-lucide="cpu" aria-hidden="true"></i>
@@ -2705,10 +2823,17 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
       <div class="form-group">
         <label class="form-label" for="cfg-fontsize">フォントサイズ</label>
         <select class="form-select" id="cfg-fontsize">
-          <option value="11">11px</option><option value="12">12px</option>
-          <option value="13" selected>13px</option><option value="14">14px</option>
-          <option value="15">15px</option><option value="16">16px</option>
-          <option value="18">18px</option><option value="20">20px</option>
+          <option value="10">10px</option><option value="11">11px</option><option value="12">12px</option>
+          <option value="13" selected>13px</option><option value="14">14px</option><option value="15">15px</option>
+          <option value="16">16px</option><option value="17">17px</option><option value="18">18px</option>
+          <option value="19">19px</option><option value="20">20px</option><option value="21">21px</option>
+          <option value="22">22px</option><option value="23">23px</option><option value="24">24px</option>
+          <option value="25">25px</option><option value="26">26px</option><option value="27">27px</option>
+          <option value="28">28px</option><option value="29">29px</option><option value="30">30px</option>
+          <option value="31">31px</option><option value="32">32px</option><option value="33">33px</option>
+          <option value="34">34px</option><option value="35">35px</option><option value="36">36px</option>
+          <option value="37">37px</option><option value="38">38px</option><option value="39">39px</option>
+          <option value="40">40px</option>
         </select>
       </div>
       <div class="form-group">
@@ -2752,6 +2877,13 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
           アニメーションを減らす
         </label>
         <div class="form-hint">OSの「視差効果を減らす」設定も自動で反映されます。</div>
+      </div>
+      <div class="form-group">
+        <label class="form-check-label">
+          <input type="checkbox" class="form-check-input" id="cfg-compile-help">
+          コンパイルエラーの自動ヘルプを表示
+        </label>
+        <div class="form-hint">エラーの原因候補と確認方法を表示します。初期設定はオフです。</div>
       </div>
     </div>
     <div class="modal-foot">
@@ -2825,12 +2957,47 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
     </div>
     <div class="modal-foot">
       <a class="btn btn-secondary" href="/docs" target="_blank" rel="noopener">使い方・しくみを見る</a>
+      <button class="btn btn-secondary" id="start-tutorial-btn" type="button">
+        <i data-lucide="circle-help" aria-hidden="true"></i>チュートリアル
+      </button>
       <button class="btn btn-secondary" data-close="m-help">閉じる</button>
     </div>
   </div>
-</div>
+  </div>
 
-<script>
+  <!-- チュートリアル -->
+  <div class="modal-overlay" id="m-tutorial">
+    <div class="tutorial-shade" id="tutorial-shade-top" aria-hidden="true"></div>
+    <div class="tutorial-shade" id="tutorial-shade-left" aria-hidden="true"></div>
+    <div class="tutorial-shade" id="tutorial-shade-right" aria-hidden="true"></div>
+    <div class="tutorial-shade" id="tutorial-shade-bottom" aria-hidden="true"></div>
+    <div class="tutorial-spotlight" id="tutorial-spotlight" aria-hidden="true"></div>
+    <div class="modal tutorial-callout">
+      <div class="modal-head">
+        <span class="modal-title">Arduino Web IDE チュートリアル</span>
+        <button class="modal-x" data-close="m-tutorial" title="終了" aria-label="チュートリアルを終了">
+          <i data-lucide="x" aria-hidden="true"></i>
+        </button>
+      </div>
+      <div class="modal-body tutorial-content" aria-live="polite" aria-atomic="true">
+        <div class="tutorial-step-count" id="tutorial-step-count"></div>
+        <div class="tutorial-progress" role="progressbar" aria-label="チュートリアルの進行状況" aria-valuemin="1" aria-valuemax="7" aria-valuenow="1">
+          <div class="tutorial-progress-fill" id="tutorial-progress-fill"></div>
+        </div>
+        <h2 class="tutorial-step-title" id="tutorial-step-title"></h2>
+        <p class="tutorial-step-description" id="tutorial-step-description"></p>
+      </div>
+        <div class="modal-foot tutorial-controls">
+        <button class="btn btn-secondary" id="tutorial-skip-btn" type="button">終了</button>
+        <div class="tutorial-nav">
+          <button class="btn btn-secondary" id="tutorial-prev-btn" type="button">戻る</button>
+          <button class="btn btn-primary" id="tutorial-next-btn" type="button">次へ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
 /* ================================================================
    Arduino Web IDE — メインスクリプト
    完全動作版 · SVGアイコン統一 · 絵文字不使用
@@ -2855,9 +3022,11 @@ const S = {
   curId: null,
   curTab: 0,
   dirty: new Set(),   // 'sketchId:tabIndex'
+  savedContent: new Map(),
   cfg: {
     fontSize: 13, tabSize: 2, autosave: 5,
-    theme: 'dark', lineNums: true, curLine: true, syntax: true, reduceMotion: false, panelMinimized: false,
+    theme: 'dark', lineNums: true, curLine: true, syntax: true, reduceMotion: false,
+    compileHelp: false, sidebarWidth: 230, panelMinimized: false,
   },
   serial: { port: null, reader: null, writer: null, connected: false, supported: true, detectedLabel: '', detectedBoardId: '', detectionGeneration: 0, authorizedPortCount: 0 },
   helper: { url: IDE_DEFAULTS.url, fallback: IDE_DEFAULTS.fallbackUrl, token: IDE_DEFAULTS.token, adminToken: '', adminTokenTarget: '', active: '', userSet: false, prefillStudentToken: false, publicConfigError: '', ok: false, authed: false, admin: false, adminBad: false, gen: 0, info: null },
@@ -2873,6 +3042,21 @@ const S = {
   _deleteTarget: null,
   saveFailed: false,
 };
+
+const EDITOR_FONT_SIZE_MIN = 10;
+const EDITOR_FONT_SIZE_MAX = 40;
+const EDITOR_FONT_SIZE_STEP = 2;
+const SIDEBAR_WIDTH_MIN = 160;
+const SIDEBAR_WIDTH_MAX = 500;
+
+async function changeEditorFontSize(delta) {
+  const current = Number(S.cfg.fontSize) || 13;
+  S.cfg.fontSize = Math.max(EDITOR_FONT_SIZE_MIN,
+    Math.min(EDITOR_FONT_SIZE_MAX, current + delta));
+  Cfg.applyToEditor();
+  Cfg.applyToUI();
+  await Cfg.save();
+}
 
 function updateDetectedBoardSuggestion() {
   const button = document.getElementById('apply-detected-board-btn');
@@ -3330,6 +3514,7 @@ function closeModal(id) {
   const modal = document.getElementById(id);
   if (id === 'm-flash' && typeof Flash !== 'undefined' && Flash.busy) { toast('書き込み中は閉じられません。終わるまでお待ちください', 'warn', 3000); return; }
   if (!modal || !modal.classList.contains('open')) return;
+  if (id === 'm-tutorial') Tutorial.cleanup();
   modal.classList.remove('open');
   if (id === 'm-usb-setup') rememberOnboardingDismissal();
   const otherModals = Array.from(document.querySelectorAll('.modal-overlay.open'));
@@ -3341,6 +3526,135 @@ function closeModal(id) {
     if (opener && opener.isConnected) opener.focus();
   }
 }
+
+const Tutorial = {
+  current: 0,
+  steps: [
+    {
+      target: '#board-port-area',
+      title: 'ボードを選ぶ',
+      description: '光っている場所で使用するArduinoボードを選びます。選んだボードに合わせてコンパイルされるので、実機と同じボードを指定してください。'
+    },
+    {
+      target: '#sb-header',
+      title: 'スケッチを作成・切り替える',
+      description: '光っている「スケッチブック」から保存済みのスケッチを開けます。「新規」で作成し、エディター上部のタブと「＋」でファイルを切り替えたり追加したりできます。'
+    },
+    {
+      target: '#editor-wrap',
+      title: 'コードを書く',
+      description: '光っているエディターにArduinoのコードを入力します。引用符や括弧を入力すると閉じる記号も補完されます。編集内容は自動保存され、保存状態は画面下部で確認できます。'
+    },
+    {
+      target: '#verify-btn',
+      title: '検証してエラーを確認する',
+      description: '光っている「検証」で選択したボード向けにコンパイルします。結果やエラーは画面下部の「コンソール」に表示されます。コンパイルには管理者から案内されたサーバーへの接続が必要です。'
+    },
+    {
+      target: '#upload-btn',
+      title: 'ボードへ書き込む',
+      description: '光っている「書き込み」からArduinoへプログラムを書き込めます。ChromeまたはEdgeなど対応ブラウザーでUSBポートを許可してください。ボードによってはブラウザーからの書き込みに対応していません。ここでは説明のみで、実際の書き込みは行いません。'
+    },
+    {
+      target: '#status-save-location',
+      title: '保存先を確認する',
+      description: '光っている表示で現在の保存先を確認できます。未ログイン時はこのブラウザー内、ログイン中はブラウザー内に加えてアカウントのクラウドにも同期されます。'
+    },
+    {
+      target: '#serial-open-btn',
+      title: 'シリアルモニターを使う',
+      description: '光っている「シリアル」から接続すると、ボードとの通信を確認できます。スケッチの Serial.begin(...) と同じボーレートを選んでください。ここではポート接続は行いません。\n\nこれでチュートリアルは終了です。いつでも右上の「ヘルプ」からやり直せます。'
+    }
+  ],
+  sidebarWasHidden: false,
+  highlighted: null,
+  layoutHandler: null,
+  open() {
+    this.current = 0;
+    const sidebar = document.getElementById('sidebar');
+    this.sidebarWasHidden = sidebar.classList.contains('hidden');
+    if (this.sidebarWasHidden) toggleSidebar();
+    this.layoutHandler = () => this.layout();
+    window.addEventListener('resize', this.layoutHandler);
+    document.addEventListener('scroll', this.layoutHandler, true);
+    this.render();
+    openModal('m-tutorial');
+  },
+  render() {
+    const step = this.steps[this.current];
+    const total = this.steps.length;
+    document.getElementById('tutorial-step-count').textContent = `ステップ ${this.current + 1} / ${total}`;
+    document.getElementById('tutorial-step-title').textContent = step.title;
+    document.getElementById('tutorial-step-description').textContent = step.description;
+    const progress = document.querySelector('#m-tutorial .tutorial-progress');
+    progress.setAttribute('aria-valuemax', String(total));
+    progress.setAttribute('aria-valuenow', String(this.current + 1));
+    document.getElementById('tutorial-progress-fill').style.width = `${((this.current + 1) / total) * 100}%`;
+    document.getElementById('tutorial-prev-btn').disabled = this.current === 0;
+    document.getElementById('tutorial-next-btn').textContent = this.current === total - 1 ? '完了' : '次へ';
+    if (this.highlighted) this.highlighted.classList.remove('tutorial-highlight');
+    this.highlighted = document.querySelector(step.target);
+    if (!this.highlighted) throw new Error(`チュートリアルの対象が見つかりません: ${step.target}`);
+    this.highlighted.classList.add('tutorial-highlight');
+    this.highlighted.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    requestAnimationFrame(() => this.layout());
+  },
+  layout() {
+    if (!this.highlighted || !document.getElementById('m-tutorial').classList.contains('open')) return;
+    const rect = this.highlighted.getBoundingClientRect();
+    const margin = 8;
+    const left = Math.max(0, rect.left - margin);
+    const top = Math.max(0, rect.top - margin);
+    const right = Math.min(window.innerWidth, rect.right + margin);
+    const bottom = Math.min(window.innerHeight, rect.bottom + margin);
+    const setRect = (id, x, y, width, height) => {
+      const el = document.getElementById(id);
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      el.style.width = `${Math.max(0, width)}px`;
+      el.style.height = `${Math.max(0, height)}px`;
+    };
+    setRect('tutorial-shade-top', 0, 0, window.innerWidth, top);
+    setRect('tutorial-shade-left', 0, top, left, bottom - top);
+    setRect('tutorial-shade-right', right, top, window.innerWidth - right, bottom - top);
+    setRect('tutorial-shade-bottom', 0, bottom, window.innerWidth, window.innerHeight - bottom);
+    setRect('tutorial-spotlight', left, top, right - left, bottom - top);
+    const card = document.querySelector('#m-tutorial .tutorial-callout');
+    const cardRect = card.getBoundingClientRect();
+    const cardWidth = cardRect.width;
+    const cardHeight = cardRect.height;
+    const cardLeft = Math.max(16, Math.min(window.innerWidth - cardWidth - 16, rect.left + rect.width / 2 - cardWidth / 2));
+    let cardTop = rect.bottom + 18;
+    if (cardTop + cardHeight > window.innerHeight - 16) cardTop = rect.top - cardHeight - 18;
+    cardTop = Math.max(16, Math.min(window.innerHeight - cardHeight - 16, cardTop));
+    card.style.left = `${cardLeft}px`;
+    card.style.top = `${cardTop}px`;
+  },
+  next() {
+    if (this.current === this.steps.length - 1) {
+      closeModal('m-tutorial');
+      return;
+    }
+    this.current++;
+    this.render();
+  },
+  previous() {
+    if (this.current === 0) return;
+    this.current--;
+    this.render();
+  },
+  cleanup() {
+    if (this.highlighted) this.highlighted.classList.remove('tutorial-highlight');
+    this.highlighted = null;
+    if (this.layoutHandler) {
+      window.removeEventListener('resize', this.layoutHandler);
+      document.removeEventListener('scroll', this.layoutHandler, true);
+      this.layoutHandler = null;
+    }
+    if (this.sidebarWasHidden) toggleSidebar();
+    this.sidebarWasHidden = false;
+  }
+};
 
 /* ================================================================
    シンタックスハイライター
@@ -3636,6 +3950,7 @@ const Ed = {
     const ta = this.ta;
     const { ctrlKey, metaKey, shiftKey, key } = e;
     const mod = ctrlKey || metaKey;
+    if (e.isComposing || e.keyCode === 229) return;
 
     if (key === 'Tab') {
       if (this._allowTabOut) {
@@ -3691,26 +4006,31 @@ const Ed = {
       return;
     }
 
-    // 括弧の自動ペア
-    const PAIRS = { '{':'}', '(':')','[':']','"':'"',"'":"'" };
-    if (PAIRS[key]) {
+    const PAIRS = { '{': '}', '(': ')', '[': ']', '"': '"', "'": "'" };
+    const CLOSING = new Set(Object.values(PAIRS));
+    if (!mod && !e.altKey && CLOSING.has(key) && ta.selectionStart === ta.selectionEnd
+        && ta.value[ta.selectionStart] === key) {
+      e.preventDefault();
+      ta.setSelectionRange(ta.selectionStart + 1, ta.selectionStart + 1);
+      this._updateCursor();
+      return;
+    }
+    if (!mod && !e.altKey && PAIRS[key]) {
+      e.preventDefault();
       const s = ta.selectionStart, end = ta.selectionEnd;
-      if (s !== end) {
-        e.preventDefault();
-        const sel = ta.value.slice(s, end);
-        ta.setRangeText(key + sel + PAIRS[key], s, end, 'end');
-        ta.setSelectionRange(s+1, s+1+sel.length);
-        this._onInput();
-        return;
-      }
+      const selected = ta.value.slice(s, end);
+      ta.setRangeText(key + selected + PAIRS[key], s, end, 'end');
+      ta.setSelectionRange(s + 1, s + 1 + selected.length);
+      this._onInput();
+      return;
     }
 
-    // 対応括弧のバックスペース削除
-    if (key === 'Backspace') {
+    // Remove the closing character together with its opening pair.
+    if (!mod && !e.altKey && key === 'Backspace') {
       const s = ta.selectionStart;
       if (ta.selectionStart === ta.selectionEnd && s > 0) {
         const prev = ta.value[s-1], next = ta.value[s];
-        if ((prev==='{' && next==='}') || (prev==='(' && next===')') || (prev==='[' && next===']')) {
+        if (PAIRS[prev] && PAIRS[prev] === next) {
           e.preventDefault();
           ta.setRangeText('', s-1, s+1, 'end');
           this._onInput();
@@ -3844,6 +4164,10 @@ const Sk = {
     S.curTab = 0;
     const sk = this.cur();
     if (!sk) return;
+    sk.files.forEach((file, index) => {
+      const key = `${sk.id}:${index}`;
+      if (!S.savedContent.has(key)) S.savedContent.set(key, file.content);
+    });
     Boards.select(sk.board);
     updateDetectedBoardSuggestion();
     document.title = `${sk.name} — Arduino Web IDE`;
@@ -3859,7 +4183,11 @@ const Sk = {
 
   _loadTab() {
     const f = this.curFile();
-    if (f) Ed.setValue(f.content);
+    if (f) {
+      const key = `${S.curId}:${S.curTab}`;
+      if (!S.savedContent.has(key)) S.savedContent.set(key, f.content);
+      Ed.setValue(f.content);
+    }
     this.renderTabs();
   },
 
@@ -3901,6 +4229,14 @@ const Sk = {
       else if (dirtyIndex > idx) shiftedDirty.add(`${sk.id}:${dirtyIndex - 1}`);
     });
     S.dirty = shiftedDirty;
+    const shiftedSavedContent = new Map();
+    S.savedContent.forEach((content, key) => {
+      if (!key.startsWith(prefix)) { shiftedSavedContent.set(key, content); return; }
+      const savedIndex = Number(key.slice(prefix.length));
+      if (savedIndex < idx) shiftedSavedContent.set(key, content);
+      else if (savedIndex > idx) shiftedSavedContent.set(`${sk.id}:${savedIndex - 1}`, content);
+    });
+    S.savedContent = shiftedSavedContent;
     if (idx < S.curTab) S.curTab--;
     else if (S.curTab >= sk.files.length) S.curTab = sk.files.length - 1;
     IDB.put(S.db, sk);
@@ -3911,8 +4247,13 @@ const Sk = {
 
   markDirty() {
     const key = `${S.curId}:${S.curTab}`;
-    if (!S.dirty.has(key)) {
-      S.dirty.add(key);
+    const file = this.curFile();
+    if (!file) return;
+    if (!S.savedContent.has(key)) S.savedContent.set(key, file.content);
+    const wasDirty = S.dirty.has(key);
+    if (Ed.getValue() === S.savedContent.get(key)) S.dirty.delete(key);
+    else S.dirty.add(key);
+    if (wasDirty !== S.dirty.has(key)) {
       this.renderTabs();
       this.renderList();
     }
@@ -3922,7 +4263,10 @@ const Sk = {
   scheduleAutosave() {
     clearTimeout(S._autosaveTimer);
     clearInterval(S._autosaveCountdownTimer);
+    S._autosaveTimer = null;
+    S._autosaveCountdownTimer = null;
     S._autosaveAt = 0;
+    if (!S.dirty.size) { updateAutosaveIndicator(); return; }
     if (!S.cfg.autosave) { updateAutosaveIndicator(); return; }
     S._autosaveAt = Date.now() + S.cfg.autosave * 1000;
     updateAutosaveIndicator();
@@ -3942,6 +4286,8 @@ const Sk = {
     if (!sketches.length) return;
     clearTimeout(S._autosaveTimer);
     clearInterval(S._autosaveCountdownTimer);
+    S._autosaveTimer = null;
+    S._autosaveCountdownTimer = null;
     S._autosaveAt = 0;
     setSaveIndicator('保存中…', 'saving');
     S._savePromise = (async () => {
@@ -3949,10 +4295,22 @@ const Sk = {
       for (const sk of sketches) {
         if (!S.sketches.includes(sk)) continue;
         const sketchDirtyKeys = dirtyKeys.filter(key => key.startsWith(`${sk.id}:`));
+        const savedFiles = sk.files.map(file => file.content);
         sketchDirtyKeys.forEach(key => S.dirty.delete(key));
         if (!await IDB.put(S.db, sk)) {
           ok = false;
           sketchDirtyKeys.forEach(key => S.dirty.add(key));
+        } else {
+          sk.files.forEach((file, index) => {
+            const key = `${sk.id}:${index}`;
+            const savedContent = savedFiles[index];
+            S.savedContent.set(key, savedContent);
+            const currentContent = S.curId === sk.id && S.curTab === index && Ed.ta
+              ? Ed.getValue()
+              : file.content;
+            if (currentContent === savedContent) S.dirty.delete(key);
+            else S.dirty.add(key);
+          });
         }
       }
       S.saveFailed = !ok;
@@ -4011,6 +4369,7 @@ const Sk = {
     await IDB.del(S.db, id, sk.revision);
     S.sketches = S.sketches.filter(s=>s.id!==id);
     S.dirty.forEach(key => { if (key.startsWith(`${id}:`)) S.dirty.delete(key); });
+    S.savedContent.forEach((content, key) => { if (key.startsWith(`${id}:`)) S.savedContent.delete(key); });
     updateAutosaveIndicator();
     this.renderList();
     if (id === S.curId) {
@@ -4461,6 +4820,12 @@ const Account = {
     for (const key of Array.from(S.dirty)) {
       if (key.startsWith(originalId + ':')) S.dirty.delete(key);
     }
+    S.savedContent.forEach((content, key) => {
+      if (key.startsWith(`${originalId}:`)) S.savedContent.delete(key);
+    });
+    localCopy.files.forEach((file, index) => {
+      S.savedContent.set(`${localCopy.id}:${index}`, file.content);
+    });
     S.saveFailed = false;
     updateAutosaveIndicator();
     Sk.renderList();
@@ -4522,6 +4887,7 @@ const Account = {
     S.sketches = [];
     S.curId = null;
     S.dirty.clear();
+    S.savedContent.clear();
     sessionStorage.setItem(this.key, token);
     S.db = accountDb;
     document.getElementById('account-login-area').hidden = true;
@@ -4610,6 +4976,7 @@ const Account = {
     S.sketches.sort((a,b)=>b.updatedAt-a.updatedAt);
     S.curId = null;
     S.dirty.clear();
+    S.savedContent.clear();
     document.getElementById('account-login-area').hidden = false;
     document.getElementById('account-login-form').hidden = false;
     document.getElementById('account-logged-in').hidden = true;
@@ -5089,6 +5456,174 @@ function helperErrorGuidance(err, adminJob) {
   };
 }
 
+function diagnoseCompileErrors(output) {
+  const lines = (Array.isArray(output) ? output : String(output || '').split('\n'))
+    .map(line => String(line).replace(/\u001b\[[0-9;]*m/g, '').trim())
+    .filter(line => /\b(?:fatal error|error):/i.test(line) || /undefined reference to/i.test(line))
+    .filter(line => !/^collect2:\s*error:\s*ld returned \d+ exit status/i.test(line));
+  const findings = [];
+  const seen = new Set();
+  for (const original of lines) {
+    const match = original.match(/(?:^|.*[\\/])([^/\\:\s]+):(\d+):(?:(\d+):)?\s*(fatal error|error):\s*(.*)$/i);
+    const message = match ? match[5] : original;
+    const lower = message.toLowerCase();
+    let diagnosis;
+    if (/no such file or directory/.test(lower)) {
+      diagnosis = {
+        key: 'missing-header',
+        title: 'ヘッダーファイルが見つかりません',
+        cause: '指定したヘッダーが存在しないか、必要なライブラリがインストールされていない可能性があります。',
+        fix: '#include の綴りと大文字・小文字を確認し、必要なライブラリをインストールしてください。'
+      };
+    } else if (/was not declared in this scope|was not declared|undeclared identifier/.test(lower)) {
+      diagnosis = {
+        key: 'undeclared',
+        title: '名前が宣言されていません',
+        cause: '変数・関数名の入力間違い、宣言より前の使用、または必要なヘッダーの不足が考えられます。',
+        fix: '名前の綴りと大文字・小文字を確認し、使用する前に宣言されているか確認してください。'
+      };
+    } else if (/expected ['"`]?;['"`]?\s+before|expected ['"`]?;['"`]?/.test(lower)) {
+      diagnosis = {
+        key: 'semicolon',
+        title: 'セミコロンが不足している可能性があります',
+        cause: '文末の ; がない、または直前の行の記述が正しくない可能性があります。',
+        fix: 'エラー行とその1行前を確認し、文末に ; が必要か確認してください。'
+      };
+    } else if (/expected ['"`]?\)['"`]?|expected ['"`]?\]['"`]?|expected ['"`]?\}['"`]?/.test(lower)) {
+      diagnosis = {
+        key: 'closing-bracket',
+        title: '括弧の対応が取れていない可能性があります',
+        cause: '関数呼び出しや条件式などで、閉じ括弧が抜けている可能性があります。',
+        fix: 'エラー位置より前の (), [] または {} の開閉を確認してください。'
+      };
+    } else if (/redefinition of|multiple definition/.test(lower)) {
+      diagnosis = {
+        key: 'redefinition',
+        title: '同じ名前が重複して定義されています',
+        cause: '変数・関数を複数回定義したか、同じ実装を複数のファイルに置いている可能性があります。',
+        fix: '重複した定義を探し、宣言と実装を適切に1つにまとめてください。'
+      };
+    } else if (/no matching function|no matching call/.test(lower)) {
+      diagnosis = {
+        key: 'function-arguments',
+        title: '関数の引数が合っていない可能性があります',
+        cause: '関数が要求する引数の数や型と、呼び出し側の指定が一致していないようです。',
+        fix: '関数名、引数の個数、順序、型を確認してください。'
+      };
+    } else if (/invalid conversion|cannot convert|conversion from/.test(lower)) {
+      diagnosis = {
+        key: 'type-mismatch',
+        title: '値の型が一致していない可能性があります',
+        cause: '代入先や関数が要求する型と、渡している値の型が異なるようです。',
+        fix: 'エラーに出ている型名を確認し、変数の型や渡す値を見直してください。'
+      };
+    } else if (/undefined reference|undefined reference to/.test(lower)) {
+      diagnosis = {
+        key: 'undefined-reference',
+        title: '関数や変数の実体が見つかりません',
+        cause: '宣言はありますが、実装ファイルがコンパイル対象に含まれていないか、名前が一致していない可能性があります。',
+        fix: '関数の実装とファイル名を確認し、必要なソースファイルがスケッチに含まれているか確認してください。'
+      };
+    } else if (/expected primary-expression|expected expression/.test(lower)) {
+      diagnosis = {
+        key: 'expression',
+        title: 'この位置に必要な式が見つかりません',
+        cause: '演算子の前後や関数の引数に、値や式が抜けている可能性があります。',
+        fix: 'エラー位置と直前の行を確認し、値・演算子・区切りの書き忘れがないか確認してください。'
+      };
+    } else {
+      diagnosis = {
+        key: 'generic',
+        title: 'コンパイルエラーを検出しました',
+        cause: 'エラー文だけでは原因を特定できませんでした。エラー位置と周辺のコードを確認してください。',
+        fix: '選択中のボードと必要なライブラリも確認してください。'
+      };
+    }
+    if (seen.has(diagnosis.key)) continue;
+    seen.add(diagnosis.key);
+    findings.push({
+      ...diagnosis,
+      file: match ? match[1] : '',
+      line: match ? Number(match[2]) : 0,
+      original
+    });
+    if (findings.length === 4) break;
+  }
+  return findings;
+}
+
+function showCompileErrorHelp(output) {
+  const panel = document.getElementById('compile-help');
+  if (!panel) return;
+  if (!S.cfg.compileHelp) {
+    panel.hidden = true;
+    panel.replaceChildren();
+    return;
+  }
+  const findings = diagnoseCompileErrors(output);
+  panel.replaceChildren();
+  const summary = document.createElement('summary');
+  const heading = document.createElement('span');
+  heading.className = 'compile-help-title';
+  heading.textContent = 'エラーのヒント';
+  summary.appendChild(heading);
+  const preview = document.createElement('span');
+  preview.className = 'compile-help-preview';
+  preview.textContent = findings.length
+    ? `${findings[0].title}${findings.length > 1 ? ` ほか${findings.length - 1}件` : ''}`
+    : '詳細な原因を判定できませんでした';
+  summary.appendChild(preview);
+  panel.appendChild(summary);
+  const content = document.createElement('div');
+  content.className = 'compile-help-content';
+  if (!findings.length) {
+    const note = document.createElement('p');
+    note.textContent = 'コンパイラーの詳細なエラー行を取得できませんでした。下のログを確認し、選択中のボードやライブラリも確認してください。';
+    content.appendChild(note);
+  } else {
+    const list = document.createElement('ol');
+    list.className = 'compile-help-list';
+    for (const finding of findings) {
+      const item = document.createElement('li');
+      const title = document.createElement('strong');
+      title.textContent = finding.title;
+      item.appendChild(title);
+      const cause = document.createElement('div');
+      cause.className = 'compile-help-cause';
+      cause.textContent = `原因候補: ${finding.cause}`;
+      item.appendChild(cause);
+      const fix = document.createElement('div');
+      fix.className = 'compile-help-fix';
+      fix.textContent = `確認方法: ${finding.fix}`;
+      item.appendChild(fix);
+      const sk = Sk.cur();
+      const fileIndex = finding.file && sk
+        ? sk.files.findIndex(file => file.name === finding.file)
+        : -1;
+      if (fileIndex >= 0 && finding.line > 0) {
+        const source = document.createElement('button');
+        source.type = 'button';
+        source.className = 'compile-help-source';
+        source.textContent = `${finding.file}:${finding.line} のコードを開く`;
+        source.addEventListener('click', () => {
+          if (S.curTab !== fileIndex) Sk.switchTab(fileIndex);
+          Ed.scrollToLine(finding.line);
+          Ed.ta.focus();
+        });
+        item.appendChild(source);
+      }
+      const original = document.createElement('div');
+      original.className = 'compile-help-original';
+      original.textContent = finding.original;
+      item.appendChild(original);
+      list.appendChild(item);
+    }
+    content.appendChild(list);
+  }
+  panel.appendChild(content);
+  panel.hidden = false;
+}
+
 const Build = {
   busy: false,
   _cancelCompile: null,
@@ -5146,6 +5681,8 @@ const Build = {
   },
 
   _clearLog() {
+    const help = document.getElementById('compile-help');
+    if (help) { help.hidden = true; help.replaceChildren(); }
     const log = document.getElementById('console-log');
     log.textContent = '';
     const empty = document.createElement('div');
@@ -5295,6 +5832,10 @@ const Build = {
       } else {
         (r.errors && !r.output ? r.errors : []).forEach(e => this._log(e, 'err'));
         this._log('コンパイル失敗', 'err');
+        showCompileErrorHelp([
+          ...(r.output ? String(r.output).split('\n') : []),
+          ...(r.errors || []).map(error => String(error)),
+        ]);
         setStatus('コンパイル失敗', 'err');
         toast('コンパイルエラーがあります', 'err');
         JC.compile.end(tk, false, 'コンパイルに失敗しました。出力を確認してください',
@@ -6014,6 +6555,54 @@ function initPanelResize() {
   });
 }
 
+function initSidebarResize() {
+  const workspace = document.getElementById('workspace');
+  const sidebar = document.getElementById('sidebar');
+  const handle = document.getElementById('sidebar-resizer');
+  let startX = 0;
+  let startWidth = 0;
+  let activePointer = null;
+  const maxWidth = () => Math.max(SIDEBAR_WIDTH_MIN, Math.min(SIDEBAR_WIDTH_MAX, workspace.clientWidth - 240));
+  const setWidth = width => {
+    const bounded = Math.round(Math.max(SIDEBAR_WIDTH_MIN, Math.min(maxWidth(), width)));
+    S.cfg.sidebarWidth = bounded;
+    document.documentElement.style.setProperty('--sidebar-w', `${bounded}px`);
+    handle.setAttribute('aria-valuenow', String(bounded));
+  };
+  const finish = async () => {
+    if (activePointer === null) return;
+    activePointer = null;
+    workspace.classList.remove('resizing-sidebar');
+    await Cfg.save();
+  };
+  handle.addEventListener('pointerdown', event => {
+    if (sidebar.classList.contains('hidden') || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    event.preventDefault();
+    startX = event.clientX;
+    startWidth = sidebar.getBoundingClientRect().width;
+    activePointer = event.pointerId;
+    workspace.classList.add('resizing-sidebar');
+    handle.setPointerCapture(event.pointerId);
+  });
+  handle.addEventListener('pointermove', event => {
+    if (event.pointerId !== activePointer) return;
+    setWidth(startWidth + event.clientX - startX);
+  });
+  handle.addEventListener('pointerup', event => {
+    if (event.pointerId === activePointer) finish();
+  });
+  handle.addEventListener('pointercancel', event => {
+    if (event.pointerId === activePointer) finish();
+  });
+  handle.addEventListener('keydown', event => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    const delta = (event.shiftKey ? 25 : 10) * (event.key === 'ArrowRight' ? 1 : -1);
+    setWidth(S.cfg.sidebarWidth + delta);
+    Cfg.save();
+  });
+}
+
 function updatePanelToggleA11y() {
   const panel = document.getElementById('bottom-panel');
   const button = document.getElementById('panel-toggle-btn');
@@ -6110,6 +6699,14 @@ const Cfg = {
       const saved = await IDB.getKV(S.db, 'cfg');
       if (saved) Object.assign(S.cfg, saved);
     } catch(_) {}
+    const fontSize = Number(S.cfg.fontSize);
+    S.cfg.fontSize = Number.isFinite(fontSize)
+      ? Math.max(EDITOR_FONT_SIZE_MIN, Math.min(EDITOR_FONT_SIZE_MAX, fontSize))
+      : 13;
+    const sidebarWidth = Number(S.cfg.sidebarWidth);
+    S.cfg.sidebarWidth = Number.isFinite(sidebarWidth)
+      ? Math.max(SIDEBAR_WIDTH_MIN, Math.min(SIDEBAR_WIDTH_MAX, sidebarWidth))
+      : 230;
     if (typeof S.cfg.panelMinimized !== 'boolean') S.cfg.panelMinimized = false;
     try {
       const sharedTheme = localStorage.getItem(IDE_THEME_STORAGE_KEY);
@@ -6240,6 +6837,12 @@ const Cfg = {
     // 設定モーダル反映
     const sz = document.getElementById('cfg-fontsize');
     if (sz) sz.value = S.cfg.fontSize;
+    const fontSizeValue = document.getElementById('font-size-value');
+    if (fontSizeValue) fontSizeValue.textContent = `${S.cfg.fontSize}px`;
+    const decreaseButton = document.getElementById('font-size-decrease');
+    if (decreaseButton) decreaseButton.disabled = S.cfg.fontSize <= EDITOR_FONT_SIZE_MIN;
+    const increaseButton = document.getElementById('font-size-increase');
+    if (increaseButton) increaseButton.disabled = S.cfg.fontSize >= EDITOR_FONT_SIZE_MAX;
     const ts2 = document.getElementById('cfg-tabsize');
     if (ts2) ts2.value = S.cfg.tabSize;
     const as = document.getElementById('cfg-autosave');
@@ -6252,7 +6855,16 @@ const Cfg = {
     if (sx) sx.checked = S.cfg.syntax;
     const rm = document.getElementById('cfg-reduce-motion');
     if (rm) rm.checked = !!S.cfg.reduceMotion;
+    const ch = document.getElementById('cfg-compile-help');
+    if (ch) ch.checked = S.cfg.compileHelp === true;
     document.documentElement.setAttribute('data-reduce-motion', String(!!S.cfg.reduceMotion));
+    document.documentElement.style.setProperty('--sidebar-w', `${S.cfg.sidebarWidth}px`);
+    const sidebarHandle = document.getElementById('sidebar-resizer');
+    if (sidebarHandle) {
+      sidebarHandle.setAttribute('aria-valuenow', String(S.cfg.sidebarWidth));
+      sidebarHandle.setAttribute('aria-hidden', String(document.getElementById('sidebar').classList.contains('hidden')));
+      sidebarHandle.tabIndex = document.getElementById('sidebar').classList.contains('hidden') ? -1 : 0;
+    }
     const panel = document.getElementById('bottom-panel');
     if (panel) {
       panel.classList.toggle('minimized', S.cfg.panelMinimized);
@@ -6574,12 +7186,16 @@ function toggleSidebar() {
   const button = document.getElementById('sidebar-toggle-btn');
   button.setAttribute('aria-expanded', String(expanded));
   button.setAttribute('aria-label', expanded ? 'サイドバーを閉じる' : 'サイドバーを開く');
+  const resizeHandle = document.getElementById('sidebar-resizer');
+  resizeHandle.setAttribute('aria-hidden', String(!expanded));
+  resizeHandle.tabIndex = expanded ? 0 : -1;
   setTimeout(fitClearLabel, 0);
 }
 
 function updateAccountBtn() {
   const btn = document.getElementById('account-open-btn');
   const nameLabel = document.getElementById('acct-name-label');
+  updateSaveLocation();
   if (S.account.user) {
     const displayName = S.account.user.name || S.account.user.username;
     btn.classList.add('logged-in');
@@ -6592,6 +7208,21 @@ function updateAccountBtn() {
     btn.title = 'アカウントとクラウド保存';
     btn.setAttribute('aria-label', 'アカウントとクラウド保存 (未ログイン)');
     nameLabel.hidden = true;
+  }
+}
+
+function updateSaveLocation() {
+  const el = document.getElementById('status-save-location');
+  if (!el) return;
+  if (!S.db) {
+    el.textContent = '保存先: このセッションのみ';
+    el.title = 'ブラウザー保存領域を利用できないため、データはこのタブを開いている間だけ保持されます。';
+  } else if (S.account.user) {
+    el.textContent = '保存先: アカウントのクラウド + ブラウザー';
+    el.title = 'スケッチはこのブラウザーのIndexedDBに保存され、ログイン中のアカウントにも同期されます。';
+  } else {
+    el.textContent = '保存先: このブラウザーのみ';
+    el.title = 'スケッチはこのブラウザーのIndexedDBに保存されます。他のブラウザーや端末とは共有されません。';
   }
 }
 
@@ -6687,6 +7318,10 @@ document.addEventListener('click', e => {
 
 function initEvents() {
   // ---- ツールバー ----
+  document.getElementById('font-size-decrease').addEventListener('click', () =>
+    changeEditorFontSize(-EDITOR_FONT_SIZE_STEP));
+  document.getElementById('font-size-increase').addEventListener('click', () =>
+    changeEditorFontSize(EDITOR_FONT_SIZE_STEP));
   document.getElementById('verify-btn').addEventListener('click', () => Build.verify());
   document.getElementById('upload-btn').addEventListener('click', () => Build.upload());
   document.getElementById('compile-cancel-btn').addEventListener('click', () => {
@@ -7004,6 +7639,13 @@ function initEvents() {
     if (document.getElementById('m-account').classList.contains('open') && S.account.user) CloudSketchList.render();
   });
   document.getElementById('help-open-btn').addEventListener('click', () => openModal('m-help'));
+  document.getElementById('start-tutorial-btn').addEventListener('click', () => {
+    closeModal('m-help');
+    Tutorial.open();
+  });
+  document.getElementById('tutorial-next-btn').addEventListener('click', () => Tutorial.next());
+  document.getElementById('tutorial-prev-btn').addEventListener('click', () => Tutorial.previous());
+  document.getElementById('tutorial-skip-btn').addEventListener('click', () => closeModal('m-tutorial'));
   document.getElementById('board-select').addEventListener('change', e => {
     const sk = Sk.cur();
     if (sk) { sk.board = e.target.value; IDB.put(S.db, sk); }
@@ -7185,15 +7827,21 @@ function initEvents() {
   });
 
   document.getElementById('do-settings-btn').addEventListener('click', async () => {
-    S.cfg.fontSize  = parseInt(document.getElementById('cfg-fontsize').value);
+    S.cfg.fontSize  = Math.max(EDITOR_FONT_SIZE_MIN,
+      Math.min(EDITOR_FONT_SIZE_MAX, parseInt(document.getElementById('cfg-fontsize').value) || 13));
     S.cfg.tabSize   = parseInt(document.getElementById('cfg-tabsize').value);
     S.cfg.autosave  = parseInt(document.getElementById('cfg-autosave').value);
     S.cfg.lineNums  = document.getElementById('cfg-linenums').checked;
     S.cfg.curLine   = document.getElementById('cfg-curline').checked;
     S.cfg.syntax    = document.getElementById('cfg-syntax').checked;
     S.cfg.reduceMotion = document.getElementById('cfg-reduce-motion').checked;
+    S.cfg.compileHelp = document.getElementById('cfg-compile-help').checked;
     Cfg.applyToEditor(); await Cfg.save();
     Cfg.applyToUI();
+    if (!S.cfg.compileHelp) {
+      const help = document.getElementById('compile-help');
+      if (help) { help.hidden = true; help.replaceChildren(); }
+    }
     if (S.dirty.size) Sk.scheduleAutosave();
     closeModal('m-settings');
     toast('設定を保存しました','ok');
@@ -7497,6 +8145,7 @@ async function boot_internal() {
     Ctx.init();
     initDrop();
     initPanelResize();
+    initSidebarResize();
     Ser.init();
     Backup.init();
 
