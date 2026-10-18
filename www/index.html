@@ -157,7 +157,6 @@ button  { cursor: pointer; border: none; outline: none; font-family: inherit; fo
 input,select,textarea { font-family: inherit; font-size: inherit; color: inherit; outline: none; }
 a { color: var(--teal-link); text-decoration: none; }
 svg { display: block; flex-shrink: 0; }
-.icon-fallback { display: inline-grid; place-items: center; width: 1em; height: 1em; font-style: normal; line-height: 1; }
 :focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 ::selection { background: var(--ed-sel); }
 
@@ -1897,7 +1896,6 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
   scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important
 }
 </style>
-<script id="lucide-icons" src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.468.0/umd/lucide.min.js" defer></script>
 </head>
 <body>
 <div id="app">
@@ -3128,49 +3126,92 @@ function nowDate() {
 }
 function ts() { return new Date().toLocaleTimeString('ja-JP', { hour12: false }); }
 
-function renderLucideIcons(root=document) {
-  if (window.lucide && typeof window.lucide.createIcons === 'function') {
-    window.lucide.createIcons({ root });
-  } else if (iconFallbackEnabled) {
-    const icons = root.matches && root.matches('i[data-lucide]')
-      ? [root]
-      : Array.from(root.querySelectorAll ? root.querySelectorAll('i[data-lucide]') : []);
-    icons.forEach(icon => {
-      if (icon.classList.contains('icon-fallback')) return;
-      icon.classList.add('icon-fallback');
-      icon.textContent = iconFallbackGlyph(icon.dataset.lucide);
-    });
-  }
+const ICON_SVG = {
+  'archive-restore': '<path d="M3 4h18v4H3z"/><path d="M5 8v12h14V8M12 12v6m-3-3 3 3 3-3"/>',
+  'arrow-down': '<path d="M12 5v14m-7-7 7 7 7-7"/>',
+  'arrow-up': '<path d="M12 19V5m7 7-7-7-7 7"/>',
+  archive: '<path d="M3 4h18v4H3zM5 8v12h14V8"/><path d="M10 12h4"/>',
+  check: '<path d="m5 12 4 4L19 6"/>',
+  'chevron-down': '<path d="m6 9 6 6 6-6"/>',
+  'chevron-right': '<path d="m9 18 6-6-6-6"/>',
+  'chevron-up': '<path d="m18 15-6-6-6 6"/>',
+  'circle-alert': '<circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/>',
+  'circle-check': '<circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/>',
+  'circle-help': '<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3m.1 4h.01"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  'clock-3': '<circle cx="12" cy="12" r="10"/><path d="M12 6v6h6"/>',
+  copy: '<rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>',
+  cpu: '<rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v4m6-4v4M9 19v4m6-4v4M1 9h4m-4 6h4m14-6h4m-4 6h4"/>',
+  cloud: '<path d="M20 16.2A4.5 4.5 0 0 0 18 7.5h-1.3A7 7 0 1 0 4 16.2"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5 5 5 5-5m-5 5V3"/>',
+  'eye-off': '<path d="m3 3 18 18M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c5 0 8.3 4.5 9 7a10.8 10.8 0 0 1-3.1 4.7M6.2 6.2C3.7 7.7 2.3 10.2 2 12c.7 2.5 4 7 10 7 1 0 1.9-.2 2.8-.5"/>',
+  eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+  'file-code-2': '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M10 13l-2 2 2 2m4-4 2 2-2 2"/>',
+  'file-plus': '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6m-8 4v6m-3-3h6"/>',
+  'file-up': '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6m-8 9v-6m-3 3 3-3 3 3"/>',
+  folder: '<path d="M3 5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  'folder-open': '<path d="M3 6a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v2"/><path d="M3 11h18l-2 8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/>',
+  library: '<path d="m16 6 4-2v14l-4 2zM12 4v16M4 5l5-2v18l-5-2z"/>',
+  'log-out': '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m7 14 5-5-5-5m5 5H9"/>',
+  moon: '<path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6.5 6.5 0 0 0 8.268 8.268c.344-.215.825-.003.803.401"/>',
+  'panel-left': '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/>',
+  pencil: '<path d="m16 4 4 4L8 20H4v-4z"/><path d="m14 6 4 4"/>',
+  plus: '<path d="M12 5v14m-7-7h14"/>',
+  'refresh-cw': '<path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.6 9A7 7 0 0 1 18 6l2 2M4 16l2 2a7 7 0 0 0 12.4-3"/>',
+  save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/>',
+  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  server: '<rect x="3" y="3" width="18" height="8" rx="2"/><rect x="3" y="13" width="18" height="8" rx="2"/><path d="M7 7h.01M7 17h.01M12 7h5m-5 10h5"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.6a8 8 0 0 1-1.7 1l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.7-1l-1.7.6-1.4-2.4 1.4-1.1a7 7 0 0 1 0-2l-1.4-1.1 1.4-2.4 1.7.6a8 8 0 0 1 1.7-1l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.7 1l1.7-.6 1.4 2.4-1.4 1.1a7 7 0 0 1 0 2Z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/>',
+  terminal: '<path d="m4 17 6-6-6-6m8 14h8"/>',
+  'trash-2': '<path d="M3 6h18m-2 0-.9 14H5.9L5 6m4 0V4h6v2m-5 4v7m4-7v7"/>',
+  triangle: '<path d="m10.3 3.9-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3.1l-8-14a2 2 0 0 0-3.4 0Z"/>',
+  'triangle-alert': '<path d="m10.3 3.9-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3.1l-8-14a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4m0 4h.01"/>',
+  usb: '<path d="M12 22V7m0 0L8 3m4 4 4-4m-4 11h6l2 2m-8-5H7l-2 2"/><circle cx="19" cy="17" r="1"/><circle cx="5" cy="17" r="1"/><path d="M12 4V2"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5 5-5 5 5m-5-5v12"/>',
+  'user-round': '<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>',
+  x: '<path d="m18 6-12 12M6 6l12 12"/>'
+};
+
+function renderIcons(root=document) {
+  const icons = root.matches && root.matches('i[data-lucide], svg[data-lucide]')
+    ? [root]
+    : Array.from(root.querySelectorAll ? root.querySelectorAll('i[data-lucide], svg[data-lucide]') : []);
+  icons.forEach(icon => {
+    const name = icon.dataset.lucide;
+    if (!ICON_SVG[name]) {
+      console.error(`No inline SVG is defined for icon "${name}".`);
+      return;
+    }
+    const svg = icon.tagName.toLowerCase() === 'svg' ? icon : document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    if (svg !== icon) {
+      Array.from(icon.attributes).forEach(attribute => {
+        if (attribute.name !== 'data-lucide') svg.setAttribute(attribute.name, attribute.value);
+      });
+      icon.replaceWith(svg);
+    }
+    svg.setAttribute('data-lucide', name);
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.innerHTML = ICON_SVG[name];
+  });
 }
 
-let iconFallbackEnabled = false;
-function iconFallbackGlyph(name) {
-  const glyphs = {
-    'archive-restore': '↶', 'arrow-down': '↓', 'arrow-up': '↑',
-    archive: '▤', check: '✓', 'chevron-down': '⌄', 'chevron-right': '›',
-    'chevron-up': '⌃', 'circle-alert': '!', 'circle-check': '✓', 'circle-help': '?',
-    clock: '◷', 'clock-3': '◷', copy: '▢', cpu: '▣',
-    cloud: '☁', download: '↓', 'eye-off': '⊘', eye: '◉',
-    'file-code-2': '</>', 'file-plus': '+', 'file-up': '↑',
-    folder: '▣', 'folder-open': '▣', info: 'i', library: '▤',
-    'log-out': '↗', moon: '☾', 'panel-left': '◧', pencil: '✎',
-    plus: '+', 'refresh-cw': '↻', save: '↓', search: '⌕',
-    server: '▦', settings: '⚙', sun: '☼', terminal: '>_',
-    'trash-2': '×', triangle: '!', 'triangle-alert': '!', usb: '⎓', upload: '↑', 'user-round': '●', x: '×'
-  };
-  return glyphs[name] || '•';
-}
-
-function setLucideIcon(container, name) {
+function setIcon(container, name) {
   const icon = document.createElement('i');
   icon.setAttribute('data-lucide', name);
   icon.setAttribute('aria-hidden', 'true');
   container.replaceChildren(icon);
-  renderLucideIcons(container);
+  renderIcons(container);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  renderLucideIcons();
+  renderIcons();
   if (window.MutationObserver) {
     const iconObserver = new MutationObserver(records => {
       const roots = new Set();
@@ -3179,15 +3220,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const root = node.matches('i[data-lucide]') ? node.parentElement : node;
         if (root && root.querySelector('i[data-lucide]')) roots.add(root);
       }));
-      roots.forEach(root => renderLucideIcons(root));
+      roots.forEach(root => renderIcons(root));
     });
     iconObserver.observe(document.body, { childList: true, subtree: true });
   }
-}, { once: true });
-document.getElementById('lucide-icons').addEventListener('error', () => {
-  console.error('Lucide Icons could not be loaded; using text icon fallbacks.');
-  iconFallbackEnabled = true;
-  renderLucideIcons();
 }, { once: true });
 
 function toast(msg, type='info', dur=type === 'err' ? 7000 : 3000) {
@@ -3203,7 +3239,7 @@ function toast(msg, type='info', dur=type === 'err' ? 7000 : 3000) {
   el.innerHTML = `<span class="toast-icon" aria-hidden="true"><i data-lucide="${icon}"></i></span><span class="toast-message"></span>`;
   el.querySelector('.toast-message').textContent = msg;
   w.appendChild(el);
-  renderLucideIcons(el);
+  renderIcons(el);
   setTimeout(() => {
     el.style.transition = 'opacity .2s, transform .2s';
     el.style.opacity = '0';
@@ -3259,7 +3295,7 @@ function setHelperStatus(kind, text) {
   const icon = document.getElementById('helper-status-icon');
   if (!box || !icon) return;
   const map = { pending: 'clock-3', checking: 'loader-circle', ok: 'circle-check', warn: 'triangle-alert', err: 'circle-alert' };
-  setLucideIcon(icon, map[kind] || 'clock-3');
+  setIcon(icon, map[kind] || 'clock-3');
   box.className = kind === 'ok' ? 'ok' : kind === 'warn' ? 'warn' : kind === 'err' ? 'err' : '';
   document.getElementById('helper-status-text').textContent = text;
 }
@@ -4119,7 +4155,7 @@ class JobCard {
     el.setAttribute('role', 'group');
     el.innerHTML = '<div class="jc-h"><span class="jc-ic run" aria-hidden="true"></span><span class="jc-t"></span><span class="jc-time"></span><button class="jc-x" type="button" title="閉じる" aria-label="処理カードを閉じる"><i data-lucide="x" aria-hidden="true"></i></button></div><div class="jc-step" role="status" aria-live="polite"></div><div class="jc-bar" role="progressbar" aria-label="処理の進捗" aria-valuetext="処理中"><i></i></div><div class="jc-meta"><span class="jc-cnt"></span><span class="jc-hint"></span></div><div class="jc-advice" role="status" aria-live="polite"></div><button class="jc-action" type="button"></button><button class="jc-tg" style="display:none">詳細ログを表示</button> <button class="jc-tg jc-cancel" style="display:none">キャンセル</button><pre class="jc-log"></pre>';
     document.getElementById('job-card-stack').appendChild(el);
-    renderLucideIcons(el);
+    renderIcons(el);
     this.q = s => el.querySelector(s);
     this.q('.jc-x').addEventListener('click', () => this.hide());
     this.q('.jc-tg:not(.jc-cancel)').addEventListener('click', e => { const l = this.q('.jc-log'); const s = l.classList.toggle('show'); e.target.textContent = s ? '詳細ログを隠す' : '詳細ログを表示'; });
@@ -4168,7 +4204,7 @@ class JobCard {
     const ic = this.q('.jc-ic');
     ic.className = 'jc-ic ' + (ok ? 'ok' : 'err');
     ic.innerHTML = `<i data-lucide="${ok ? 'circle-check' : 'circle-alert'}" aria-hidden="true"></i>`;
-    renderLucideIcons(ic);
+    renderIcons(ic);
     this.q('.jc-cancel').style.display = 'none';
     if (!this.pkg) this.q('.jc-t').textContent = ok ? 'コンパイル完了' : 'コンパイル失敗';
     this.q('.jc-step').textContent = msg || (ok ? '完了しました' : '失敗しました');
@@ -5978,7 +6014,7 @@ function updatePanelToggleA11y() {
   const expanded = !panel.classList.contains('minimized');
   const iconName = expanded ? 'chevron-down' : 'chevron-up';
   if (button.dataset.iconName !== iconName) {
-    setLucideIcon(document.getElementById('panel-toggle-icon'), iconName);
+    setIcon(document.getElementById('panel-toggle-icon'), iconName);
     button.dataset.iconName = iconName;
   }
   button.setAttribute('aria-expanded', String(expanded));
@@ -6190,7 +6226,7 @@ const Cfg = {
   applyToUI() {
     document.querySelector('html').setAttribute('data-theme', S.cfg.theme);
     const icon = document.getElementById('theme-icon');
-    setLucideIcon(icon, S.cfg.theme === 'dark' ? 'moon' : 'sun');
+    setIcon(icon, S.cfg.theme === 'dark' ? 'moon' : 'sun');
     const themeButton = document.getElementById('theme-btn');
     themeButton.setAttribute('aria-label', S.cfg.theme === 'dark' ? 'ライトテーマに切り替え' : 'ダークテーマに切り替え');
     themeButton.setAttribute('aria-pressed', String(S.cfg.theme === 'light'));
@@ -6249,7 +6285,7 @@ function setNotice(id, html) {
   if (!html) { el.style.display = 'none'; return; }
   el.style.display = 'flex';
   el.innerHTML = '<i data-lucide="info" aria-hidden="true"></i><div>' + html + '</div>';
-  renderLucideIcons(el);
+  renderIcons(el);
 }
 function helperNoticeText() {
   if (Helper.ready()) return S.helper.admin ? '' : 'ボード・ライブラリの追加・削除には管理者トークンが必要です (一覧と検索は使えます)。サービス管理者に「ヘルパー設定」での入力を依頼してください。';
@@ -6618,7 +6654,7 @@ const CloudSketchList = {
         </span>
       </div>`;
     }).join('');
-    renderLucideIcons(el);
+    renderIcons(el);
   },
 };
 // クラウドスケッチリストのクリック処理
@@ -6742,8 +6778,8 @@ function initEvents() {
       inp.type = show ? 'text' : 'password';
       btn.setAttribute('aria-label', show ? 'パスワードを非表示' : 'パスワードを表示');
       // lucide icon swap
-      const icon = btn.querySelector('i[data-lucide]');
-      if (icon) { icon.setAttribute('data-lucide', show ? 'eye-off' : 'eye'); renderLucideIcons(btn); }
+      const icon = btn.querySelector('[data-lucide]');
+      if (icon) { icon.setAttribute('data-lucide', show ? 'eye-off' : 'eye'); renderIcons(btn); }
     });
   }
   setupPwToggle('account-pw-show', 'account-password');
@@ -6993,7 +7029,7 @@ function initEvents() {
   // スケッチ検索フィルター
   document.getElementById('sb-search').addEventListener('input', () => {
     Sk.renderList();
-    renderLucideIcons(document.getElementById('sketch-list'));
+    renderIcons(document.getElementById('sketch-list'));
   });
 
   // スケッチリスト(委譲)
