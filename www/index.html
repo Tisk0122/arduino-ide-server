@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="description" content="Arduino Web IDE - ブラウザで動作するArduino開発環境">
 <meta name="theme-color" content="#005F61">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="128x128" href="favicon.png">
 <title>Arduino Web IDE</title>
 <style>
 /* ================================================================
@@ -807,6 +807,46 @@ svg { display: block; flex-shrink: 0; }
 #code-ta:focus { outline: none; }
 #code-ta::selection { background: var(--ed-sel); }
 
+/* コード補完候補 */
+#completion-list {
+  position: absolute;
+  z-index: 6;
+  display: none;
+  width: min(340px, calc(100% - 16px));
+  max-height: min(260px, 40vh, calc(100% - 16px));
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--bd2);
+  border-radius: var(--radius-lg);
+  background: var(--bg-modal);
+  box-shadow: var(--sh-lg);
+  color: var(--tx0);
+  font: 12px var(--ff-ui);
+}
+#completion-list.open { display: block; }
+.completion-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 30px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.completion-option.active { background: var(--bg3); }
+.completion-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--ff-mono); }
+.completion-detail { margin-left: auto; overflow: hidden; color: var(--tx3); text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.completion-option { flex-wrap: wrap; }
+.completion-signature { flex: 1 0 100%; padding-left: 2px; color: var(--teal-link); font: 10px var(--ff-mono); white-space: normal; }
+.editor-error-number { color: var(--err, #ef6464); font-weight: 700; cursor: pointer; }
+.editor-error-number::before { content: "●"; margin-right: 4px; font-size: 8px; vertical-align: 1px; }
+#cur-line-hl.has-error { background: color-mix(in srgb, #e05252 13%, var(--ed-line)); border-bottom: 1px solid #e05252; }
+.history-list { display: grid; gap: 6px; max-height: 220px; overflow: auto; margin-bottom: 12px; }
+.history-entry { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 8px 10px; border: 1px solid var(--bd1); border-radius: var(--radius); color: var(--tx1); background: var(--bg2); text-align: left; cursor: pointer; }
+.history-entry:hover, .history-entry.active { border-color: var(--teal); background: var(--bg3); }
+.history-preview { max-height: 190px; overflow: auto; padding: 10px; border: 1px solid var(--bd1); border-radius: var(--radius); background: var(--bg-input); color: var(--tx1); font: 11px/1.6 var(--ff-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.history-empty { padding: 14px; color: var(--tx3); text-align: center; }
+
 /* 現在行ハイライト */
 #cur-line-hl {
   position: absolute;
@@ -1054,6 +1094,14 @@ svg { display: block; flex-shrink: 0; }
 .sl-sent { color: var(--co-info); }
 .sl-recv { color: var(--co-tx); }
 .sl-sys  { color: var(--panel-muted); font-style: italic; }
+#serial-plot-wrap { flex: 1; min-height: 0; padding: 10px 14px; }
+#serial-plot-wrap[hidden] { display: none; }
+#serial-plot { display: block; width: 100%; height: 100%; min-height: 100px; }
+#serial-log[hidden] { display: none; }
+.serial-plot-empty { display: grid; height: 100%; place-items: center; color: var(--panel-muted); font-size: 12px; text-align: center; }
+.serial-plot-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 0 14px 6px; color: var(--panel-muted); font-size: 10px; }
+.serial-plot-key { display: flex; align-items: center; gap: 5px; }
+.serial-plot-swatch { width: 9px; height: 3px; border-radius: 2px; }
 
 .serial-ctrl-bar {
   display: flex;
@@ -2040,6 +2088,14 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
     <span class="conn-dot"></span>
     <span id="conn-text">シリアル: 未接続</span>
   </button>
+  <button class="tool-btn" id="format-code-btn" title="コードを整形 (Shift+Alt+F)">
+    <i data-lucide="file-code-2" aria-hidden="true"></i>
+    <span>整形</span>
+  </button>
+  <button class="tool-btn" id="history-open-btn" title="編集履歴を復元">
+    <i data-lucide="clock-3" aria-hidden="true"></i>
+    <span>履歴</span>
+  </button>
 
   <div class="topbar-spacer"></div>
 
@@ -2180,10 +2236,11 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
             <div id="cur-line-hl"></div>
             <div id="hl-layer" aria-hidden="true"></div>
             <textarea id="code-ta" spellcheck="false" autocomplete="off"
-              autocorrect="off" autocapitalize="off" wrap="off"
-              aria-label="コードエディタ"></textarea>
+              autocorrect="off" autocapitalize="off" wrap="off" aria-label="コードエディタ"
+              aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="completion-list"></textarea>
           </div>
         </div>
+        <div id="completion-list" role="listbox" aria-label="コード入力候補"></div>
       </div>
 
       <!-- 検索バー -->
@@ -2239,6 +2296,10 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
         </div>
         <!-- シリアルモニター -->
         <div class="panel-pane" id="serial-pane" role="tabpanel" aria-labelledby="serial-tab" aria-hidden="true">
+          <div id="serial-plot-wrap" hidden>
+            <canvas id="serial-plot" role="img" aria-label="シリアル数値プロッター"></canvas>
+            <div class="serial-plot-legend" id="serial-plot-legend"></div>
+          </div>
           <div id="serial-log"><div class="log-empty" id="serial-empty-note">「接続」を押すと受信を開始します</div></div>
           <div class="serial-ctrl-bar">
             <label class="sc-label">
@@ -2271,6 +2332,8 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
               タイムスタンプ
             </label>
             <div class="sc-sep"></div>
+            <button class="sc-mini-btn" id="serial-plot-toggle" aria-pressed="false" title="シリアル数値プロッターを表示">プロッター</button>
+            <button class="sc-mini-btn" id="serial-plot-clear" title="グラフのデータを消去">グラフをクリア</button>
             <button class="sc-mini-btn" id="serial-log-save-btn">ログ保存</button>
             <button class="sc-mini-btn" id="serial-log-clear-btn" aria-label="シリアルログをクリア">ログクリア</button>
           </div>
@@ -2874,6 +2937,13 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
       </div>
       <div class="form-group">
         <label class="form-check-label">
+          <input type="checkbox" class="form-check-input" id="cfg-completion" checked>
+          コード入力補助（候補表示）
+        </label>
+        <div class="form-hint">Arduino API・C++キーワード・スケッチ内の名前を候補表示します。↑↓で選択し、Enter または Tab で挿入できます。初期設定はオンです。</div>
+      </div>
+      <div class="form-group">
+        <label class="form-check-label">
           <input type="checkbox" class="form-check-input" id="cfg-reduce-motion">
           アニメーションを減らす
         </label>
@@ -2890,6 +2960,28 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
     <div class="modal-foot">
       <button class="btn btn-secondary" data-close="m-settings">キャンセル</button>
       <button class="btn btn-primary" id="do-settings-btn">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 編集履歴 -->
+<div class="modal-overlay" id="m-history">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">編集履歴を復元</span>
+      <button class="modal-x" data-close="m-history" title="閉じる" aria-label="履歴を閉じる">
+        <i data-lucide="x" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-hint" id="history-file-label"></div>
+      <div class="history-list" id="history-list" role="listbox" aria-label="保存された編集履歴"></div>
+      <pre class="history-preview" id="history-preview" aria-label="選択した履歴のプレビュー">履歴を選択してください</pre>
+      <div class="form-hint">編集履歴はこのブラウザーに最大20件保存されます（1ファイル250KB以下）。別の端末とは共有されません。</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" data-close="m-history">閉じる</button>
+      <button class="btn btn-primary" id="history-restore-btn" disabled>この内容に復元</button>
     </div>
   </div>
 </div>
@@ -2931,6 +3023,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
               <tr><td><span class="kbd">Ctrl+O</span></td><td>ファイルを開く</td></tr>
               <tr><td><span class="kbd">Ctrl+B</span></td><td>サイドバー切替</td></tr>
               <tr><td><span class="kbd">Ctrl+Shift+M</span></td><td>シリアルモニター</td></tr>
+              <tr><td><span class="kbd">Shift+Alt+F</span></td><td>コードを整形</td></tr>
               <tr><td><span class="kbd">Ctrl+,</span></td><td>設定</td></tr>
               <tr><td><span class="kbd">F1</span></td><td>ヘルプ</td></tr>
             </table>
@@ -3027,7 +3120,7 @@ const S = {
   cfg: {
     fontSize: 13, tabSize: 2, autosave: 5,
     theme: 'dark', lineNums: true, curLine: true, syntax: true, reduceMotion: false,
-    compileHelp: false, sidebarWidth: 230, panelMinimized: false,
+    compileHelp: false, completion: true, sidebarWidth: 230, panelMinimized: false,
   },
   serial: { port: null, reader: null, writer: null, connected: false, supported: true, detectedLabel: '', detectedBoardId: '', detectionGeneration: 0, authorizedPortCount: 0 },
   helper: { url: IDE_DEFAULTS.url, fallback: IDE_DEFAULTS.fallbackUrl, token: IDE_DEFAULTS.token, adminToken: '', adminTokenTarget: '', active: '', userSet: false, prefillStudentToken: false, publicConfigError: '', ok: false, authed: false, admin: false, adminBad: false, gen: 0, info: null },
@@ -3049,6 +3142,121 @@ const EDITOR_FONT_SIZE_MAX = 40;
 const EDITOR_FONT_SIZE_STEP = 2;
 const SIDEBAR_WIDTH_MIN = 160;
 const SIDEBAR_WIDTH_MAX = 500;
+
+const COMPLETION_ITEMS = [
+  ['pinMode', 'ピンの入出力設定'], ['digitalWrite', 'デジタル出力'], ['digitalRead', 'デジタル入力'],
+  ['analogWrite', 'PWM出力'], ['analogRead', 'アナログ入力'],
+  ['delay', '待ち時間 (ms)'], ['delayMicroseconds', '待ち時間 (µs)'],
+  ['millis', '起動後の経過時間 (ms)'], ['micros', '起動後の経過時間 (µs)'],
+  ['Serial', 'シリアル通信'], ['Serial1', 'シリアル通信ポート 1'],
+  ['Wire', 'I2C通信'], ['SPI', 'SPI通信'], ['EEPROM', '不揮発メモリ'],
+  ['HIGH', 'デジタル出力 HIGH'], ['LOW', 'デジタル出力 LOW'],
+  ['INPUT', '入力モード'], ['OUTPUT', '出力モード'], ['INPUT_PULLUP', 'プルアップ入力'],
+  ['LED_BUILTIN', '内蔵LEDピン'], ['A0', 'アナログピン 0'],
+  ['true', '真'], ['false', '偽'], ['const', '定数'], ['int', '整数型'],
+  ['long', '長整数型'], ['float', '浮動小数点型'], ['double', '倍精度浮動小数点型'],
+  ['char', '文字型'], ['bool', '真偽値型'], ['byte', 'バイト型'],
+  ['String', '文字列型'], ['void', '戻り値なし'], ['if', '条件分岐'],
+  ['else', '条件分岐 (それ以外)'], ['for', '繰り返し (回数指定)'],
+  ['while', '繰り返し (条件指定)'], ['switch', '複数条件分岐'],
+  ['case', 'switchの条件'], ['return', '関数から戻る'], ['break', 'ループを抜ける'],
+  ['continue', '次のループへ'], ['struct', '構造体'], ['#include', 'ヘッダーファイルを読み込む'],
+  ['#define', 'マクロを定義する'], ['sizeof', '型や変数のサイズ'],
+  ['map', '値を別の範囲へ変換'], ['constrain', '値を範囲内に制限'],
+  ['abs', '絶対値'], ['min', '小さい方の値'], ['max', '大きい方の値'],
+  ['random', '乱数'], ['randomSeed', '乱数の初期化'], ['tone', '音を鳴らす'],
+  ['noTone', '音を止める'], ['attachInterrupt', '割り込みを設定'],
+  ['setup() {…}', 'setup関数のひな形', 'void setup() {\n  \n}', 'void setup() {\n  '.length],
+  ['loop() {…}', 'loop関数のひな形', 'void loop() {\n  \n}', 'void loop() {\n  '.length],
+  ['if (…) {…}', 'if文のひな形', 'if () {\n  \n}', 'if ('.length],
+  ['for (…) {…}', 'for文のひな形', 'for (int i = 0; i < ; i++) {\n  \n}', 'for (int i = 0; i < '.length],
+  ['pinMode(…, …);', 'ピンのモード設定', 'pinMode(, );', 'pinMode('.length],
+  ['digitalWrite(…, …);', 'デジタル出力', 'digitalWrite(, );', 'digitalWrite('.length],
+];
+const SERIAL_COMPLETIONS = [
+  ['begin', '通信を開始'], ['available', '受信データ数'],
+  ['read', '1文字受信'], ['readString', '文字列を受信'],
+  ['readStringUntil', '区切りまで文字列を受信'], ['print', 'データを出力'],
+  ['println', '改行付きで出力'], ['write', 'バイト列を出力'],
+  ['flush', '送信完了を待つ'],
+];
+const LIBRARY_COMPLETIONS = {
+  wire: [
+    ['begin', 'I2Cを開始', 'void begin() / begin(address)'],
+    ['beginTransmission', 'I2C送信を開始', 'void beginTransmission(uint8_t address)'],
+    ['endTransmission', 'I2C送信を完了', 'uint8_t endTransmission()'],
+    ['requestFrom', 'I2Cデータを要求', 'requestFrom(address, quantity)'],
+    ['available', '受信データ数', 'int available()'], ['read', '1バイト受信', 'int read()'],
+    ['write', '1バイト送信', 'write(value)'],
+  ],
+  spi: [
+    ['begin', 'SPIを開始', 'void begin()'], ['end', 'SPIを終了', 'void end()'],
+    ['beginTransaction', 'SPI設定で通信開始', 'beginTransaction(SPISettings(clock, bitOrder, mode))'],
+    ['endTransaction', 'SPI通信を終了', 'void endTransaction()'],
+    ['transfer', '1バイト送受信', 'byte transfer(byte data)'],
+  ],
+  eeprom: [
+    ['read', '1バイト読み出し', 'uint8_t read(int address)'],
+    ['write', '1バイト書き込み', 'void write(int address, uint8_t value)'],
+    ['update', '変更時のみ書き込み', 'void update(int address, uint8_t value)'],
+    ['get', '型付きデータ読み出し', 'EEPROM.get(address, variable)'],
+    ['put', '型付きデータ書き込み', 'EEPROM.put(address, value)'],
+  ],
+  servo: [
+    ['attach', 'サーボをピンに接続', 'int attach(int pin)'],
+    ['write', '角度を設定', 'void write(int angle)'],
+    ['writeMicroseconds', 'パルス幅を設定', 'void writeMicroseconds(int us)'],
+    ['read', '現在角度を取得', 'int read()'], ['attached', '接続状態を確認', 'bool attached()'],
+    ['detach', 'サーボを切断', 'void detach()'],
+  ],
+  lcd: [
+    ['begin', '液晶サイズを設定', 'begin(cols, rows)'],
+    ['clear', '画面を消去', 'void clear()'], ['home', 'カーソルを先頭へ', 'void home()'],
+    ['setCursor', 'カーソル位置を設定', 'setCursor(col, row)'], ['print', '文字を表示', 'print(value)'],
+  ],
+};
+const COMPLETION_SIGNATURES = {
+  setup: 'void setup() — 1回だけ実行される初期化関数',
+  loop: 'void loop() — 繰り返し実行されるメイン関数',
+  if: 'if (condition) { … }',
+  for: 'for (初期化; 条件; 更新) { … }',
+  pinMode: 'void pinMode(uint8_t pin, uint8_t mode)',
+  digitalWrite: 'void digitalWrite(uint8_t pin, uint8_t value)',
+  digitalRead: 'int digitalRead(uint8_t pin)',
+  analogRead: 'int analogRead(uint8_t pin)',
+  analogWrite: 'void analogWrite(uint8_t pin, int value)',
+  delay: 'void delay(unsigned long ms)',
+  delayMicroseconds: 'void delayMicroseconds(unsigned int us)',
+  millis: 'unsigned long millis()',
+  micros: 'unsigned long micros()',
+  map: 'long map(long value, long inMin, long inMax, long outMin, long outMax)',
+  constrain: 'constrain(value, min, max)',
+  random: 'long random(long min, long max)',
+  tone: 'tone(pin, frequency [, duration])',
+  attachInterrupt: 'attachInterrupt(digitalPinToInterrupt(pin), handler, mode)',
+  begin: 'begin(unsigned long baud)',
+  available: 'int available()',
+  read: 'int read()',
+  readString: 'String readString()',
+  readStringUntil: 'String readStringUntil(char terminator)',
+  print: 'print(value [, format])',
+  println: 'println(value [, format])',
+  write: 'write(value)',
+  end: 'void end()',
+  beginTransmission: 'void beginTransmission(uint8_t address)',
+  endTransmission: 'uint8_t endTransmission()',
+  requestFrom: 'requestFrom(address, quantity)',
+  transfer: 'byte transfer(byte data)',
+  beginTransaction: 'beginTransaction(SPISettings(clock, bitOrder, mode))',
+  update: 'void update(int address, uint8_t value)',
+  get: 'EEPROM.get(address, variable)',
+  put: 'EEPROM.put(address, value)',
+  attach: 'int attach(int pin)',
+  writeMicroseconds: 'void writeMicroseconds(int us)',
+  attached: 'bool attached()',
+  detach: 'void detach()',
+  setCursor: 'setCursor(col, row)',
+};
 
 async function changeEditorFontSize(delta) {
   const current = Number(S.cfg.fontSize) || 13;
@@ -3780,6 +3988,12 @@ const Ed = {
   curHl: null,
   _rafPending: false,
   _scrollRaf: false,
+  _completionItems: [],
+  _completionStart: 0,
+  _completionEnd: 0,
+  _completionIndex: 0,
+  diagnostics: new Map(),
+  diagnosticsSketchId: '',
 
   init() {
     this.ta    = document.getElementById('code-ta');
@@ -3788,17 +4002,39 @@ const Ed = {
     this.scr   = document.getElementById('editor-scroll');
     this.inner = document.getElementById('editor-inner');
     this.curHl = document.getElementById('cur-line-hl');
+    this.completionList = document.getElementById('completion-list');
+    this.lnum.addEventListener('click', e => {
+      const marker = e.target.closest('[data-error-line]');
+      if (marker) this.scrollToLine(Number(marker.dataset.errorLine));
+    });
+    this.lnum.addEventListener('keydown', e => {
+      const marker = e.target.closest('[data-error-line]');
+      if (marker && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        this.scrollToLine(Number(marker.dataset.errorLine));
+      }
+    });
 
     this.ta.addEventListener('input',   () => this._onInput());
     this.ta.addEventListener('keydown', e  => this._onKey(e));
-    this.ta.addEventListener('blur',    () => { this._allowTabOut = false; });
-    this.ta.addEventListener('click',   () => this._updateCursor());
+    this.ta.addEventListener('blur',    () => { this._allowTabOut = false; this.hideCompletion(); });
+    this.ta.addEventListener('click',   () => { this._updateCursor(); this.updateCompletion(); });
     this.ta.addEventListener('keyup',   () => this._updateCursor());
     this.ta.addEventListener('scroll',  () => this._syncScroll(), { passive: true });
     this.scr.addEventListener('scroll', () => this._onScrollContainer(), { passive: true });
+    this.scr.addEventListener('scroll', () => this._positionCompletion(), { passive: true });
+    window.addEventListener('resize', () => this._positionCompletion());
+    this.completionList.addEventListener('mousedown', e => e.preventDefault());
+    this.completionList.addEventListener('click', e => {
+      const option = e.target.closest('[role="option"]');
+      if (!option) return;
+      this._completionIndex = Number(option.dataset.index);
+      this._acceptCompletion();
+    });
   },
 
   setValue(code) {
+    this.hideCompletion();
     this.ta.value = code;
     this._scheduleRender();
     this.ta.scrollTop = 0;
@@ -3809,8 +4045,11 @@ const Ed = {
 
   _onInput() {
     this._scheduleRender();
+    if (this.diagnostics.size) this.clearDiagnostics();
     Sk.markDirty();
     Sk.scheduleAutosave();
+    History.scheduleCapture();
+    this.updateCompletion();
   },
 
   _scheduleRender() {
@@ -3836,9 +4075,15 @@ const Ed = {
 
     // 行番号
     const cur = this._cursorLine();
+    const errorLines = this._errorLines();
     let lhtml = '';
     for (let i = 1; i <= n; i++) {
-      lhtml += (i === cur ? `<span class="lc">${i}</span>` : `${i}`) + '\n';
+      if (errorLines.has(i)) {
+        lhtml += `<span class="editor-error-number${i === cur ? ' lc' : ''}" data-error-line="${i}" title="コンパイルエラー — 行 ${i} へ移動" role="button" tabindex="0" aria-label="コンパイルエラーの行 ${i} へ移動">${i}</span>`;
+      } else {
+        lhtml += (i === cur ? `<span class="lc">${i}</span>` : `${i}`);
+      }
+      lhtml += '\n';
     }
     this.lnum.textContent = '';
     this.lnum.innerHTML = lhtml;
@@ -3860,10 +4105,122 @@ const Ed = {
   },
 
   _updateCurLineHl(line) {
+    const hasError = this._errorLines().has(line);
+    this.curHl.classList.toggle('has-error', hasError);
     if (!S.cfg.curLine) return;
     const top = S.editor.padTop + (line - 1) * S.editor.lineH;
     this.curHl.style.top = top + 'px';
     this.curHl.style.height = S.editor.lineH + 'px';
+  },
+
+  _errorLines() {
+    const sketch = Sk.cur();
+    if (!sketch || sketch.id !== this.diagnosticsSketchId) return new Set();
+    const file = sketch.files[S.curTab];
+    return new Set(file ? (this.diagnostics.get(file.name) || []) : []);
+  },
+
+  setDiagnostics(findings) {
+    const sketch = Sk.cur();
+    this.diagnostics.clear();
+    this.diagnosticsSketchId = sketch ? sketch.id : '';
+    if (sketch) {
+      for (const finding of findings) {
+        if (!finding.file || !Number.isInteger(finding.line) || finding.line < 1) continue;
+        const file = sketch.files.find(item => item.name === finding.file);
+        if (!file || finding.line > file.content.split('\n').length) continue;
+        const lines = this.diagnostics.get(file.name) || [];
+        if (!lines.includes(finding.line)) lines.push(finding.line);
+        this.diagnostics.set(file.name, lines);
+      }
+    }
+    this._scheduleRender();
+    this._updateCurLineHl(this._cursorLine());
+  },
+
+  clearDiagnostics() {
+    this.diagnostics.clear();
+    this.diagnosticsSketchId = '';
+    this.curHl.classList.remove('has-error');
+    this._scheduleRender();
+  },
+
+  _formatSource(source) {
+    const lines = source.split('\n');
+    const formatted = [];
+    let depth = 0;
+    let inBlockComment = false;
+    const countBraces = line => {
+      let opens = 0, closes = 0, quote = '', normalized = '';
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i], next = line[i + 1];
+        if (inBlockComment) {
+          if (ch === '*' && next === '/') { normalized += '*/'; inBlockComment = false; i++; }
+          else normalized += ch;
+          continue;
+        }
+        if (quote) {
+          normalized += ch;
+          if (ch === '\\' && next) { normalized += next; i++; }
+          else if (ch === quote) quote = '';
+          continue;
+        }
+        if (ch === '/' && next === '/') { normalized += line.slice(i); break; }
+        if (ch === '/' && next === '*') { normalized += '/*'; inBlockComment = true; i++; }
+        else if (ch === '"' || ch === "'") { quote = ch; normalized += ch; }
+        else if (ch === '{') {
+          const prefix = normalized.trimEnd();
+          const isBlock = /\)$/.test(prefix) || /\b(?:else|do|try|catch|class|struct|namespace)\s*$/.test(prefix);
+          if (isBlock && prefix && !/\s$/.test(normalized)) normalized += ' ';
+          normalized += ch;
+          opens++;
+        } else if (ch === '}') { normalized += ch; closes++; }
+        else normalized += ch;
+      }
+      return { opens, closes, normalized };
+    };
+    for (const raw of lines) {
+      const text = raw.trim();
+      if (!text) { formatted.push(''); continue; }
+      if (/^#/.test(text)) { formatted.push(text); continue; }
+      const { opens, closes, normalized } = countBraces(text);
+      let leadingClosers = 0;
+      for (const char of text) {
+        if (char === '}') leadingClosers++;
+        else if (!/\s/.test(char)) break;
+      }
+      const isCaseLabel = /^(?:case\b.*|default)\s*:/.test(text);
+      const lineDepth = Math.max(0, depth - Math.min(leadingClosers, depth) - (isCaseLabel ? 1 : 0));
+      formatted.push(' '.repeat(lineDepth * S.cfg.tabSize) + normalized.trim());
+      depth = Math.max(0, depth + opens - closes);
+    }
+    return formatted.join('\n');
+  },
+
+  formatCode() {
+    const file = Sk.curFile();
+    if (!file) { toast('整形するスケッチを選択してください', 'warn'); return; }
+    if (!/\.(ino|h|hpp|c|cpp)$/i.test(file.name)) {
+      toast('C/C++ ソースファイルのみ整形できます', 'warn');
+      return;
+    }
+    const ta = this.ta;
+    const before = ta.value;
+    const after = this._formatSource(before);
+    if (after === before) { toast('コードは既に整っています', 'info'); return; }
+    const selection = [ta.selectionStart, ta.selectionEnd].map(position => {
+      const prefix = before.slice(0, position).split('\n');
+      const line = prefix.length - 1;
+      const column = prefix[prefix.length - 1].length;
+      const afterLines = after.split('\n');
+      return afterLines.slice(0, line).reduce((sum, part) => sum + part.length + 1, 0) +
+        Math.min(column, (afterLines[line] || '').length);
+    });
+    History.capture();
+    ta.setRangeText(after, 0, before.length, 'select');
+    ta.setSelectionRange(selection[0], selection[1]);
+    this._onInput();
+    toast('コードを整形しました', 'ok');
   },
 
   _updateCursor() {
@@ -3877,10 +4234,9 @@ const Ed = {
     document.getElementById('status-cursor').textContent = `行 ${line}, 列 ${col}`;
     this._updateCurLineHl(line);
     // 行番号の強調更新
-    const lc = this.lnum.querySelector('.lc');
-    if (lc) lc.className = '';
+    this.lnum.querySelectorAll('.lc').forEach(span => span.classList.remove('lc'));
     const spans = this.lnum.querySelectorAll('span');
-    if (spans[line - 1]) spans[line - 1].className = 'lc';
+    if (spans[line - 1]) spans[line - 1].classList.add('lc');
   },
 
   /* スクロール同期: textarea → scr (テキストエリアのネイティブスクロールを受け取る) */
@@ -3947,11 +4303,295 @@ const Ed = {
     if (!ok) { ta.setRangeText(text, s, e, 'end'); this._onInput(); }
   },
 
+  _inCodeContext(pos) {
+    const text = this.ta.value;
+    let quote = '';
+    let blockComment = false;
+    let lineComment = false;
+    for (let i = 0; i < pos; i++) {
+      const ch = text[i], next = text[i + 1];
+      if (lineComment) {
+        if (ch === '\n') lineComment = false;
+        continue;
+      }
+      if (blockComment) {
+        if (ch === '*' && next === '/') { blockComment = false; i++; }
+        continue;
+      }
+      if (quote) {
+        if (ch === '\\') i++;
+        else if (ch === quote) quote = '';
+        continue;
+      }
+      if (ch === '/' && next === '/') { lineComment = true; i++; }
+      else if (ch === '/' && next === '*') { blockComment = true; i++; }
+      else if (ch === '"' || ch === "'") quote = ch;
+    }
+    return !quote && !blockComment && !lineComment;
+  },
+
+  _completionCandidates(prefix, memberObject) {
+    const candidates = [];
+    const seen = new Set();
+    const add = (label, detail, insert = label, cursorOffset = null, match = label, signature = '') => {
+      if (!match.toLowerCase().startsWith(prefix.toLowerCase()) || seen.has(label)) return;
+      seen.add(label);
+      candidates.push({ label, detail, insert, cursorOffset, match, signature });
+    };
+    if (memberObject) {
+      const objectKey = memberObject.toLowerCase();
+      const libraryItems = LIBRARY_COMPLETIONS[objectKey];
+      if (objectKey.startsWith('serial')) {
+        for (const [name, detail] of SERIAL_COMPLETIONS) add(name, detail, name);
+      } else if (libraryItems) {
+        for (const [name, detail, signature] of libraryItems) add(name, detail, name, null, name, signature);
+      } else {
+        const methods = this.ta.value.match(new RegExp(`\\b${memberObject.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\.([A-Za-z_]\\w*)\\s*\\(`, 'g')) || [];
+        for (const method of methods) {
+          const name = method.slice(method.indexOf('.') + 1).replace(/\($/, '');
+          add(name, 'このスケッチのメンバー');
+        }
+      }
+    } else {
+      for (const [name, detail] of COMPLETION_ITEMS) {
+        if (name === '#include' || name === '#define') {
+          add(name, detail, name.slice(1), null, name.slice(1));
+        } else if (/^(?:setup|loop)\(\) \{…\}$/.test(name) || /^(?:if|for) \(/.test(name)) {
+          const fn = name.startsWith('if ') ? 'if' : name.startsWith('for ') ? 'for' : name.slice(0, name.indexOf('('));
+          const code = fn === 'setup' ? 'void setup() {\n  \n}' :
+            fn === 'loop' ? 'void loop() {\n  \n}' :
+            fn === 'if' ? 'if () {\n  \n}' : 'for (int i = 0; i < ; i++) {\n  \n}';
+          const cursor = fn === 'if' ? 'if ('.length :
+            fn === 'for' ? 'for (int i = 0; i < '.length :
+            `${fn === 'setup' ? 'void setup()' : 'void loop()'} {\n  `.length;
+          add(name, detail, code, cursor, fn);
+        } else if (/^(pinMode|digitalWrite)\(/.test(name)) {
+          const fn = name.slice(0, name.indexOf('('));
+          add(name, detail, `${fn}(, );`, `${fn}(`.length, fn);
+        } else {
+          add(name, detail);
+        }
+      }
+      const known = new Set(COMPLETION_ITEMS.map(([name]) =>
+        name.slice(0, name.indexOf('(') < 0 ? name.length : name.indexOf('(')).toLowerCase()));
+      const sketch = Sk.cur();
+      const files = sketch && Array.isArray(sketch.files) ? sketch.files : [];
+      const identifiers = new Set();
+      files.forEach((file, index) => {
+        const source = index === S.curTab ? this.ta.value : file.content;
+        if (typeof source !== 'string') return;
+        let state = 'code';
+        for (let i = 0; i < source.length; i++) {
+          const ch = source[i], next = source[i + 1];
+          if (state === 'line') {
+            if (ch === '\n') state = 'code';
+            continue;
+          }
+          if (state === 'block') {
+            if (ch === '*' && next === '/') { state = 'code'; i++; }
+            continue;
+          }
+          if (state === '"' || state === "'") {
+            if (ch === '\\') i++;
+            else if (ch === state) state = 'code';
+            continue;
+          }
+          if (ch === '/' && next === '/') { state = 'line'; i++; }
+          else if (ch === '/' && next === '*') { state = 'block'; i++; }
+          else if (ch === '"' || ch === "'") state = ch;
+          else if (/[A-Za-z_]/.test(ch)) {
+            let end = i + 1;
+            while (end < source.length && /[A-Za-z0-9_]/.test(source[end])) end++;
+            identifiers.add(source.slice(i, end));
+            i = end - 1;
+          }
+        }
+      });
+      for (const identifier of identifiers) {
+        const normalized = identifier.toLowerCase();
+        if (!known.has(normalized) && normalized !== prefix.toLowerCase()) {
+          add(identifier, 'このスケッチ');
+        }
+      }
+    }
+    return candidates.slice(0, 12);
+  },
+
+  updateCompletion(force = false) {
+    if (!S.cfg.completion || document.activeElement !== this.ta) {
+      this.hideCompletion();
+      return;
+    }
+    const pos = this.ta.selectionStart;
+    if (this.ta.selectionStart !== this.ta.selectionEnd) {
+      this.hideCompletion();
+      return;
+    }
+    const before = this.ta.value.slice(0, pos);
+    const member = before.match(/\b([A-Za-z_]\w*)\.([A-Za-z_]\w*)?$/);
+    const word = before.match(/[A-Za-z_]\w*$/);
+    const prefix = member ? (member[2] || '') : (word ? word[0] : '');
+    const start = member ? pos - prefix.length : word ? pos - prefix.length : pos;
+    if (!force && !member && prefix.length < 1) {
+      this.hideCompletion();
+      return;
+    }
+    if (!this._inCodeContext(pos)) {
+      this.hideCompletion();
+      return;
+    }
+    let memberObject = member ? member[1] : '';
+    if (memberObject) {
+      const declarations = this.ta.value.match(/\b(Servo|LiquidCrystal|TwoWire|SPIClass|EEPROMClass)\s+([A-Za-z_]\w*)/gi) || [];
+      const declaration = declarations.find(item => {
+        const parts = item.trim().split(/\s+/);
+        return parts[1] === memberObject;
+      });
+      if (declaration) {
+        const type = declaration.trim().split(/\s+/)[0].toLowerCase();
+        const classMap = { servo: 'servo', liquidcrystal: 'lcd', twowire: 'wire', spiclass: 'spi', eepromclass: 'eeprom' };
+        memberObject = classMap[type] || memberObject;
+      }
+    }
+    const items = this._completionCandidates(prefix, memberObject);
+    if (!items.length) {
+      this.hideCompletion();
+      return;
+    }
+    this._completionStart = start;
+    this._completionEnd = pos;
+    this._completionItems = items;
+    this._completionIndex = 0;
+    this._renderCompletion();
+  },
+
+  _renderCompletion() {
+    const list = this.completionList;
+    list.replaceChildren();
+    this._completionItems.forEach((item, index) => {
+      const option = document.createElement('div');
+      option.className = 'completion-option' + (index === this._completionIndex ? ' active' : '');
+      option.id = `completion-option-${index}`;
+      option.dataset.index = String(index);
+      option.setAttribute('role', 'option');
+      option.setAttribute('aria-selected', String(index === this._completionIndex));
+      const label = document.createElement('span');
+      label.className = 'completion-label';
+      label.textContent = item.label;
+      const detail = document.createElement('span');
+      detail.className = 'completion-detail';
+      detail.textContent = item.detail;
+      const functionName = item.label.match(/^([A-Za-z_]\w*)(?=\(|$)/)?.[1];
+      const signature = item.signature || COMPLETION_SIGNATURES[functionName];
+      option.append(label, detail);
+      if (signature) {
+        const help = document.createElement('span');
+        help.className = 'completion-signature';
+        help.textContent = signature;
+        option.appendChild(help);
+        option.title = `${signature} — ${item.detail}`;
+      } else {
+        option.title = item.detail;
+      }
+      list.appendChild(option);
+    });
+    list.classList.add('open');
+    this.ta.setAttribute('aria-expanded', 'true');
+    this.ta.setAttribute('aria-activedescendant', `completion-option-${this._completionIndex}`);
+    this._positionCompletion();
+  },
+
+  _positionCompletion() {
+    if (!this.completionList || !this.completionList.classList.contains('open')) return;
+    const containerRect = document.getElementById('editor-container').getBoundingClientRect();
+    const taRect = this.ta.getBoundingClientRect();
+    const pos = this.ta.selectionStart;
+    const lineStart = this.ta.value.lastIndexOf('\n', pos - 1) + 1;
+    const sourceLine = this.ta.value.slice(lineStart, pos);
+    const tabSize = Math.max(1, Number(S.cfg.tabSize) || 2);
+    let line = '', column = 0;
+    for (const char of sourceLine) {
+      if (char === '\t') {
+        const spaces = tabSize - column % tabSize;
+        line += ' '.repeat(spaces);
+        column += spaces;
+      } else {
+        line += char;
+        column++;
+      }
+    }
+    const style = getComputedStyle(this.ta);
+    const canvas = this._measureCanvas || (this._measureCanvas = document.createElement('canvas'));
+    const context = canvas.getContext('2d');
+    context.font = style.font;
+    const left = taRect.left - containerRect.left + parseFloat(style.paddingLeft || '0') + context.measureText(line).width;
+    const top = taRect.top - containerRect.top + parseFloat(style.paddingTop || '0') +
+      (pos === 0 ? 0 : this.ta.value.slice(0, pos).split('\n').length - 1) * S.editor.lineH;
+    const list = this.completionList;
+    const width = Math.max(0, Math.min(340, containerRect.width - 16));
+    list.style.width = `${width}px`;
+    const boundedLeft = Math.max(8, Math.min(left, containerRect.width - width - 8));
+    const below = top + S.editor.lineH + 2;
+    const listHeight = list.offsetHeight;
+    list.style.left = `${boundedLeft}px`;
+    list.style.top = `${below + listHeight <= containerRect.height ? below : Math.max(8, top - listHeight - 2)}px`;
+  },
+
+  _moveCompletion(delta) {
+    const count = this._completionItems.length;
+    this._completionIndex = (this._completionIndex + delta + count) % count;
+    this._renderCompletion();
+    const active = this.completionList.children[this._completionIndex];
+    if (active) active.scrollIntoView({ block: 'nearest' });
+  },
+
+  hideCompletion() {
+    if (!this.completionList) return;
+    this.completionList.classList.remove('open');
+    this.completionList.replaceChildren();
+    this._completionItems = [];
+    this.ta.setAttribute('aria-expanded', 'false');
+    this.ta.removeAttribute('aria-activedescendant');
+  },
+
+  _acceptCompletion() {
+    const item = this._completionItems[this._completionIndex];
+    if (!item) return;
+    const ta = this.ta;
+    ta.setRangeText(item.insert, this._completionStart, this._completionEnd, 'end');
+    if (item.cursorOffset !== null) {
+      const cursor = this._completionStart + item.cursorOffset;
+      ta.setSelectionRange(cursor, cursor);
+    }
+    ta.focus();
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    this.hideCompletion();
+    this._updateCursor();
+  },
+
   _onKey(e) {
     const ta = this.ta;
     const { ctrlKey, metaKey, shiftKey, key } = e;
     const mod = ctrlKey || metaKey;
     if (e.isComposing || e.keyCode === 229) return;
+
+    if (this.completionList.classList.contains('open')) {
+      if (key === 'ArrowDown') { e.preventDefault(); this._moveCompletion(1); return; }
+      if (key === 'ArrowUp') { e.preventDefault(); this._moveCompletion(-1); return; }
+      if (key === 'Enter' || key === 'Tab') { e.preventDefault(); this._acceptCompletion(); return; }
+      if (key === 'Escape') { e.preventDefault(); this.hideCompletion(); return; }
+    } else if (mod && e.code === 'Space') {
+      e.preventDefault();
+      this.updateCompletion(true);
+      return;
+    }
+    if (e.altKey && shiftKey && key.toLowerCase() === 'f') {
+      e.preventDefault();
+      this.hideCompletion();
+      this.formatCode();
+      return;
+    }
+    if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(key)) this.hideCompletion();
 
     if (key === 'Tab') {
       if (this._allowTabOut) {
@@ -4131,6 +4771,124 @@ const Ed = {
   },
 };
 
+const History = {
+  maxEntries: 20,
+  timer: null,
+  entries: [],
+  selectedIndex: -1,
+  _writes: new Map(),
+
+  _key() {
+    const sketch = Sk.cur();
+    const file = Sk.curFile();
+    return sketch && file ? `editor-history:${encodeURIComponent(sketch.id)}:${encodeURIComponent(file.name)}` : '';
+  },
+
+  scheduleCapture() {
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.capture(), 1400);
+  },
+
+  async capture() {
+    clearTimeout(this.timer);
+    this.timer = null;
+    const key = this._key();
+    const file = Sk.curFile();
+    if (!key || !file || !S.db) return;
+    const text = Ed.getValue();
+    if (text.length > 250000) {
+      console.warn('Editor history snapshot skipped because the file exceeds 250 KB.');
+      return;
+    }
+    const previous = this._writes.get(key) || Promise.resolve();
+    const write = previous.catch(() => {}).then(async () => {
+      const entries = await IDB.getKV(S.db, key);
+      const history = Array.isArray(entries) ? entries.filter(entry =>
+        entry && typeof entry.text === 'string' && Number.isFinite(entry.at)) : [];
+      if (history.length && history[history.length - 1].text === text) return;
+      history.push({ at: Date.now(), text, fileName: file.name });
+      await IDB.setKV(S.db, key, history.slice(-this.maxEntries));
+    });
+    this._writes.set(key, write);
+    try {
+      await write;
+    } catch (error) {
+      console.error('Editor history could not be saved:', error);
+      toast('編集履歴を保存できませんでした', 'err');
+    } finally {
+      if (this._writes.get(key) === write) this._writes.delete(key);
+    }
+  },
+
+  async open() {
+    const sketch = Sk.cur();
+    const file = Sk.curFile();
+    if (!sketch || !file) { toast('履歴を表示するスケッチを選択してください', 'warn'); return; }
+    await this.capture();
+    const key = this._key();
+    try {
+      const stored = await IDB.getKV(S.db, key);
+      this.entries = Array.isArray(stored) ? stored.filter(entry =>
+        entry && typeof entry.text === 'string' && Number.isFinite(entry.at) &&
+        entry.at >= 0 && entry.at <= 8640000000000000).reverse() : [];
+    } catch (error) {
+      console.error('Editor history could not be loaded:', error);
+      toast('編集履歴を読み込めませんでした', 'err');
+      return;
+    }
+    this.selectedIndex = -1;
+    document.getElementById('history-file-label').textContent = `${sketch.name} / ${file.name}`;
+    this.render();
+    openModal('m-history');
+  },
+
+  render() {
+    const list = document.getElementById('history-list');
+    const preview = document.getElementById('history-preview');
+    const restore = document.getElementById('history-restore-btn');
+    list.replaceChildren();
+    if (!this.entries.length) {
+      const empty = document.createElement('div');
+      empty.className = 'history-empty';
+      empty.textContent = 'まだ復元できる履歴がありません。ファイルを編集すると自動で記録されます。';
+      list.appendChild(empty);
+    }
+    this.entries.forEach((entry, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'history-entry' + (index === this.selectedIndex ? ' active' : '');
+      button.setAttribute('role', 'option');
+      button.setAttribute('aria-selected', String(index === this.selectedIndex));
+      const date = document.createElement('span');
+      date.textContent = new Date(entry.at).toLocaleString();
+      const size = document.createElement('span');
+      size.textContent = `${entry.text.length.toLocaleString()} 文字`;
+      button.append(date, size);
+      button.addEventListener('click', () => {
+        this.selectedIndex = index;
+        preview.textContent = entry.text;
+        restore.disabled = false;
+        this.render();
+        preview.textContent = entry.text;
+      });
+      list.appendChild(button);
+    });
+    if (this.selectedIndex < 0) preview.textContent = '履歴を選択してください';
+    restore.disabled = this.selectedIndex < 0;
+  },
+
+  async restore() {
+    const entry = this.entries[this.selectedIndex];
+    if (!entry) return;
+    await this.capture();
+    Ed.setValue(entry.text);
+    Ed.ta.focus();
+    Ed._onInput();
+    closeModal('m-history');
+    toast('編集履歴から復元しました', 'ok');
+  },
+};
+
 /* ================================================================
    スケッチ管理
 ================================================================ */
@@ -4179,7 +4937,10 @@ const Sk = {
 
   _flushCurrent() {
     const sk = this.cur();
-    if (sk && sk.files[S.curTab]) sk.files[S.curTab].content = Ed.getValue();
+    if (sk && sk.files[S.curTab]) {
+      sk.files[S.curTab].content = Ed.getValue();
+      History.capture();
+    }
   },
 
   _loadTab() {
@@ -5553,6 +6314,26 @@ function diagnoseCompileErrors(output) {
   return findings;
 }
 
+function compileErrorLocations(output) {
+  const sketch = Sk.cur();
+  if (!sketch) return [];
+  const lines = (Array.isArray(output) ? output : String(output || '').split('\n'))
+    .map(line => String(line).replace(/\u001b\[[0-9;]*m/g, '').trim());
+  const found = new Set();
+  const locations = [];
+  for (const line of lines) {
+    const match = line.match(/(?:^|.*[\\/])([^/\\:\s]+):(\d+):(?:(\d+):)?\s*(?:fatal error|error):/i);
+    if (!match) continue;
+    const file = sketch.files.find(item => item.name === match[1]);
+    const number = Number(match[2]);
+    const key = `${match[1]}:${number}`;
+    if (!file || !Number.isSafeInteger(number) || number < 1 || number > file.content.split('\n').length || found.has(key)) continue;
+    found.add(key);
+    locations.push({ file: match[1], line: number });
+  }
+  return locations;
+}
+
 function showCompileErrorHelp(output) {
   const panel = document.getElementById('compile-help');
   if (!panel) return;
@@ -5682,6 +6463,7 @@ const Build = {
   },
 
   _clearLog() {
+    Ed.clearDiagnostics();
     const help = document.getElementById('compile-help');
     if (help) { help.hidden = true; help.replaceChildren(); }
     const log = document.getElementById('console-log');
@@ -5833,10 +6615,12 @@ const Build = {
       } else {
         (r.errors && !r.output ? r.errors : []).forEach(e => this._log(e, 'err'));
         this._log('コンパイル失敗', 'err');
-        showCompileErrorHelp([
+        const compilerOutput = [
           ...(r.output ? String(r.output).split('\n') : []),
           ...(r.errors || []).map(error => String(error)),
-        ]);
+        ];
+        Ed.setDiagnostics(compileErrorLocations(compilerOutput));
+        showCompileErrorHelp(compilerOutput);
         setStatus('コンパイル失敗', 'err');
         toast('コンパイルエラーがあります', 'err');
         JC.compile.end(tk, false, 'コンパイルに失敗しました。出力を確認してください',
@@ -5933,6 +6717,10 @@ const Ser = {
   get connected() { return S.serial.connected; },
   _logLines: [],
   _maxLines: 3000,
+  _plotSeries: new Map(),
+  _plotSampleCount: 0,
+  _plotRaf: false,
+  _plotColors: ['#31c6c8', '#f6a04d', '#9b83ff', '#65c77a', '#f06a8b', '#55a8f5', '#edcf55', '#e78ee7'],
   _dec: new TextDecoder('utf-8', { fatal: false }),
   _enc: new TextEncoder(),
   _buf: '',
@@ -5953,6 +6741,7 @@ const Ser = {
       return;
     }
     S.serial.supported = true;
+    window.addEventListener('resize', () => this._schedulePlot());
     navigator.serial.addEventListener('connect', e => {
       this.refreshDetection(e.port).catch(err => this._detectionFailed(err));
     });
@@ -6101,6 +6890,7 @@ const Ser = {
     const lines = this._buf.split('\n');
     this._buf = lines.pop();
     lines.forEach((l, i) => {
+      this._plotLine(l);
       if (i === 0 && this._partial) { this._partial.textContent = l; this._partial = null; }
       else this._appendLog(l, 'recv');
     });
@@ -6113,8 +6903,148 @@ const Ser = {
     }
   },
 
+  _parsePlotValues(line) {
+    const text = String(line).trim();
+    if (!text) return null;
+    const number = '[+-]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?';
+    const fields = text.split(/[,\t;]+/).map(field => field.trim()).filter(Boolean);
+    if (fields.length && fields.every(field => new RegExp(`^([^:=\\s]+)\\s*[:=]\\s*${number}$`).test(field))) {
+      return fields.map(field => {
+        const match = field.match(new RegExp(`^([^:=\\s]+)\\s*[:=]\\s*(${number})$`));
+        return { name: match[1], value: Number(match[2]) };
+      }).filter(item => Number.isFinite(item.value));
+    }
+    const values = text.split(/[,\s;]+/).filter(Boolean);
+    if (!values.length || !values.every(value => new RegExp(`^${number}$`).test(value))) return null;
+    return values.map((value, index) => ({ name: `値${index + 1}`, value: Number(value) }))
+      .filter(item => Number.isFinite(item.value));
+  },
+
+  _plotLine(line) {
+    const values = this._parsePlotValues(line);
+    if (!values || !values.length) return;
+    const newSeries = new Set(values.filter(item => !this._plotSeries.has(item.name)).map(item => item.name));
+    if (values.length > 16 || this._plotSeries.size + newSeries.size > 16) return;
+    this._plotSampleCount++;
+    const pointIndex = this._plotSampleCount - 1;
+    for (const series of this._plotSeries.values()) series.values.push(null);
+    for (const item of values) {
+      let series = this._plotSeries.get(item.name);
+      if (!series) {
+        series = { name: item.name, values: Array(pointIndex).fill(null), color: this._plotColors[this._plotSeries.size % this._plotColors.length] };
+        this._plotSeries.set(item.name, series);
+      }
+      series.values[pointIndex] = item.value;
+    }
+    while (this._plotSampleCount > 300) {
+      this._plotSampleCount--;
+      for (const series of this._plotSeries.values()) series.values.shift();
+    }
+    this._schedulePlot();
+  },
+
+  _schedulePlot() {
+    if (this._plotRaf) return;
+    this._plotRaf = true;
+    requestAnimationFrame(() => {
+      this._plotRaf = false;
+      this._drawPlot();
+    });
+  },
+
+  _drawPlot() {
+    const canvas = document.getElementById('serial-plot');
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const ratio = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = Math.round(rect.width * ratio);
+    canvas.height = Math.round(rect.height * ratio);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.scale(ratio, ratio);
+    const styles = getComputedStyle(document.documentElement);
+    const textColor = styles.getPropertyValue('--panel-muted').trim() || '#9aa6b7';
+    const gridColor = styles.getPropertyValue('--bd1').trim() || '#384558';
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    const legend = document.getElementById('serial-plot-legend');
+    legend.replaceChildren();
+    if (!this._plotSampleCount) {
+      ctx.fillStyle = textColor;
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('数値を改行区切りで送信するとグラフに表示されます', rect.width / 2, rect.height / 2);
+      return;
+    }
+    const seriesList = [...this._plotSeries.values()];
+    for (const series of seriesList) {
+      const item = document.createElement('span');
+      item.className = 'serial-plot-key';
+      const swatch = document.createElement('span');
+      swatch.className = 'serial-plot-swatch';
+      swatch.style.backgroundColor = series.color;
+      const label = document.createElement('span');
+      label.textContent = series.name;
+      item.append(swatch, label);
+      legend.appendChild(item);
+    }
+    const allValues = seriesList.flatMap(series => series.values.filter(Number.isFinite));
+    if (!allValues.length) return;
+    let min = Math.min(...allValues), max = Math.max(...allValues);
+    if (min === max) { const pad = Math.abs(min) * 0.05 || 1; min -= pad; max += pad; }
+    const left = 52, right = Math.max(left + 20, rect.width - 12), top = 12, bottom = Math.max(top + 20, rect.height - 22);
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = gridColor;
+    ctx.fillStyle = textColor;
+    for (let tick = 0; tick <= 4; tick++) {
+      const y = top + (bottom - top) * tick / 4;
+      const value = max - (max - min) * tick / 4;
+      ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke();
+      ctx.fillText(Number(value.toPrecision(4)).toString(), left - 7, y);
+    }
+    for (const series of seriesList) {
+      ctx.strokeStyle = series.color;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      let drawing = false;
+      series.values.forEach((value, index) => {
+        if (!Number.isFinite(value)) { drawing = false; return; }
+        const x = left + (right - left) * (this._plotSampleCount < 2 ? 0.5 : index / (this._plotSampleCount - 1));
+        const y = bottom - (bottom - top) * (value - min) / (max - min);
+        if (!drawing) { ctx.moveTo(x, y); drawing = true; }
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+    ctx.fillStyle = textColor;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(`${this._plotSampleCount} samples`, left, rect.height - 4);
+  },
+
+  togglePlot(force) {
+    const button = document.getElementById('serial-plot-toggle');
+    const active = typeof force === 'boolean' ? force : button.getAttribute('aria-pressed') !== 'true';
+    button.setAttribute('aria-pressed', String(active));
+    button.classList.toggle('active', active);
+    button.textContent = active ? 'ログを表示' : 'プロッター';
+    button.title = active ? 'シリアルログを表示' : 'シリアル数値プロッターを表示';
+    document.getElementById('serial-log').hidden = active;
+    document.getElementById('serial-plot-wrap').hidden = !active;
+    this._schedulePlot();
+  },
+
+  clearPlot() {
+    this._plotSeries.clear();
+    this._plotSampleCount = 0;
+    this._schedulePlot();
+  },
+
   _flushPartial(force) {
     if (this._buf) {
+      this._plotLine(this._buf);
       if (this._partial) this._partial.textContent = this._buf;
       else this._appendLog(this._buf, 'recv');
     }
@@ -6704,6 +7634,7 @@ const Cfg = {
     S.cfg.fontSize = Number.isFinite(fontSize)
       ? Math.max(EDITOR_FONT_SIZE_MIN, Math.min(EDITOR_FONT_SIZE_MAX, fontSize))
       : 13;
+    if (typeof S.cfg.completion !== 'boolean') S.cfg.completion = true;
     const sidebarWidth = Number(S.cfg.sidebarWidth);
     S.cfg.sidebarWidth = Number.isFinite(sidebarWidth)
       ? Math.max(SIDEBAR_WIDTH_MIN, Math.min(SIDEBAR_WIDTH_MAX, sidebarWidth))
@@ -6854,6 +7785,8 @@ const Cfg = {
     if (cl) cl.checked = S.cfg.curLine;
     const sx = document.getElementById('cfg-syntax');
     if (sx) sx.checked = S.cfg.syntax;
+    const completion = document.getElementById('cfg-completion');
+    if (completion) completion.checked = S.cfg.completion !== false;
     const rm = document.getElementById('cfg-reduce-motion');
     if (rm) rm.checked = !!S.cfg.reduceMotion;
     const ch = document.getElementById('cfg-compile-help');
@@ -7323,6 +8256,9 @@ function initEvents() {
     changeEditorFontSize(-EDITOR_FONT_SIZE_STEP));
   document.getElementById('font-size-increase').addEventListener('click', () =>
     changeEditorFontSize(EDITOR_FONT_SIZE_STEP));
+  document.getElementById('format-code-btn').addEventListener('click', () => Ed.formatCode());
+  document.getElementById('history-open-btn').addEventListener('click', () => History.open());
+  document.getElementById('history-restore-btn').addEventListener('click', () => History.restore());
   document.getElementById('verify-btn').addEventListener('click', () => Build.verify());
   document.getElementById('upload-btn').addEventListener('click', () => Build.upload());
   document.getElementById('compile-cancel-btn').addEventListener('click', () => {
@@ -7768,6 +8704,8 @@ function initEvents() {
   });
   document.getElementById('serial-log-clear-btn').addEventListener('click', ()=>Ser.clearLog());
   document.getElementById('serial-log-save-btn').addEventListener('click', ()=>Ser.saveLog());
+  document.getElementById('serial-plot-toggle').addEventListener('click', () => Ser.togglePlot());
+  document.getElementById('serial-plot-clear').addEventListener('click', () => Ser.clearPlot());
   document.getElementById('baud-select').addEventListener('change', async () => {
     if (Ser.connected) await Ser.reopen();
   });
@@ -7835,8 +8773,10 @@ function initEvents() {
     S.cfg.lineNums  = document.getElementById('cfg-linenums').checked;
     S.cfg.curLine   = document.getElementById('cfg-curline').checked;
     S.cfg.syntax    = document.getElementById('cfg-syntax').checked;
+    S.cfg.completion = document.getElementById('cfg-completion').checked;
     S.cfg.reduceMotion = document.getElementById('cfg-reduce-motion').checked;
     S.cfg.compileHelp = document.getElementById('cfg-compile-help').checked;
+    if (!S.cfg.completion) Ed.hideCompletion();
     Cfg.applyToEditor(); await Cfg.save();
     Cfg.applyToUI();
     if (!S.cfg.compileHelp) {
@@ -8221,12 +9161,15 @@ async function importConfigFromHash() {
 }
 
 /* タブを隠す・ページを離れる前に保存を試み、未保存・保存中・保存失敗時は離脱確認を出す */
-function saveOnPageHide() {
-  Sk.saveAll().catch(err => {
+async function saveOnPageHide() {
+  try {
+    await History.capture();
+    await Sk.saveAll();
+  } catch (err) {
     S.saveFailed = true;
     setSaveIndicator('保存に失敗しました', 'error');
     console.error('Sketches could not be saved while leaving the page:', err);
-  });
+  }
 }
 window.addEventListener('pagehide', saveOnPageHide);
 document.addEventListener('visibilitychange', () => {
