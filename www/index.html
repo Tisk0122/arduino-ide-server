@@ -3148,11 +3148,13 @@ function iconFallbackGlyph(name) {
   const glyphs = {
     'archive-restore': '↶', 'arrow-down': '↓', 'arrow-up': '↑',
     archive: '▤', check: '✓', 'chevron-down': '⌄', 'chevron-right': '›',
-    'circle-alert': '!', 'circle-check': '✓', 'circle-help': '?',
+    'chevron-up': '⌃', 'circle-alert': '!', 'circle-check': '✓', 'circle-help': '?',
     clock: '◷', 'clock-3': '◷', copy: '▢', cpu: '▣',
-    download: '↓', 'file-code-2': '</>', 'file-plus': '+', 'file-up': '↑',
+    cloud: '☁', download: '↓', 'eye-off': '⊘', eye: '◉',
+    'file-code-2': '</>', 'file-plus': '+', 'file-up': '↑',
     folder: '▣', 'folder-open': '▣', info: 'i', library: '▤',
-    'panel-left': '◧', pencil: '✎', plus: '+', save: '↓', search: '⌕',
+    'log-out': '↗', moon: '☾', 'panel-left': '◧', pencil: '✎',
+    plus: '+', 'refresh-cw': '↻', save: '↓', search: '⌕',
     server: '▦', settings: '⚙', sun: '☼', terminal: '>_',
     'trash-2': '×', triangle: '!', 'triangle-alert': '!', usb: '⎓', upload: '↑', 'user-round': '●', x: '×'
   };
@@ -6741,7 +6743,7 @@ function initEvents() {
       btn.setAttribute('aria-label', show ? 'パスワードを非表示' : 'パスワードを表示');
       // lucide icon swap
       const icon = btn.querySelector('i[data-lucide]');
-      if (icon) { icon.setAttribute('data-lucide', show ? 'eye-off' : 'eye'); if(window.lucide) lucide.createIcons({nodes:[icon]}); }
+      if (icon) { icon.setAttribute('data-lucide', show ? 'eye-off' : 'eye'); renderLucideIcons(btn); }
     });
   }
   setupPwToggle('account-pw-show', 'account-password');
