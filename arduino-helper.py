@@ -2169,10 +2169,18 @@ class Handler(BaseHTTPRequestHandler):
         if method == "GET" and path in ("/docs", "/docs.html"):
             return self._send_html(Path(__file__).resolve().parent / "www" / "docs.html")
 
-        if method == "GET" and path == "/favicon.ico":
-            self.send_response(204)
-            self.send_header("Content-Length", "0")
+        if method == "GET" and path in ("/favicon.ico", "/favicon.svg"):
+            favicon = Path(__file__).resolve().parent / "www" / "favicon.svg"
+            if not favicon.is_file():
+                raise ApiError(404, "ファビコンが見つかりません")
+            body = favicon.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "image/svg+xml; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "public, max-age=3600")
+            self.send_header("X-Content-Type-Options", "nosniff")
             self.end_headers()
+            self.wfile.write(body)
             return
 
         if method == "GET" and path == "/public-config":
