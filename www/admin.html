@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#005F61">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%94%A7%3C/text%3E%3C/svg%3E">
 <title>管理コンソール - Arduino Web IDE</title>
 <style>
 :root {
@@ -117,14 +118,15 @@ code,.mono { font-family: var(--ff-mono); }
   box-shadow: 0 2px 12px rgba(0,0,0,0.5);
   flex-wrap: wrap;
 }
-#topbar h1 {
+#topbar h2 {
   font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.2px;
   white-space: nowrap;
   color: #fff;
+  margin: 0;
 }
-#topbar h1 span { color: var(--teal-lt); }
+#topbar h2 span { color: var(--teal-lt); }
 .tb-meta {
   display: flex;
   align-items: center;
@@ -597,6 +599,10 @@ footer {
   font-size: 11px;
 }
 
+/* スケッチビューアー タブ */
+.viewer-tab-btn { border-bottom: 2px solid transparent; cursor: pointer; }
+.viewer-tab-btn.active { border-bottom-color: var(--teal) !important; color: var(--teal-lt) !important; }
+
 </style>
 </head>
 <body>
@@ -611,11 +617,11 @@ footer {
       </button>
     </div>
     <p class="lead">サーバーの状態・トークン・利用履歴の確認</p>
-    <form id="login-form">
+    <form id="login-form" novalidate>
       <label for="login-token">管理者トークン</label>
       <input class="input" type="password" id="login-token" autocomplete="current-password"
              placeholder="管理者トークンを入力" spellcheck="false">
-      <div class="login-err" id="login-err"></div>
+      <div class="login-err" id="login-err" role="alert" aria-live="assertive"></div>
       <button class="btn btn-primary" type="submit" id="login-btn">接続</button>
     </form>
     <p class="login-note">
@@ -628,7 +634,7 @@ footer {
 
 <div id="app" hidden>
   <header id="topbar">
-    <h1>Arduino Helper <span>管理コンソール</span></h1>
+    <h2>Arduino Helper <span>管理コンソール</span></h2>
     <div class="tb-meta">
       <span id="st-dot"><span class="dot"></span><span id="st-dot-text">確認中</span></span>
       <span>v<span id="st-version">-</span></span>
@@ -641,12 +647,12 @@ footer {
       <label class="btn btn-ghost btn-sm" style="cursor:pointer">
         <input type="checkbox" id="auto-refresh" checked style="accent-color:var(--teal-lt)"> 自動更新
       </label>
-      <button class="btn btn-sm" id="btn-reload" title="サーバー状態と利用履歴を更新" aria-label="サーバー状態と利用履歴を更新">更新</button>
+      <button type="button" class="btn btn-sm" id="btn-reload" title="サーバー状態と利用履歴を更新" aria-label="サーバー状態と利用履歴を更新">更新</button>
       <button class="theme-toggle theme-switch" id="btn-theme" type="button" title="ライトテーマに切り替え" aria-label="ライトテーマに切り替え" aria-pressed="false">
         <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
         <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6.5 6.5 0 0 0 8.268 8.268c.344-.215.825-.003.803.401"/></svg>
       </button>
-      <button class="btn btn-sm" id="btn-logout">ログアウト</button>
+      <button type="button" class="btn btn-sm" id="btn-logout">ログアウト</button>
     </div>
   </header>
 
@@ -723,8 +729,8 @@ footer {
       <div class="tbl-wrap">
         <table>
           <thead><tr>
-            <th>種別</th><th>値 (マスク)</th><th>指紋 (SHA-256)</th><th>長さ</th><th>発行元</th>
-            <th>ファイル</th><th>権限</th><th>ファイル更新日時</th>
+            <th scope="col">種別</th><th scope="col">値 (マスク)</th><th scope="col">指紋 (SHA-256)</th><th scope="col">長さ</th><th scope="col">発行元</th>
+            <th scope="col">ファイル</th><th scope="col">権限</th><th scope="col">ファイル更新日時</th>
           </tr></thead>
           <tbody id="tokens-body"></tbody>
         </table>
@@ -735,7 +741,7 @@ footer {
       <div class="sec-head"><h2>アクセストークン</h2><span class="sec-note">管理者のみ表示・コピーできます</span></div>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>種別</th><th>トークン</th></tr></thead>
+          <thead><tr><th scope="col">種別</th><th scope="col">トークン</th></tr></thead>
           <tbody id="token-secrets-body">
             <tr><td colspan="2" class="empty">読み込み中...</td></tr>
           </tbody>
@@ -781,8 +787,8 @@ footer {
       <div class="tbl-wrap">
         <table>
           <thead><tr>
-            <th>状態</th><th>順番</th><th>ID</th><th>種別</th><th>対象</th>
-            <th>クライアント</th><th>経過</th><th>ログ行数</th>
+            <th scope="col">状態</th><th scope="col">順番</th><th scope="col">ID</th><th scope="col">種別</th><th scope="col">対象</th>
+            <th scope="col">クライアント</th><th scope="col">経過</th><th scope="col">ログ行数</th>
           </tr></thead>
           <tbody id="jobs-body"></tbody>
         </table>
@@ -805,8 +811,8 @@ footer {
             <option value="ng">失敗のみ</option>
             <option value="cancelled">キャンセルのみ</option>
           </select>
-          <input class="input grow" id="f-q" type="search" placeholder="ボード・スケッチ・クライアントで検索">
-          <button class="btn btn-sm btn-danger" id="btn-hist-clear" type="button" title="保存されているすべての利用履歴を削除">履歴を全削除</button>
+          <input class="input grow" id="f-q" type="search" placeholder="ボード・スケッチ・クライアントで検索" autocomplete="off">
+          <button class="btn btn-sm btn-danger" id="btn-hist-clear" type="button" title="保存されているすべての利用履歴を削除" style="margin-left: 16px; padding-left: 16px; border-left: 1px solid var(--bd1, #ddd);">履歴を全削除</button>
         </div>
         <span class="history-action-state" id="hist-action-state" role="status" aria-live="polite" aria-atomic="true"></span>
         <span class="sec-note">コンパイル・管理作業の利用履歴と統計が対象です。サービスの稼働ログは削除されません。</span>
@@ -814,14 +820,14 @@ footer {
       <div class="tbl-wrap">
         <table>
           <thead><tr>
-            <th>日時</th><th>種別</th><th>結果</th><th>対象</th><th>ボード / タイトル</th>
-            <th>クライアント</th><th>所要</th><th>メモ</th>
+            <th scope="col">日時</th><th scope="col">種別</th><th scope="col">結果</th><th scope="col">対象</th><th scope="col">ボード / タイトル</th>
+            <th scope="col">クライアント</th><th scope="col">所要</th><th scope="col">メモ</th>
           </tr></thead>
           <tbody id="hist-body"></tbody>
         </table>
       </div>
       <div style="margin-top:8px; display:flex; gap:8px; align-items:center">
-        <button class="btn btn-sm" id="btn-hist-more" hidden>さらに読み込む</button>
+        <button type="button" class="btn btn-sm" id="btn-hist-more" hidden>さらに読み込む</button>
         <span class="sub" id="hist-count"></span>
       </div>
     </section>
@@ -836,14 +842,14 @@ footer {
         管理者は、各ユーザーのスケッチ一覧と内容を閲覧できます。スケッチに個人情報や秘密情報を含めないよう、利用者に案内してください。
       </div>
       <div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-        <input class="input" id="user-search" type="search" placeholder="ユーザー名・表示名で検索…" style="flex:1;min-width:160px;max-width:300px;">
+        <input class="input" id="user-search" type="search" placeholder="ユーザー名・表示名で検索…" style="flex:1;min-width:160px;max-width:300px;" autocomplete="off">
         <span class="sub" id="user-count"></span>
-        <button class="btn btn-sm" id="btn-reload-users">ユーザー一覧を更新</button>
+        <button type="button" class="btn btn-sm" id="btn-reload-users">ユーザー一覧を更新</button>
       </div>
       <div class="tbl-wrap">
         <table id="user-table">
           <thead><tr>
-            <th>状態</th><th>ユーザー名</th><th>表示名</th><th>スケッチ数</th><th>登録日</th><th>操作</th>
+            <th scope="col">状態</th><th scope="col">ユーザー名</th><th scope="col">表示名</th><th scope="col">スケッチ数</th><th scope="col">登録日</th><th scope="col">操作</th>
           </tr></thead>
           <tbody id="user-body"></tbody>
         </table>
@@ -856,12 +862,12 @@ footer {
             <span style="font-weight:600;font-size:13px;" id="sketch-panel-title">スケッチ一覧</span>
             <span class="sub" id="sketch-panel-note" style="margin-left:8px;"></span>
           </div>
-          <button class="btn btn-sm btn-ghost" id="sketch-panel-close" title="閉じる">✕ 閉じる</button>
+          <button type="button" class="btn btn-sm btn-ghost" id="sketch-panel-close" title="閉じる" aria-label="スケッチ一覧パネルを閉じる">✕ 閉じる</button>
         </div>
         <div class="tbl-wrap">
           <table id="sketch-table">
             <thead><tr>
-              <th>スケッチ名</th><th>ファイル数</th><th>ボード</th><th>更新日時</th><th>リビジョン</th><th>操作</th>
+              <th scope="col">スケッチ名</th><th scope="col">ファイル数</th><th scope="col">ボード</th><th scope="col">更新日時</th><th scope="col">リビジョン</th><th scope="col">操作</th>
             </tr></thead>
             <tbody id="sketch-body"></tbody>
           </table>
@@ -875,7 +881,7 @@ footer {
             <span style="font-weight:600;font-size:13px;" id="viewer-title">スケッチの中身</span>
             <span class="sub" id="viewer-files-note" style="margin-left:8px;"></span>
           </div>
-          <button class="btn btn-sm btn-ghost" id="viewer-close">✕ 閉じる</button>
+          <button type="button" class="btn btn-sm btn-ghost" id="viewer-close" aria-label="スケッチビューアーを閉じる">✕ 閉じる</button>
         </div>
         <div id="viewer-tabs" style="display:flex;border-bottom:1px solid var(--bd1);background:var(--bg1);overflow-x:auto;"></div>
         <div id="viewer-code" style="padding:14px 16px;font-family:var(--ff-mono);font-size:12px;white-space:pre;overflow:auto;max-height:420px;background:var(--bg0);color:var(--tx1);line-height:1.6;"></div>
@@ -885,12 +891,12 @@ footer {
 
   <!-- 削除確認モーダル -->
   <div id="confirm-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);align-items:center;justify-content:center;">
-    <div style="background:var(--bg-modal);border:1px solid var(--bd2);border-radius:var(--radius-lg);padding:24px;width:min(380px,94vw);box-shadow:var(--sh-lg);">
+    <div role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-msg" style="background:var(--bg-modal);border:1px solid var(--bd2);border-radius:var(--radius-lg);padding:24px;width:min(380px,94vw);box-shadow:var(--sh-lg);">
       <h3 style="font-size:15px;font-weight:700;color:var(--err);margin-bottom:10px;" id="confirm-title">確認</h3>
       <p style="font-size:13px;color:var(--tx1);margin-bottom:20px;line-height:1.6;" id="confirm-msg"></p>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
-        <button class="btn btn-secondary" id="confirm-cancel">キャンセル</button>
-        <button class="btn" id="confirm-ok" style="background:var(--err);color:#fff;border:none;">削除する</button>
+        <button type="button" class="btn btn-secondary" id="confirm-cancel">キャンセル</button>
+        <button type="button" class="btn" id="confirm-ok" style="background:var(--err);color:#fff;border:none;">削除する</button>
       </div>
     </div>
   </div>
@@ -907,8 +913,17 @@ footer {
 'use strict';
 var $ = function (s) { return document.querySelector(s); };
 var LS_KEY = 'helperAdminToken';
+function safeLocalGet(k, def) {
+  try { return localStorage.getItem(k) || def; } catch(e) { return def; }
+}
+function safeLocalSet(k, v) {
+  try { localStorage.setItem(k, v); } catch(e) {}
+}
+function safeLocalRemove(k) {
+  try { localStorage.removeItem(k); } catch(e) {}
+}
 var state = {
-  token: localStorage.getItem(LS_KEY) || '',
+  token: safeLocalGet(LS_KEY, ''),
   data: null,
   settings: null,
   timer: null,
@@ -1027,7 +1042,7 @@ function toast(message, type, duration) {
 
 /* ---------------- ログイン ---------------- */
 function showLogin(msg, clear) {
-  if (clear) { state.token = ''; localStorage.removeItem(LS_KEY); }
+  if (clear) { state.token = ''; safeLocalRemove(LS_KEY); }
   $('#app').hidden = true;
   $('#login').hidden = false;
   $('#login-err').textContent = msg || '';
@@ -1048,7 +1063,7 @@ $('#login-form').addEventListener('submit', function (e) {
   btn.disabled = true; btn.textContent = '確認中...';
   state.token = v;
   api('/admin/api/overview', 15000).then(function () {
-    localStorage.setItem(LS_KEY, v);
+    safeLocalSet(LS_KEY, v);
     btn.disabled = false; btn.textContent = '接続';
     showApp();
     boot();
@@ -1388,7 +1403,7 @@ function renderRank(sel, list, labelFn) {
   $(sel).innerHTML = list.length ? list.map(function (x) {
     return '<div class="rank-row">' +
       '<span class="rk-label" title="' + esc(labelFn(x)) + '">' + esc(labelFn(x)) + '</span>' +
-      '<span class="rk-count">' + x.count + ' 件</span>' +
+      '<span class="rk-count">' + x.count.toLocaleString() + ' 件</span>' +
       '<span class="rk-track"><span class="rk-fill" style="width:' +
       Math.round(x.count / max * 100) + '%"></span></span></div>';
   }).join('') : '<div class="sub">履歴がありません</div>';
@@ -1459,7 +1474,10 @@ function renderHistory() {
 $('#btn-hist-more').addEventListener('click', function () { loadHistory('more'); });
 $('#btn-hist-clear').addEventListener('click', function () {
   if (!state.token || state.clearingHistory) return;
-  if (!window.confirm('保存されているコンパイル・管理作業の利用履歴をすべて削除します。この操作は取り消せません。画面の利用履歴と集計統計もリセットされます。サービスの稼働ログは削除されません。実行中の処理は、完了後に新しい利用履歴として記録される場合があります。削除しますか？')) return;
+  confirmDialog(
+    '利用履歴を全削除',
+    '保存されているコンパイル・管理作業の利用履歴をすべて削除します。この操作は取り消せません。画面の利用履歴と集計統計もリセットされます。サービスの稼働ログは削除されません。実行中の処理は、完了後に新しい利用履歴として記録される場合があります。',
+    function() {
 
   state.clearingHistory = true;
   state.historyGeneration++;
@@ -1487,6 +1505,8 @@ $('#btn-hist-clear').addEventListener('click', function () {
     button.disabled = false;
     button.textContent = '履歴を全削除';
   });
+
+  }); // confirmDialog
 });
 $('#f-kind').addEventListener('change', function () { loadHistory('reset'); });
 $('#f-state').addEventListener('change', function () { loadHistory('reset'); });
@@ -1768,14 +1788,14 @@ var userMgr = {
         '<td><strong>' + esc(u.username) + '</strong></td>' +
         '<td>' + esc(u.name) + '</td>' +
         '<td style="text-align:center;">' +
-          '<button class="btn btn-sm btn-ghost" data-act="sketches" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '" style="font-weight:600;color:var(--teal-lt);">' +
-            esc(String(u.sketchCount)) + ' 件</button></td>' +
+          '<button type="button" class="btn btn-sm btn-ghost" data-act="sketches" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '" style="font-weight:600;color:var(--teal-lt);text-decoration:underline;">' +
+            esc(String(u.sketchCount)) + ' 件<span aria-hidden="true"> →</span></button></td>' +
         '<td>' + fmtTime(u.createdAt) + '</td>' +
         '<td style="display:flex;gap:6px;flex-wrap:wrap;">' +
-          '<button class="btn btn-sm btn-ghost" data-act="sketches" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '">スケッチ一覧</button>' +
-          '<button class="btn btn-sm btn-ghost" data-act="toggle" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '" data-active="' + (u.active ? '1' : '0') + '">' +
+          '<button type="button" class="btn btn-sm btn-ghost" data-act="sketches" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '">スケッチ一覧</button>' +
+          '<button type="button" class="btn btn-sm btn-ghost" data-act="toggle" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '" data-active="' + (u.active ? '1' : '0') + '">' +
             (u.active ? '無効化' : '有効化') + '</button>' +
-          '<button class="btn btn-sm" data-act="delete" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '" style="background:rgba(224,82,82,.15);color:var(--err);border:1px solid rgba(224,82,82,.3);">削除</button>' +
+          '<button type="button" class="btn btn-sm" data-act="delete" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '" style="background:rgba(224,82,82,.15);color:var(--err);border:1px solid rgba(224,82,82,.3);">削除</button>' +
         '</td>' +
       '</tr>';
     }).join('');
@@ -1843,18 +1863,15 @@ var userMgr = {
         $('#viewer-files-note').textContent = files.length + 'ファイル · rev.' + (sk.revision || 0);
         var tabs = $('#viewer-tabs');
         tabs.innerHTML = files.map(function(f, i) {
-          return '<button class="viewer-tab-btn' + (i === 0 ? ' active' : '') + '" data-idx="' + i + '" style="' +
-            'padding:7px 14px;font-size:12px;background:none;border:none;cursor:pointer;' +
-            'border-bottom:2px solid ' + (i === 0 ? 'var(--teal)' : 'transparent') + ';' +
-            'color:' + (i === 0 ? 'var(--teal-lt)' : 'var(--tx2)') + ';white-space:nowrap;">' +
+          return '<button type="button" class="viewer-tab-btn' + (i === 0 ? ' active' : '') + '" data-idx="' + i + '" style="' +
+            'padding:7px 14px;font-size:12px;background:none;border:none;white-space:nowrap;color:var(--tx2);">' +
             esc(f.name) + '</button>';
         }).join('');
         function showFile(idx) {
           var f = files[idx];
           $('#viewer-code').textContent = f ? f.content : '';
           tabs.querySelectorAll('.viewer-tab-btn').forEach(function(b, i) {
-            b.style.borderBottomColor = i === idx ? 'var(--teal)' : 'transparent';
-            b.style.color = i === idx ? 'var(--teal-lt)' : 'var(--tx2)';
+            b.classList.toggle('active', i === idx);
           });
         }
         tabs.addEventListener('click', function(e) {

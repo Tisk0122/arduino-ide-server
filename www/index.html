@@ -1,4 +1,3 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <!DOCTYPE html>
 <html lang="ja" data-theme="dark">
 <head>
@@ -1226,6 +1225,8 @@ svg { display: block; flex-shrink: 0; }
 .form-input:disabled { opacity: .7; cursor: not-allowed; }
 .form-input::placeholder { color: var(--tx3); }
 .form-hint { font-size: 11.5px; color: var(--tx3); margin-top: 5px; }
+.form-check-label { display: flex; align-items: center; gap: 8px; text-transform: none; font-size: 13px; font-weight: normal; }
+.form-check-input { accent-color: var(--teal); width: 14px; height: 14px; flex-shrink: 0; }
 
 /* アカウントフォームとネイティブ入力欄をテーマに合わせる */
 .modal-account { width: 560px; max-height: min(90vh,700px); display: flex; flex-direction: column; }
@@ -1896,7 +1897,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
   scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important
 }
 </style>
-<script id="lucide-icons" src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
+<script id="lucide-icons" src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.468.0/umd/lucide.min.js" defer></script>
 </head>
 <body>
 <div id="app">
@@ -1904,7 +1905,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
 <!-- ローディング -->
 <div id="loading-screen">
   <div class="loading-logo">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 6V4M12 6V4M15 6V4M9 18v2M12 18v2M15 18v2M6 9H4M6 12H4M6 15H4M18 9h2M18 12h2M18 15h2" stroke-linecap="round"/><circle cx="10" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="14" cy="10" r="1" fill="currentColor" stroke="none"/><path d="M9 14h6" stroke-linecap="round"/></svg>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 6V4M12 6V4M15 6V4M9 18v2M12 18v2M15 18v2M6 9H4M6 12H4M6 15H4M18 9h2M18 12h2M18 15h2" stroke-linecap="round"/><circle cx="10" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="14" cy="10" r="1" fill="currentColor" stroke="none"/><path d="M9 14h6" stroke-linecap="round"/></svg>
     Arduino Web IDE
   </div>
   <div class="spinner"></div>
@@ -1918,7 +1919,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
 <!-- ========== トップバー ========== -->
 <div id="topbar">
   <div class="logo">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 6V4M12 6V4M15 6V4M9 18v2M12 18v2M15 18v2M6 9H4M6 12H4M6 15H4M18 9h2M18 12h2M18 15h2" stroke-linecap="round"/><circle cx="10" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="14" cy="10" r="1" fill="currentColor" stroke="none"/><path d="M9 14h6" stroke-linecap="round"/></svg>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 6V4M12 6V4M15 6V4M9 18v2M12 18v2M15 18v2M6 9H4M6 12H4M6 15H4M18 9h2M18 12h2M18 15h2" stroke-linecap="round"/><circle cx="10" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="14" cy="10" r="1" fill="currentColor" stroke="none"/><path d="M9 14h6" stroke-linecap="round"/></svg>
     Arduino Web IDE
   </div>
 
@@ -1927,7 +1928,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
   <div id="board-port-area">
     <div class="bp-segment">
       <span class="bp-label">ボード</span>
-      <select class="bp-select" id="board-select"></select>
+      <select class="bp-select" id="board-select" aria-label="ボード選択"></select>
       <button type="button" class="bp-detect-btn" id="apply-detected-board-btn" hidden>検出したボードを適用</button>
     </div>
   </div>
@@ -2052,7 +2053,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
   <div id="main">
     <!-- タブバー -->
     <div id="tabbar">
-      <button id="tab-add-btn" title="ファイルを追加" aria-label="ファイルを追加">+</button>
+      <button id="tab-add-btn" aria-label="ファイルを追加">+</button>
     </div>
 
     <!-- エディタ -->
@@ -2248,12 +2249,12 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label class="form-label">スケッチ名</label>
+        <label class="form-label" for="new-name-input">スケッチ名</label>
         <input type="text" class="form-input" id="new-name-input" placeholder="sketch_example" autocomplete="off">
         <div class="form-hint">英数字・アンダースコア・日本語が使えます</div>
       </div>
       <div class="form-group">
-        <label class="form-label">テンプレート</label>
+        <label class="form-label" for="new-tmpl-select">テンプレート</label>
         <select class="form-select" id="new-tmpl-select">
           <option value="basic">基本 (setup / loop)</option>
           <option value="blink">Lチカ (Blink)</option>
@@ -2280,7 +2281,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label class="form-label">新しいスケッチ名</label>
+        <label class="form-label" for="rename-input">新しいスケッチ名</label>
         <input type="text" class="form-input" id="rename-input" autocomplete="off">
       </div>
     </div>
@@ -2302,7 +2303,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label class="form-label">ファイル名</label>
+        <label class="form-label" for="addfile-input">ファイル名</label>
         <input type="text" class="form-input" id="addfile-input" placeholder="functions.h" autocomplete="off">
         <div class="form-hint">.ino / .h / .cpp 拡張子が使えます</div>
       </div>
@@ -2392,7 +2393,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
       </div>
       <div id="lt-zip" style="display:none">
         <div class="form-group">
-          <label class="form-label">ライブラリの ZIP ファイル</label>
+          <label class="form-label" for="lib-zip-input">ライブラリの ZIP ファイル</label>
           <input type="file" id="lib-zip-input" accept=".zip" class="form-input">
           <div class="form-hint">GitHub などでダウンロードした Arduino ライブラリの ZIP をサーバーに追加します。</div>
         </div>
@@ -2429,8 +2430,8 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
       <a class="welcome-docs-link" href="/docs" target="_blank" rel="noopener">使い方と画面のしくみを読む ↗</a>
     </div>
     <div class="modal-foot welcome-foot">
-      <div class="welcome-actions">
-        <button class="btn btn-secondary" id="welcome-helper-btn">接続設定をする</button>
+      <div class="welcome-actions welcome-setup-group">
+        <button class="btn btn-secondary" id="welcome-helper-btn" title="コンパイルサーバーのURLとアクセストークンを設定">接続設定をする</button>
         <button class="btn btn-secondary" id="usb-setup-allow-btn">USBポートを許可</button>
       </div>
       <button class="btn btn-primary" id="usb-setup-done-btn">エディターを開く</button>
@@ -2451,21 +2452,22 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
         <div>コンパイル、ボード・ライブラリの追加には arduino-helper サーバーが必要です。書き込みはブラウザ (Web Serial) から直接行います。</div>
       </div>
       <div class="form-group">
-        <label class="form-label">サーバーURL</label>
+        <label class="form-label" for="helper-url-input">サーバーURL</label>
         <input type="text" class="form-input" id="helper-url-input" value="" autocomplete="off" placeholder="https://xxxx.example.com">
         <div class="form-hint">例: https://xxxx.example.com / http://192.168.3.7:8765</div>
       </div>
       <div class="form-group">
-        <label class="form-label">予備のURL (任意)</label>
-        <input type="text" class="form-input" id="helper-fallback-input" value="" autocomplete="off" placeholder="メインのURLにつながらないときに自動で試します">
+        <label class="form-label" for="helper-fallback-input">予備のURL (任意)</label>
+        <input type="text" class="form-input" id="helper-fallback-input" value="" autocomplete="off" placeholder="例: https://backup.example.com">
+        <small class="form-hint">メインURLが応答しない場合に自動で切り替えて使用されます</small>
       </div>
       <div class="form-group">
-        <label class="form-label">アクセストークン</label>
+        <label class="form-label" for="helper-token-input">アクセストークン</label>
         <input type="password" class="form-input" id="helper-token-input" value="" autocomplete="off" placeholder="サーバー管理者から受け取ったトークン">
         <div class="form-hint" id="helper-token-policy-note" role="status" hidden></div>
       </div>
       <div class="form-group">
-        <label class="form-label">管理者トークン（任意）</label>
+        <label class="form-label" for="helper-admin-input">管理者トークン（任意）</label>
         <input type="password" class="form-input" id="helper-admin-input" value="" autocomplete="off" placeholder="ボード・ライブラリの追加削除に必要">
         <div class="form-hint">サーバーの管理者以外には共有しないでください。</div>
       </div>
@@ -2508,7 +2510,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
       <div class="flash-line" id="flash-status" style="min-height:44px"></div>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-secondary" id="flash-dl-btn">ファイルをダウンロード</button>
+      <button class="btn btn-secondary" id="flash-dl-btn">ファイルをダウンロード (.hex)</button>
       <button class="btn btn-primary" id="flash-go-btn">ポートを選択して書き込み</button>
     </div>
   </div>
@@ -2702,7 +2704,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label class="form-label">フォントサイズ</label>
+        <label class="form-label" for="cfg-fontsize">フォントサイズ</label>
         <select class="form-select" id="cfg-fontsize">
           <option value="11">11px</option><option value="12">12px</option>
           <option value="13" selected>13px</option><option value="14">14px</option>
@@ -2711,14 +2713,14 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">タブサイズ</label>
+        <label class="form-label" for="cfg-tabsize">タブサイズ</label>
         <select class="form-select" id="cfg-tabsize">
           <option value="2" selected>2 スペース</option>
           <option value="4">4 スペース</option>
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">自動保存</label>
+        <label class="form-label" for="cfg-autosave">自動保存</label>
         <select class="form-select" id="cfg-autosave">
           <option value="0">無効</option>
           <option value="5" selected>5 秒</option>
@@ -2728,26 +2730,26 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label" style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:13px;font-weight:normal;">
-          <input type="checkbox" id="cfg-linenums" checked style="accent-color:var(--teal);width:14px;height:14px;">
+        <label class="form-check-label">
+          <input type="checkbox" class="form-check-input" id="cfg-linenums" checked>
           行番号を表示
         </label>
       </div>
       <div class="form-group">
-        <label class="form-label" style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:13px;font-weight:normal;">
-          <input type="checkbox" id="cfg-curline" checked style="accent-color:var(--teal);width:14px;height:14px;">
+        <label class="form-check-label">
+          <input type="checkbox" class="form-check-input" id="cfg-curline" checked>
           現在行をハイライト
         </label>
       </div>
       <div class="form-group">
-        <label class="form-label" style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:13px;font-weight:normal;">
-          <input type="checkbox" id="cfg-syntax" checked style="accent-color:var(--teal);width:14px;height:14px;">
+        <label class="form-check-label">
+          <input type="checkbox" class="form-check-input" id="cfg-syntax" checked>
           シンタックスハイライト
         </label>
       </div>
       <div class="form-group">
-        <label class="form-label" style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:13px;font-weight:normal;">
-          <input type="checkbox" id="cfg-reduce-motion" style="accent-color:var(--teal);width:14px;height:14px;">
+        <label class="form-check-label">
+          <input type="checkbox" class="form-check-input" id="cfg-reduce-motion">
           アニメーションを減らす
         </label>
         <div class="form-hint">OSの「視差効果を減らす」設定も自動で反映されます。</div>
