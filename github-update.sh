@@ -68,6 +68,11 @@ FILES=(
   "www/index.html"
   "www/admin.html"
   "www/docs.html"
+  "www/favicon.png"
+  "www/manifest.webmanifest"
+  "www/sw.js"
+  "www/icons/icon-192.png"
+  "www/icons/icon-512.png"
   "configure-github-webhook.sh"
   "github-update.sh"
   "arduino-helper-update.service"
@@ -252,6 +257,11 @@ if ! curl -fsS --max-time 10 "http://127.0.0.1:$health_port/account" -o "$stage/
     || ! grep -q "アカウントとクラウド保存" "$stage/account-health.html"; then
   die "アカウントページのヘルスチェックに失敗しました"
 fi
+for pwa_path in /manifest.webmanifest /sw.js /favicon.png /icons/icon-192.png /icons/icon-512.png; do
+  if ! curl -fsS --max-time 10 "http://127.0.0.1:$health_port$pwa_path" -o /dev/null; then
+    die "PWA アセットのヘルスチェックに失敗しました: $pwa_path"
+  fi
+done
 
 run_logged systemctl enable --now arduino-helper-update.timer
 run_logged systemctl restart arduino-helper-update.timer

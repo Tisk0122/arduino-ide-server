@@ -417,6 +417,7 @@ summary::marker { color: var(--teal); }
       <li><a href="#overview">このIDEについて</a></li>
       <li><a href="#requirements">使う前に</a></li>
       <li><a href="#quick-start">基本の使い方</a></li>
+      <li><a href="#pwa">インストールとオフライン利用</a></li>
       <li><a href="#screen">画面の見方</a></li>
       <li><a href="#architecture">しくみと保存先</a></li>
       <li><a href="#accounts">アカウントと同期</a></li>
@@ -435,7 +436,7 @@ summary::marker { color: var(--teal); }
 
     <section id="overview">
       <h2>このIDEについて</h2>
-      <p>Arduino Web IDEは、ブラウザー上のエディターと、Arduino CLIを動かすコンパイルサーバーを組み合わせて動作します。Arduino Cloud Editorとは別のサービスで、このIDEではコンパイルサーバーとブラウザーのWeb Serial APIを使います。アプリのインストールをせずにコードを編集できますが、すべての処理がブラウザーだけで完結するわけではありません。</p>
+      <p>Arduino Web IDEは、ブラウザー上のエディターと、Arduino CLIを動かすコンパイルサーバーを組み合わせて動作します。Arduino Cloud Editorとは別のサービスで、このIDEではコンパイルサーバーとブラウザーのWeb Serial APIを使います。ブラウザーからそのまま利用でき、対応ブラウザーではアプリとしてインストールできます。すべての処理がブラウザーだけで完結するわけではありません。</p>
       <div class="cards">
         <article class="card">
           <h3>ブラウザーで行うこと</h3>
@@ -459,6 +460,13 @@ summary::marker { color: var(--teal); }
         <li>書き込み対応はボードによって異なります。IDEに「ブラウザー書き込み未対応」と表示されるボードは、コンパイル結果をダウンロードして別の書き込み方法を使います。</li>
       </ul>
       <div class="warning"><strong>安全上の注意:</strong> 管理者用トークンはボードパッケージやライブラリの変更に使えるため、他の人に共有しないでください。通常の利用ではIDE用トークンを使います。</div>
+    </section>
+
+    <section id="pwa">
+      <h2>インストールとオフライン利用</h2>
+      <p>HTTPSでIDEを開くと、対応ブラウザーではアドレスバーやブラウザーのメニュー、または画面右上のインストールボタンからアプリとしてインストールできます。初回はオンラインでIDEを開いてください。</p>
+      <p>一度読み込んだ後は、オフラインでもIDEの画面を開き、ブラウザー内に保存されたスケッチの編集・保存ができます。画面下部にオフライン状態が表示されます。コンパイル、サーバーとの同期、ライブラリ管理はネットワーク接続が戻るまで利用できません。書き込みにはコンパイル結果と対応するUSB接続も必要です。</p>
+      <div class="note"><strong>保存先:</strong> オフライン編集はこのブラウザーのローカル保存領域を使用します。他の端末との同期やバックアップの代わりにはならないため、大切なスケッチは別途エクスポートしてください。</div>
     </section>
 
     <section id="quick-start">

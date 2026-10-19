@@ -2191,6 +2191,31 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
+        pwa_assets = {
+            "/manifest.webmanifest": (
+                "manifest.webmanifest", "application/manifest+json; charset=utf-8", "no-cache"
+            ),
+            "/sw.js": ("sw.js", "application/javascript; charset=utf-8", "no-cache"),
+            "/icons/icon-192.png": ("icons/icon-192.png", "image/png", "public, max-age=31536000, immutable"),
+            "/icons/icon-512.png": ("icons/icon-512.png", "image/png", "public, max-age=31536000, immutable"),
+        }
+        if method == "GET" and path in pwa_assets:
+            relative_path, content_type, cache_control = pwa_assets[path]
+            asset = Path(__file__).resolve().parent / "www" / relative_path
+            if not asset.is_file():
+                raise ApiError(404, "PWA アセットが見つかりません: %s" % relative_path)
+            body = asset.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", cache_control)
+            self.send_header("X-Content-Type-Options", "nosniff")
+            if path == "/sw.js":
+                self.send_header("Service-Worker-Allowed", "/")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         if method == "GET" and path == "/public-config":
             settings = load_admin_settings()
             config = {"prefillStudentToken": settings["prefillStudentToken"]}

@@ -2,6 +2,7 @@ import importlib.util
 import json
 import os
 import sqlite3
+import struct
 import tempfile
 import threading
 import unittest
@@ -205,6 +206,33 @@ class AccountApiTests(unittest.TestCase):
                 self.assertEqual(response.headers.get_content_type(), "image/png")
                 self.assertEqual(body, expected)
                 self.assertEqual(response.geturl().split(self.base, 1)[-1], "/favicon.png?v=2")
+
+    def test_pwa_assets_are_available_without_authentication(self):
+        for path, content_type in (
+            ("/manifest.webmanifest", "application/manifest+json"),
+            ("/sw.js", "application/javascript"),
+            ("/icons/icon-192.png", "image/png"),
+            ("/icons/icon-512.png", "image/png"),
+        ):
+            with self.subTest(path=path):
+                response = urllib.request.urlopen(self.base + path, timeout=5)
+                body = response.read()
+                self.assertEqual(response.status, 200)
+                self.assertEqual(response.headers.get_content_type(), content_type)
+                self.assertGreater(len(body), 0)
+                if path == "/manifest.webmanifest":
+                    manifest = json.loads(body.decode("utf-8"))
+                    self.assertEqual(manifest["start_url"], "/")
+                    self.assertEqual(manifest["display"], "standalone")
+                    self.assertEqual(
+                        {icon["sizes"] for icon in manifest["icons"]},
+                        {"192x192", "512x512"},
+                    )
+                elif path.startswith("/icons/"):
+                    size, _ = struct.unpack(">II", body[16:24])
+                    self.assertEqual(size, 192 if "192" in path else 512)
+                elif path == "/sw.js":
+                    self.assertEqual(response.headers.get("Service-Worker-Allowed"), "/")
 
     def test_legacy_school_account_data_is_purged_once_during_schema_upgrade(self):
         db_path = Path(self.temp.name) / "accounts.sqlite3"

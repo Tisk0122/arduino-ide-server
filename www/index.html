@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="description" content="Arduino Web IDE - ブラウザで動作するArduino開発環境">
 <meta name="theme-color" content="#005F61">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Arduino Web IDE">
+<link rel="manifest" href="/manifest.webmanifest?v=1">
+<link rel="apple-touch-icon" href="/icons/icon-192.png?v=1">
 <link rel="icon" type="image/png" sizes="128x128" href="favicon.png?v=2">
 <title>Arduino Web IDE</title>
 <style>
@@ -314,6 +319,7 @@ svg { display: block; flex-shrink: 0; }
 }
 .tb-icon-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
 .tb-icon-btn svg { width: 16px; height: 16px; }
+#pwa-install-btn[hidden] { display: none; }
 .theme-switch {
   position: relative;
   flex: none;
@@ -1218,6 +1224,7 @@ svg { display: block; flex-shrink: 0; }
 }
 .sb-item { display: flex; align-items: center; gap: 4px; padding: 0 9px; white-space: nowrap; }
 .sb-item svg { width: 11px; height: 11px; }
+#status-network[hidden] { display: none; }
 .sb-div { width: 1px; height: 12px; background: rgba(255,255,255,0.14); }
 #status-msg { flex: 1; padding-left: 4px; }
 #status-msg.ok   { color: #A6F6C0; }
@@ -2100,6 +2107,9 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
   <div class="topbar-spacer"></div>
 
   <div id="topbar-right">
+    <button class="tb-icon-btn" id="pwa-install-btn" type="button" title="Arduino Web IDEをインストール" aria-label="Arduino Web IDEをインストール" hidden>
+      <i data-lucide="download" aria-hidden="true"></i>
+    </button>
     <button class="tb-icon-btn" id="account-open-btn" title="アカウントとクラウド保存" aria-label="アカウントとクラウド保存">
       <span class="acct-dot" aria-hidden="true"></span>
       <i data-lucide="user-round" aria-hidden="true"></i>
@@ -2354,6 +2364,7 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
 <!-- ステータスバー -->
 <div id="statusbar">
   <span id="status-msg" role="status" aria-live="polite">IDEを準備しています…</span>
+  <span class="sb-item" id="status-network" role="status" aria-live="polite" hidden></span>
   <span class="sb-item save-indicator" id="status-save" data-state="saved" role="status" aria-live="off">保存済み</span>
   <span id="status-save-announcement" role="status" aria-live="polite" aria-atomic="true"></span>
   <div class="sb-div"></div>
@@ -9017,7 +9028,53 @@ async function maybeShowWelcome() {
   openModal('m-usb-setup');
 }
 
+function setupPwa() {
+  const networkStatus = document.getElementById('status-network');
+  const installButton = document.getElementById('pwa-install-btn');
+  let installPrompt = null;
+  const updateNetworkStatus = () => {
+    const offline = !navigator.onLine;
+    networkStatus.hidden = !offline;
+    networkStatus.textContent = offline
+      ? 'オフライン: 編集・保存可 / コンパイル・書き込み不可'
+      : '';
+  };
+
+  updateNetworkStatus();
+  window.addEventListener('online', updateNetworkStatus);
+  window.addEventListener('offline', updateNetworkStatus);
+  window.addEventListener('beforeinstallprompt', event => {
+    event.preventDefault();
+    installPrompt = event;
+    installButton.hidden = false;
+  });
+  window.addEventListener('appinstalled', () => {
+    installPrompt = null;
+    installButton.hidden = true;
+  });
+  installButton.addEventListener('click', async () => {
+    if (!installPrompt) return;
+    const prompt = installPrompt;
+    installPrompt = null;
+    installButton.hidden = true;
+    try {
+      await prompt.prompt();
+      await prompt.userChoice;
+    } catch (err) {
+      console.error('PWA installation prompt failed:', err);
+      toast('アプリをインストールできませんでした。ブラウザーのメニューからお試しください', 'warn', 6000);
+    }
+  });
+
+  if (window.isSecureContext && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(err => {
+      console.error('Offline app support could not be enabled:', err);
+    });
+  }
+}
+
 async function boot() {
+  setupPwa();
   // file:// で直接開いた場合の警告
   if (location.protocol === 'file:') {
     // ファイル名は実際のパスから取る (バージョン番号をハードコードすると更新時に古い値が残る)

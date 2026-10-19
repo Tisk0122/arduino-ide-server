@@ -18,6 +18,11 @@ class AutoUpdateContractTests(unittest.TestCase):
             "www/index.html",
             "www/admin.html",
             "www/docs.html",
+            "www/favicon.png",
+            "www/manifest.webmanifest",
+            "www/sw.js",
+            "www/icons/icon-192.png",
+            "www/icons/icon-512.png",
             "configure-github-webhook.sh",
             "github-update.sh",
             "arduino-helper-update.service",
@@ -26,6 +31,7 @@ class AutoUpdateContractTests(unittest.TestCase):
         self.assertIn('github-update.sh) printf', updater)
         self.assertIn("configure-github-webhook.sh) printf", updater)
         self.assertIn('"http://127.0.0.1:$health_port/account"', updater)
+        self.assertIn('for pwa_path in /manifest.webmanifest /sw.js /favicon.png /icons/icon-192.png /icons/icon-512.png', updater)
         self.assertIn("アカウントとクラウド保存", updater)
 
     def test_periodic_update_checks_remote_commit_and_records_success(self):
