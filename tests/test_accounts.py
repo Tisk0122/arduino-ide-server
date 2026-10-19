@@ -234,6 +234,37 @@ class AccountApiTests(unittest.TestCase):
                 elif path == "/sw.js":
                     self.assertEqual(response.headers.get("Service-Worker-Allowed"), "/")
 
+    def test_admin_overview_includes_live_system_metrics(self):
+        status, result = self.request(
+            "/admin/api/overview",
+            headers={"X-Helper-Token": server.ADMIN_TOKEN},
+        )
+        self.assertEqual(status, 200)
+        metrics = result["server"]["metrics"]
+        self.assertIn("cpuPercent", metrics)
+        self.assertIn("cpuAvailable", metrics)
+        self.assertIn("processCpuPercent", metrics)
+        self.assertIn("cpuCores", metrics)
+        self.assertIn("loadAverage", metrics)
+        self.assertIn("sampledAt", metrics)
+        self.assertEqual(
+            set(metrics["memory"]),
+            {"totalMb", "usedMb", "availableMb", "usedPercent"},
+        )
+        self.assertEqual(
+            set(metrics["disk"]),
+            {"totalBytes", "usedBytes", "freeBytes", "usedPercent", "path"},
+        )
+        for key in ("cpuPercent", "processCpuPercent"):
+            if metrics[key] is not None:
+                self.assertGreaterEqual(metrics[key], 0)
+        if metrics["memory"]["usedPercent"] is not None:
+            self.assertGreaterEqual(metrics["memory"]["usedPercent"], 0)
+            self.assertLessEqual(metrics["memory"]["usedPercent"], 100)
+        if metrics["disk"]["usedPercent"] is not None:
+            self.assertGreaterEqual(metrics["disk"]["usedPercent"], 0)
+            self.assertLessEqual(metrics["disk"]["usedPercent"], 100)
+
     def test_legacy_school_account_data_is_purged_once_during_schema_upgrade(self):
         db_path = Path(self.temp.name) / "accounts.sqlite3"
         conn = sqlite3.connect(str(db_path))

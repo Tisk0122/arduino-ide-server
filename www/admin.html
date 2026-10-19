@@ -219,8 +219,49 @@ code,.mono { font-family: var(--ff-mono); }
 .input:focus { border-color: var(--teal); box-shadow: 0 0 0 2px rgba(14,165,168,.14); }
 
 /* ---- レイアウト ---- */
-main { max-width: 1320px; margin: 0 auto; padding: 20px 18px 0; }
-section { margin-bottom: 24px; }
+main { max-width: 1480px; margin: 0 auto; padding: 24px 24px 0; }
+section { margin-bottom: 30px; scroll-margin-top: 76px; }
+#admin-intro { display:flex; align-items:flex-end; justify-content:space-between; gap:18px; margin-bottom:20px; }
+#admin-intro h1 { color:var(--tx0); font-size:24px; line-height:1.25; letter-spacing:-.04em; }
+#admin-intro p { margin-top:6px; color:var(--tx2); font-size:12px; }
+#admin-nav { position:sticky; top:50px; z-index:15; display:flex; gap:6px; overflow-x:auto; padding:9px 0 12px; margin:0 0 16px; background:linear-gradient(var(--bg0) 78%,transparent); scrollbar-width:thin; }
+#admin-nav a { flex:0 0 auto; padding:6px 11px; border:1px solid var(--bd1); border-radius:999px; color:var(--tx2); background:var(--bg1); font-size:11px; font-weight:600; transition:color .15s,border-color .15s,background .15s; }
+#admin-nav a:hover,#admin-nav a:focus-visible { color:var(--tx0); border-color:var(--teal); background:var(--bg2); }
+.live-heading { display:flex; align-items:center; gap:9px; margin:0 0 11px; color:var(--tx2); font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; }
+.live-indicator { display:inline-flex; align-items:center; gap:6px; color:var(--ok); font-size:10px; letter-spacing:0; text-transform:none; }
+.live-indicator::before { content:''; width:7px; height:7px; border-radius:50%; background:currentColor; box-shadow:0 0 8px currentColor; animation:live-pulse 1.8s ease-in-out infinite; }
+.live-indicator.stale { color:var(--warn); }
+@keyframes live-pulse { 50% { opacity:.45; } }
+.metrics-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.metric-card { position:relative; min-width:0; overflow:hidden; padding:16px 17px 13px; border:1px solid var(--bd1); border-radius:var(--radius-lg); background:linear-gradient(145deg,var(--bg1),var(--bg2)); }
+.metric-card::after { position:absolute; top:-32px; right:-26px; width:100px; height:100px; border-radius:50%; background:var(--metric-glow,rgba(14,165,168,.1)); filter:blur(24px); content:''; pointer-events:none; }
+.metric-top { position:relative; z-index:1; display:flex; align-items:center; justify-content:space-between; gap:8px; color:var(--tx2); font-size:11px; font-weight:650; }
+.metric-icon { display:grid; place-items:center; width:28px; height:28px; border:1px solid var(--bd1); border-radius:8px; color:var(--metric-color,var(--teal-lt)); background:var(--bg-hover); }
+.metric-icon svg { width:15px; height:15px; }
+.metric-value { position:relative; z-index:1; margin-top:10px; color:var(--tx0); font-size:28px; font-weight:750; letter-spacing:-.045em; line-height:1.1; font-variant-numeric:tabular-nums; }
+.metric-value small { margin-left:4px; color:var(--tx2); font-size:12px; font-weight:550; letter-spacing:0; }
+.metric-sub { min-height:17px; margin-top:5px; color:var(--tx2); font-size:10.5px; }
+.metric-meter { height:5px; margin-top:13px; overflow:hidden; border-radius:99px; background:var(--bg0); }
+.metric-meter span { display:block; width:0; height:100%; border-radius:inherit; background:var(--metric-color,var(--teal)); transition:width .4s ease,background .2s; }
+.metric-chart { display:block; width:100%; height:32px; margin-top:8px; overflow:visible; }
+.metric-chart path { fill:none; stroke:var(--metric-color,var(--teal-lt)); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; vector-effect:non-scaling-stroke; }
+.metric-detail { display:flex; justify-content:space-between; gap:8px; margin-top:8px; color:var(--tx2); font-size:10px; }
+.metric-detail strong { color:var(--tx1); font-weight:600; font-variant-numeric:tabular-nums; }
+.metric-card[data-level="warn"] { border-color:rgba(245,200,66,.34); }
+.metric-card[data-level="warn"] .metric-meter span { background:var(--warn); }
+.metric-card[data-level="err"] { border-color:rgba(255,112,112,.4); }
+.metric-card[data-level="err"] .metric-meter span { background:var(--err); }
+.metric-svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+@media(max-width:1050px) { .metrics-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:680px) {
+  main { padding-inline:14px; }
+  #admin-intro { align-items:flex-start; flex-direction:column; }
+  #admin-intro h1 { font-size:21px; }
+  .metrics-grid { gap:8px; }
+  .metric-card { padding:12px; }
+  .metric-value { font-size:23px; }
+  .metric-detail { font-size:9px; }
+}
 .sec-head {
   display: flex;
   align-items: center;
@@ -710,7 +751,63 @@ body.phone-blocked > :not(#phone-block) { visibility:hidden!important; pointer-e
     <div id="global-err" class="notice err" role="alert" aria-live="assertive" hidden></div>
     <div id="toast-wrap" aria-label="通知"></div>
 
-    <section>
+    <div id="admin-intro">
+      <div>
+        <h1>サーバーダッシュボード</h1>
+        <p>サーバーの稼働状況・リソース・利用状況をリアルタイムで確認できます。</p>
+      </div>
+      <span class="live-indicator" id="live-status" role="status" aria-live="polite">ライブ監視中 · 5秒ごとに更新</span>
+    </div>
+    <nav id="admin-nav" aria-label="管理コンソール内の移動">
+      <a href="#section-live">リソース</a>
+      <a href="#section-server">サーバー状態</a>
+      <a href="#section-stats">利用統計</a>
+      <a href="#section-jobs">実行中ジョブ</a>
+      <a href="#section-history">利用履歴</a>
+      <a href="#sec-users">ユーザー管理</a>
+      <a href="#section-security">トークン・設定</a>
+    </nav>
+
+    <section id="section-live" aria-labelledby="live-title">
+      <h2 class="live-heading" id="live-title">ライブリソース <span class="live-indicator">自動更新</span></h2>
+      <p class="sub" style="margin:-3px 0 11px">CPU・メモリはホスト全体の値、プロセスはこのサービス単体の値です。負荷平均は対応環境で表示します。</p>
+      <div class="metrics-grid">
+        <article class="metric-card" style="--metric-color:var(--teal-lt);--metric-glow:rgba(45,212,216,.16)">
+          <div class="metric-top"><span>CPU 使用率</span><span class="metric-icon"><svg class="metric-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></span></div>
+          <div class="metric-value" id="metric-cpu-value">-<small>%</small></div>
+          <div class="metric-sub" id="metric-cpu-sub">測定データを取得しています</div>
+          <div class="metric-meter" role="meter" aria-label="CPU使用率" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="metric-cpu-meter"></span></div>
+          <svg class="metric-chart" viewBox="0 0 120 32" preserveAspectRatio="none" aria-label="CPU使用率の推移"><path id="metric-cpu-chart" d=""></path></svg>
+          <div class="metric-detail"><span>論理コア</span><strong id="metric-cpu-cores">-</strong></div>
+        </article>
+        <article class="metric-card" style="--metric-color:#8B9CFF;--metric-glow:rgba(139,156,255,.15)">
+          <div class="metric-top"><span>メモリ使用量</span><span class="metric-icon"><svg class="metric-svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 9h8M8 13h5M8 17h3"/></svg></span></div>
+          <div class="metric-value" id="metric-memory-value">-<small>%</small></div>
+          <div class="metric-sub" id="metric-memory-sub">RAM の使用状況</div>
+          <div class="metric-meter" role="meter" aria-label="メモリ使用率" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="metric-memory-meter"></span></div>
+          <svg class="metric-chart" viewBox="0 0 120 32" preserveAspectRatio="none" aria-label="メモリ使用率の推移"><path id="metric-memory-chart" d=""></path></svg>
+          <div class="metric-detail"><span>使用 / 合計</span><strong id="metric-memory-detail">-</strong></div>
+        </article>
+        <article class="metric-card" style="--metric-color:#F5C842;--metric-glow:rgba(245,200,66,.14)">
+          <div class="metric-top"><span>ディスク使用量</span><span class="metric-icon"><svg class="metric-svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 15h.01M11 15h.01M15 15h2M3 10h18"/></svg></span></div>
+          <div class="metric-value" id="metric-disk-value">-<small>%</small></div>
+          <div class="metric-sub" id="metric-disk-sub">データ保存先のファイルシステム</div>
+          <div class="metric-meter" role="meter" aria-label="ディスク使用率" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="metric-disk-meter"></span></div>
+          <svg class="metric-chart" viewBox="0 0 120 32" preserveAspectRatio="none" aria-label="ディスク使用率の推移"><path id="metric-disk-chart" d=""></path></svg>
+          <div class="metric-detail"><span>空き容量</span><strong id="metric-disk-detail">-</strong></div>
+        </article>
+        <article class="metric-card" style="--metric-color:#B78AFF;--metric-glow:rgba(183,138,255,.14)">
+          <div class="metric-top"><span>サーバープロセス</span><span class="metric-icon"><svg class="metric-svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="8" rx="2"/><rect x="3" y="13" width="18" height="8" rx="2"/><path d="M7 7h.01M7 17h.01M11 7h6M11 17h6"/></svg></span></div>
+          <div class="metric-value" id="metric-process-cpu">-<small>% CPU</small></div>
+          <div class="metric-sub">arduino-helper プロセスのCPU使用率</div>
+          <div class="metric-meter" role="meter" aria-label="サーバープロセスCPU使用率" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="metric-process-meter"></span></div>
+          <div class="metric-detail"><span>プロセスメモリ</span><strong id="metric-process-memory">-</strong></div>
+          <div class="metric-detail"><span>ロード平均 (1 / 5 / 15分)</span><strong id="metric-load-average">-</strong></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="section-server">
       <div class="sec-head"><h2>サーバー状態</h2><span class="sec-note" id="srv-note"></span></div>
       <div class="grid g4">
         <div class="card">
@@ -746,7 +843,7 @@ body.phone-blocked > :not(#phone-block) { visibility:hidden!important; pointer-e
       </div>
     </section>
 
-    <section>
+    <section id="section-stats">
       <div class="sec-head"><h2>利用統計</h2><span class="sec-note">保存中の履歴を集計（最大4,000件。超過時は直近2,000件を保持）</span></div>
       <div class="grid g4">
         <div class="card"><h3>成功率</h3>
@@ -770,7 +867,7 @@ body.phone-blocked > :not(#phone-block) { visibility:hidden!important; pointer-e
       </div>
     </section>
 
-    <section>
+    <section id="section-jobs">
       <div class="sec-head"><h2>トークン情報</h2>
         <span class="sec-note">この一覧はマスク表示です。実トークンは次のセクションで確認できます。</span></div>
       <div class="notice" id="single-token-note" hidden>
@@ -787,7 +884,7 @@ body.phone-blocked > :not(#phone-block) { visibility:hidden!important; pointer-e
       </div>
     </section>
 
-    <section>
+    <section id="section-history">
       <div class="sec-head"><h2>アクセストークン</h2><span class="sec-note">管理者のみ表示・コピーできます</span></div>
       <div class="tbl-wrap">
         <table>
@@ -800,7 +897,7 @@ body.phone-blocked > :not(#phone-block) { visibility:hidden!important; pointer-e
       <div class="sub" id="token-settings-error" role="status" style="margin-top:8px" hidden></div>
     </section>
 
-    <section>
+    <section id="section-security">
       <div class="sec-head"><h2>IDEアクセストークン配布</h2></div>
       <div class="card">
         <label class="token-setting">
@@ -984,7 +1081,8 @@ var state = {
   historyGeneration: 0,
   clearingHistory: false,
   busy: false,
-  refreshQueued: false
+  refreshQueued: false,
+  metricHistory: { cpu: [], memory: [], disk: [] }
 };
 
 function esc(v) {
@@ -1029,6 +1127,87 @@ function fmtBytes(n) {
   if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
   if (n < 1073741824) return (n / 1048576).toFixed(1) + ' MB';
   return (n / 1073741824).toFixed(2) + ' GB';
+}
+
+function fmtMetricMb(n) {
+  if (n == null || !Number.isFinite(Number(n))) return '取得不可';
+  n = Number(n);
+  return n >= 1024 ? (n / 1024).toFixed(1) + ' GB' : Math.round(n) + ' MB';
+}
+
+function fmtMetricBytes(n) {
+  if (n == null || !Number.isFinite(Number(n))) return '取得不可';
+  n = Number(n);
+  if (n >= 1073741824) return (n / 1073741824).toFixed(1) + ' GB';
+  if (n >= 1048576) return (n / 1048576).toFixed(0) + ' MB';
+  return (n / 1024).toFixed(0) + ' KB';
+}
+
+function metricLevel(value) {
+  return value >= 90 ? 'err' : value >= 75 ? 'warn' : '';
+}
+
+function updateMetricCard(name, value, detail, samples) {
+  var valueEl = $('#metric-' + name + '-value');
+  var meter = $('#metric-' + name + '-meter');
+  var card = valueEl.closest('.metric-card');
+  var percent = Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : null;
+  valueEl.innerHTML = percent == null ? '取得不可' : percent.toFixed(1) + '<small>%</small>';
+  meter.style.width = percent == null ? '0%' : percent + '%';
+  meter.closest('[role="meter"]').setAttribute('aria-valuenow', percent == null ? '0' : percent.toFixed(1));
+  card.dataset.level = percent == null ? '' : metricLevel(percent);
+  var detailEl = $('#metric-' + name + '-detail');
+  if (detailEl) detailEl.textContent = detail;
+  var path = $('#metric-' + name + '-chart');
+  var points = samples.filter(Number.isFinite).slice(-48);
+  if (percent != null) points.push(percent);
+  state.metricHistory[name] = points.slice(-48);
+  var max = Math.max(100, ...points);
+  path.setAttribute('d', points.length < 2 ? '' : points.map(function (point, index) {
+    var x = points.length === 1 ? 60 : index * 120 / (points.length - 1);
+    var y = 30 - Math.max(0, Math.min(100, point / max * 100)) * .28;
+    return (index ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1);
+  }).join(' '));
+}
+
+function updateLiveMetrics(metrics, server) {
+  metrics = metrics || {};
+  server = server || {};
+  var memory = metrics.memory || {};
+  var disk = metrics.disk || {};
+  var cpu = Number.isFinite(metrics.cpuPercent) ? metrics.cpuPercent : null;
+  var memoryPercent = Number.isFinite(memory.usedPercent) ? memory.usedPercent : null;
+  var diskPercent = Number.isFinite(disk.usedPercent) ? disk.usedPercent : null;
+  var memoryDetail = memory.usedMb == null || memory.totalMb == null
+    ? 'RAM 情報を取得できません'
+    : fmtMetricMb(memory.usedMb) + ' / ' + fmtMetricMb(memory.totalMb);
+  var diskDetail = fmtMetricBytes(disk.freeBytes);
+  updateMetricCard('cpu', cpu, metrics.cpuCores == null ? '-' : String(metrics.cpuCores), state.metricHistory.cpu || []);
+  updateMetricCard('memory', memoryPercent, memoryDetail, state.metricHistory.memory || []);
+  updateMetricCard('disk', diskPercent, diskDetail, state.metricHistory.disk || []);
+  if (cpu == null) {
+    $('#metric-cpu-value').innerHTML = metrics.cpuAvailable ? '計測中' : '取得不可';
+    $('#metric-process-cpu').innerHTML = metrics.cpuAvailable ? '計測中<small>CPU</small>' : '取得不可';
+  }
+  $('#metric-cpu-cores').textContent = metrics.cpuCores == null ? '取得不可' : metrics.cpuCores + ' コア';
+  $('#metric-cpu-sub').textContent = cpu == null
+    ? (metrics.cpuAvailable ? '次の更新でCPU使用率を測定します' : 'この環境ではCPU使用率を取得できません')
+    : 'ホスト全体 · ' + (metrics.cpuCores == null ? '-' : metrics.cpuCores + ' 論理コア');
+  $('#metric-memory-sub').textContent = memory.availableMb == null
+    ? 'メモリ情報を取得できません'
+    : '空き ' + fmtMetricMb(memory.availableMb);
+  $('#metric-disk-sub').textContent = disk.path || 'データ保存先のファイルシステム';
+  var processCpu = metrics.processCpuPercent;
+  $('#metric-process-cpu').innerHTML = processCpu == null ? '測定中<small>CPU</small>' : processCpu.toFixed(1) + '<small>% CPU</small>';
+  var processMeter = $('#metric-process-meter');
+  var processPercent = Number.isFinite(processCpu) ? Math.max(0, Math.min(100, processCpu)) : null;
+  processMeter.style.width = processPercent == null ? '0%' : processPercent + '%';
+  processMeter.closest('[role="meter"]').setAttribute('aria-valuenow', processPercent == null ? '0' : processPercent.toFixed(1));
+  processMeter.closest('.metric-card').dataset.level = processPercent == null ? '' : metricLevel(processPercent);
+  $('#metric-process-memory').textContent = server.rssMb == null ? '取得不可' : fmtMetricMb(server.rssMb);
+  $('#metric-load-average').textContent = Array.isArray(metrics.loadAverage)
+    ? metrics.loadAverage.map(function (value) { return Number(value).toFixed(2); }).join(' / ')
+    : '取得不可';
 }
 
 function stat(k, v, cls, rowCls) {
@@ -1250,7 +1429,13 @@ function startAuto() {
     state.timer = setInterval(function () { refresh(false); }, 5000);
   }
 }
-$('#auto-refresh').addEventListener('change', startAuto);
+$('#auto-refresh').addEventListener('change', function () {
+  startAuto();
+  $('#live-status').classList.toggle('stale', !this.checked);
+  $('#live-status').textContent = this.checked
+    ? 'ライブ監視中 · 5秒ごとに更新'
+    : '自動更新オフ · 手動更新';
+});
 $('#btn-reload').addEventListener('click', function () { refresh(true); });
 document.addEventListener('visibilitychange', function () {
   if (document.visibilityState === 'hidden') {
@@ -1281,6 +1466,7 @@ function render(d) {
   $('#st-version').textContent = s.version || '-';
   $('#st-uptime').textContent = '稼働 ' + fmtDur(s.uptime);
   $('#st-updated').textContent = '更新 ' + new Date().toLocaleTimeString('ja-JP');
+  updateLiveMetrics(s.metrics, s);
   var dot = $('#st-dot').firstElementChild;
   dot.className = 'dot ' + (cliOk ? 'ok' : 'warn');
   $('#st-dot-text').textContent = cliOk ? '正常' : 'arduino-cli 不明';
@@ -1748,6 +1934,10 @@ function refresh(withHistory) {
   api('/admin/api/overview', 20000).then(function (d) {
     state.data = d;
     render(d);
+    $('#live-status').classList.toggle('stale', !$('#auto-refresh').checked);
+    $('#live-status').textContent = $('#auto-refresh').checked
+      ? 'ライブ監視中 · 5秒ごとに更新'
+      : '自動更新オフ · 手動更新';
     $('#global-err').hidden = true;
     if (withHistory) setRefreshFeedback('更新完了', false);
     if (withHistory || !state.histPaged) loadHistory('reset');
@@ -1758,6 +1948,8 @@ function refresh(withHistory) {
     }
   }).catch(function (err) {
     if (err.auth) { stopAuto(); showLogin(err.message, true); return; }
+    $('#live-status').classList.add('stale');
+    $('#live-status').textContent = '接続できません · 再試行中';
     var el = $('#global-err');
     el.textContent = '取得に失敗しました: ' + err.message + ' (5秒後に再試行します)';
     el.hidden = false;

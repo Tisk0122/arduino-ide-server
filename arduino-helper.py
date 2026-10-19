@@ -45,7 +45,7 @@ Python 3.8+ の標準ライブラリだけで動きます。arduino-cli が必�
   POST /jobs/<id>/cancel          キャンセル
   GET  /admin                     管理画面 (HTML。認証不要。ページ内でトークンを入力)
   --- 以下は管理者トークンが必要 ---
-  GET  /admin/api/overview        サーバー状態・トークン詳細・統計・アクティブジョブ (JSON)
+  GET  /admin/api/overview        サーバー状態・CPU/メモリ/ディスク・トークン・統計・ジョブ (JSON)
   GET  /admin/api/history         利用履歴 (JSON。offset/limit/kind/state/q で絞り込み)
   DELETE /admin/api/history       保存済みの利用履歴をすべて削除
   GET  /admin/api/settings        アクセストークン・IDE 用トークン配布設定 (JSON)
@@ -71,6 +71,7 @@ import base64
 import collections
 import contextlib
 import csv
+import ctypes
 import hashlib
 import hmac
 import ipaddress
@@ -209,6 +210,8 @@ CLI_LOCK = threading.Lock()     # arduino-cli の変更操作は同時に1つ (�
 ADMIN_WAITING = 0
 GEN = 0
 GEN_LOCK = threading.Lock()
+SYSTEM_METRICS_LOCK = threading.Lock()
+SYSTEM_CPU_PREVIOUS = None
 RESULT_CACHE = collections.OrderedDict()
 RESULT_CACHE_SIZE = 0
 READ_SEM = threading.BoundedSemaphore(4)
@@ -964,12 +967,184 @@ def save_admin_settings(settings):
 
 
 def process_rss_mb():
+    if os.name == "nt":
+        class ProcessMemoryCounters(ctypes.Structure):
+            _fields_ = [
+                ("cb", ctypes.c_uint32),
+                ("page_fault_count", ctypes.c_uint32),
+                ("peak_working_set_size", ctypes.c_size_t),
+                ("working_set_size", ctypes.c_size_t),
+                ("quota_peak_paged_pool_usage", ctypes.c_size_t),
+                ("quota_paged_pool_usage", ctypes.c_size_t),
+                ("quota_peak_non_paged_pool_usage", ctypes.c_size_t),
+                ("quota_non_paged_pool_usage", ctypes.c_size_t),
+                ("pagefile_usage", ctypes.c_size_t),
+                ("peak_pagefile_usage", ctypes.c_size_t),
+            ]
+
+        counters = ProcessMemoryCounters()
+        counters.cb = ctypes.sizeof(counters)
+        kernel32 = ctypes.windll.kernel32
+        psapi = ctypes.windll.psapi
+        kernel32.GetCurrentProcess.restype = ctypes.c_void_p
+        psapi.GetProcessMemoryInfo.argtypes = [
+            ctypes.c_void_p, ctypes.POINTER(ProcessMemoryCounters), ctypes.c_uint32,
+        ]
+        psapi.GetProcessMemoryInfo.restype = ctypes.c_int
+        if psapi.GetProcessMemoryInfo(
+                kernel32.GetCurrentProcess(), ctypes.byref(counters), counters.cb):
+            return round(counters.working_set_size / (1024 * 1024), 1)
+        return None
     try:
         with open("/proc/self/statm", "r") as f:
             pages = int(f.read().split()[1])
         return round(pages * (os.sysconf("SC_PAGE_SIZE") / (1024 * 1024)), 1)
     except (OSError, ValueError, IndexError, AttributeError):
         return None
+
+
+def _host_cpu_counters():
+    if os.name == "nt":
+        class FileTime(ctypes.Structure):
+            _fields_ = [("low", ctypes.c_uint32), ("high", ctypes.c_uint32)]
+
+        idle, kernel, user = FileTime(), FileTime(), FileTime()
+        if not ctypes.windll.kernel32.GetSystemTimes(
+                ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user)):
+            raise OSError("GetSystemTimes failed")
+
+        def as_int(value):
+            return (value.high << 32) | value.low
+
+        idle_time = as_int(idle)
+        return as_int(kernel) + as_int(user), idle_time
+
+    with open("/proc/stat", "r", encoding="ascii") as f:
+        fields = f.readline().split()
+    if not fields or fields[0] != "cpu":
+        raise ValueError("Host CPU counters are unavailable")
+    counters = [int(value) for value in fields[1:]]
+    total = sum(counters)
+    idle = counters[3] + (counters[4] if len(counters) > 4 else 0)
+    return total, idle
+
+
+def _host_memory_mb():
+    if os.name == "nt":
+        class MemoryStatus(ctypes.Structure):
+            _fields_ = [
+                ("length", ctypes.c_uint32),
+                ("memory_load", ctypes.c_uint32),
+                ("total_phys", ctypes.c_uint64),
+                ("avail_phys", ctypes.c_uint64),
+                ("total_page_file", ctypes.c_uint64),
+                ("avail_page_file", ctypes.c_uint64),
+                ("total_virtual", ctypes.c_uint64),
+                ("avail_virtual", ctypes.c_uint64),
+                ("avail_extended_virtual", ctypes.c_uint64),
+            ]
+
+        status = MemoryStatus()
+        status.length = ctypes.sizeof(status)
+        if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+            raise OSError("GlobalMemoryStatusEx failed")
+        return status.total_phys / (1024 * 1024), status.avail_phys / (1024 * 1024)
+
+    values = {}
+    with open("/proc/meminfo", "r", encoding="ascii") as f:
+        for line in f:
+            name, separator, rest = line.partition(":")
+            if separator:
+                parts = rest.split()
+                if parts and name in ("MemTotal", "MemAvailable", "MemFree", "Buffers", "Cached"):
+                    values[name] = int(parts[0]) / 1024.0
+    total = values.get("MemTotal")
+    available = values.get("MemAvailable")
+    if available is None and total is not None:
+        available = sum(values.get(name, 0.0) for name in ("MemFree", "Buffers", "Cached"))
+    if total is None or available is None:
+        raise OSError("Host memory counters are unavailable")
+    return total, available
+
+
+def system_metrics():
+    """Return best-effort host CPU, memory, load-average, and storage metrics."""
+    global SYSTEM_CPU_PREVIOUS
+    cpu_percent = None
+    process_cpu_percent = None
+    cpu_available = False
+    sampled_monotonic = time.monotonic()
+    process_times = os.times()
+    process_cpu_time = process_times.user + process_times.system
+    try:
+        total, idle = _host_cpu_counters()
+        cpu_available = True
+        with SYSTEM_METRICS_LOCK:
+            previous = SYSTEM_CPU_PREVIOUS
+            SYSTEM_CPU_PREVIOUS = (total, idle, process_cpu_time, sampled_monotonic)
+            if previous:
+                total_delta = total - previous[0]
+                idle_delta = idle - previous[1]
+                if total_delta > 0:
+                    cpu_percent = round(max(0.0, min(100.0,
+                        (total_delta - idle_delta) * 100.0 / total_delta)), 1)
+                elapsed = sampled_monotonic - previous[3]
+                cores = os.cpu_count() or 1
+                if elapsed > 0:
+                    process_cpu_percent = round(max(0.0, min(100.0,
+                        (process_cpu_time - previous[2]) * 100.0 / (elapsed * cores))), 1)
+    except (OSError, ValueError, IndexError):
+        pass
+
+    memory = {"totalMb": None, "usedMb": None, "availableMb": None, "usedPercent": None}
+    try:
+        total, available = _host_memory_mb()
+        if total is not None and total > 0 and available is not None:
+            available = max(0.0, min(total, available))
+            used = total - available
+            memory = {
+                "totalMb": round(total, 1),
+                "usedMb": round(used, 1),
+                "availableMb": round(available, 1),
+                "usedPercent": round(used * 100.0 / total, 1),
+            }
+    except (OSError, ValueError, IndexError):
+        pass
+
+    disk_path = HOME
+    while not disk_path.exists() and disk_path.parent != disk_path:
+        disk_path = disk_path.parent
+    disk = {
+        "totalBytes": None, "usedBytes": None, "freeBytes": None,
+        "usedPercent": None, "path": str(disk_path),
+    }
+    try:
+        usage = shutil.disk_usage(str(disk_path))
+        disk = {
+            "totalBytes": usage.total,
+            "usedBytes": usage.used,
+            "freeBytes": usage.free,
+            "usedPercent": round(usage.used * 100.0 / usage.total, 1) if usage.total else None,
+            "path": str(disk_path),
+        }
+    except OSError:
+        pass
+
+    try:
+        load_average = [round(value, 2) for value in os.getloadavg()]
+    except (AttributeError, OSError):
+        load_average = None
+
+    return {
+        "cpuPercent": cpu_percent,
+        "cpuAvailable": cpu_available,
+        "processCpuPercent": process_cpu_percent,
+        "cpuCores": os.cpu_count(),
+        "loadAverage": load_average,
+        "memory": memory,
+        "disk": disk,
+        "sampledAt": round(time.time(), 1),
+    }
 
 
 # ---------------------------------------------------------------
@@ -1849,6 +2024,7 @@ def _int_q(q, name, default, lo, hi):
 def admin_overview():
     """サーバー状態・トークン詳細・統計・アクティブジョブをまとめて返す。"""
     now = time.time()
+    metrics = system_metrics()
     with JOBS_LOCK:
         jobs = list(JOBS.values())
         queued_ids = list(QUEUE)
@@ -1890,6 +2066,7 @@ def admin_overview():
             "cliVersion": cli_version() if cli_available() else "",
             "cliBusy": CLI_LOCK.locked(), "gen": gen,
             "freeMb": free_mb(), "rssMb": process_rss_mb(),
+            "metrics": metrics,
         },
         "limits": {
             "maxQueue": MAX_QUEUE, "perClient": PER_CLIENT, "adminMaxQueue": ADMIN_MAX_QUEUE,
