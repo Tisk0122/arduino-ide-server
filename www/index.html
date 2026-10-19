@@ -2,6 +2,7 @@
 <html lang="ja" data-theme="dark">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Arduino Web IDE - ブラウザで動作するArduino開発環境">
 <meta name="theme-color" content="#005F61">
 <meta name="mobile-web-app-capable" content="yes">
@@ -1264,6 +1265,76 @@ svg { display: block; flex-shrink: 0; }
   backdrop-filter: blur(4px);
 }
 .modal-overlay.open { display: flex; }
+.modal-overlay.workspace-screen {
+  z-index: 950;
+  align-items: stretch;
+  padding: 0;
+  background: var(--bg0);
+  backdrop-filter: none;
+}
+.modal-overlay.workspace-screen.open { display: flex; }
+.workspace-screen .modal {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  background: var(--bg0);
+  box-shadow: none;
+  animation: workspace-screen-in .16s ease;
+}
+@keyframes workspace-screen-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.workspace-screen .modal-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  justify-content: flex-start;
+  gap: 20px;
+  min-height: 58px;
+  padding: 10px max(20px, calc((100vw - 1120px) / 2));
+  border-bottom: 1px solid var(--bd1);
+  background: var(--bg1);
+}
+.workspace-screen .modal-title { font-size: 15px; }
+.workspace-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid var(--bd1);
+  border-radius: var(--radius);
+  color: var(--tx1);
+  background: var(--bg2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.workspace-back:hover { border-color: var(--bd2); color: var(--tx0); background: var(--bg3); }
+.workspace-back svg { width: 15px; height: 15px; transform: rotate(180deg); }
+.workspace-screen .modal-body { width: 100%; }
+.workspace-screen .modal-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding: 12px max(20px, calc((100vw - 1120px) / 2));
+  border-top: 1px solid var(--bd1);
+  background: var(--bg1);
+}
+.modal-account.workspace-content .modal-body { padding: 26px 24px; }
+.modal-account #account-login-area { width: 100%; max-width: 520px; margin: 10px auto; }
+.modal-account .account-logged-in { width: 100%; max-width: 1040px; margin: 0 auto; }
+.workspace-settings .modal-body { max-width: 900px; margin: 0 auto; padding: 28px 30px; }
+.workspace-settings .modal-body > .form-group,
+.workspace-settings .modal-body > section { padding: 14px 16px; border: 1px solid var(--bd1); border-radius: var(--radius-lg); background: var(--bg1); }
+.workspace-settings .modal-body > .form-group + .form-group,
+.workspace-settings .modal-body > section { margin-top: 12px; }
+.workspace-settings .form-group { margin-bottom: 0; }
+.workspace-settings .form-label { font-size: 12px; color: var(--tx0); }
+.workspace-settings .form-select { max-width: 340px; }
+.workspace-settings .modal-foot { justify-content: flex-end; }
+.workspace-settings .modal-foot .btn-secondary { margin-right: auto; }
 
 .modal {
   background: var(--bg-modal);
@@ -1759,6 +1830,11 @@ svg { display: block; flex-shrink: 0; }
   pointer-events: auto;
 }
 @media (max-width: 600px) {
+  .workspace-screen .modal-head { gap: 10px; padding-inline: 12px; }
+  .workspace-back { padding: 6px 8px; font-size: 11px; }
+  .workspace-screen .modal-foot { padding-inline: 12px; }
+  .modal-account.workspace-content .modal-body,
+  .workspace-settings .modal-body { padding: 18px 14px; }
   .modal.modal-pwa { width: 100%; }
   .modal-pwa .modal-body { padding-inline: 20px; }
   .modal-foot.modal-pwa-foot { padding-inline: 20px; }
@@ -2089,9 +2165,71 @@ svg { display: block; flex-shrink: 0; }
 html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html[data-reduce-motion="true"] *::after{
   scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important
 }
+#phone-block {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  place-items: center;
+  overflow-y: auto;
+  padding: 24px;
+  color: #EEF2F8;
+  background: radial-gradient(ellipse at 50% 0%, rgba(14,165,168,.16), transparent 55%), #0D1117;
+  font-family: var(--ff-ui);
+  text-align: center;
+}
+html.desktop-only-device #phone-block { display: grid; }
+html.desktop-only-device body > :not(#phone-block) { visibility: hidden !important; pointer-events: none !important; }
+body.phone-blocked { overflow: hidden; }
+body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer-events: none !important; }
+.phone-block-card { width: min(100%, 440px); padding: 36px 28px; border: 1px solid rgba(45,212,216,.22); border-radius: 16px; background: #141B26; box-shadow: 0 20px 70px rgba(0,0,0,.45); }
+.phone-block-mark { display: grid; place-items: center; width: 58px; height: 58px; margin: 0 auto 20px; border: 1px solid rgba(45,212,216,.35); border-radius: 16px; color: #2DD4D8; background: rgba(14,165,168,.12); }
+.phone-block-mark svg { width: 28px; height: 28px; }
+.phone-block-label { margin: 0 0 10px; color: #2DD4D8; font-size: 11px; font-weight: 700; letter-spacing: .12em; }
+.phone-block-card h1 { margin: 0; color: #EEF2F8; font-size: clamp(20px, 5vw, 26px); line-height: 1.5; }
+.phone-block-card p { margin: 14px 0 0; color: #B8C4D4; font-size: 14px; line-height: 1.8; }
+.phone-block-note { margin-top: 24px !important; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.09); color: #8A9BB0 !important; font-size: 12px !important; }
 </style>
+<script>
+(() => {
+  const narrowViewport = window.matchMedia('(max-width: 600px)');
+  const phoneAgent = /iPhone|iPod|Android.*Mobile|Windows Phone/i;
+  const updatePhoneBlock = () => {
+    const compactTouchDevice = navigator.maxTouchPoints > 0 && Math.min(screen.width, screen.height) <= 600;
+    const blocked = narrowViewport.matches || compactTouchDevice || phoneAgent.test(navigator.userAgent);
+    document.documentElement.classList.toggle('desktop-only-device', blocked);
+    const updateBody = () => {
+      document.body.classList.toggle('phone-blocked', blocked);
+      Array.from(document.body.children).forEach(child => {
+        if (child.id !== 'phone-block') child.inert = blocked;
+      });
+    };
+    if (document.body) updateBody();
+    else document.addEventListener('DOMContentLoaded', updateBody, { once: true });
+  };
+  updatePhoneBlock();
+  narrowViewport.addEventListener?.('change', updatePhoneBlock);
+  window.addEventListener('resize', updatePhoneBlock, { passive: true });
+  document.addEventListener('keydown', event => {
+    if (!document.documentElement.classList.contains('desktop-only-device')) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
+})();
+</script>
 </head>
 <body>
+<main id="phone-block" role="alert" aria-labelledby="phone-block-title">
+  <div class="phone-block-card">
+    <div class="phone-block-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+    </div>
+    <p class="phone-block-label">DESKTOP ONLY</p>
+    <h1 id="phone-block-title">スマートフォンでは<br>ご利用いただけません</h1>
+    <p>Arduino Web IDEは、コード編集やUSB接続のためPC向けに設計されています。Windows・macOS・Linuxのパソコンから、このサイトを開いてください。</p>
+    <p class="phone-block-note">スマートフォンの画面では操作できません。PCのブラウザーでアクセスしてください。</p>
+  </div>
+</main>
 <div id="app">
 
 <!-- ローディング -->
@@ -2794,11 +2932,14 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
 </div>
 
 <!-- アカウント -->
-<div class="modal-overlay" id="m-account">
-  <div class="modal modal-account">
+<div class="modal-overlay workspace-screen" id="m-account">
+  <section class="modal modal-account workspace-content" role="region" aria-labelledby="m-account-title" tabindex="-1">
     <div class="modal-head">
+      <button class="workspace-back" type="button" data-close="m-account">
+        <i data-lucide="chevron-right" aria-hidden="true"></i>
+        エディターへ戻る
+      </button>
       <span class="modal-title" id="m-account-title">アカウントとクラウド保存</span>
-      <button class="modal-x" data-close="m-account" title="閉じる" aria-label="閉じる"><i data-lucide="x"></i></button>
     </div>
     <div class="modal-body">
       <!-- ログイン前フォーム -->
@@ -2966,18 +3107,19 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
         </div>
       </div>
     </div>
-    <div class="modal-foot"><button class="btn btn-secondary" data-close="m-account">閉じる</button></div>
-  </div>
+    <div class="modal-foot"><button class="btn btn-secondary" data-close="m-account">エディターへ戻る</button></div>
+  </section>
 </div>
 
 <!-- 設定 -->
-<div class="modal-overlay" id="m-settings">
-  <div class="modal">
+<div class="modal-overlay workspace-screen" id="m-settings">
+  <section class="modal workspace-settings" role="region" aria-labelledby="m-settings-title" tabindex="-1">
     <div class="modal-head">
-      <span class="modal-title">設定</span>
-      <button class="modal-x" data-close="m-settings" title="閉じる" aria-label="閉じる">
-        <i data-lucide="x"></i>
+      <button class="workspace-back" type="button" data-close="m-settings">
+        <i data-lucide="chevron-right" aria-hidden="true"></i>
+        エディターへ戻る
       </button>
+      <span class="modal-title" id="m-settings-title">設定</span>
     </div>
     <div class="modal-body">
       <div class="form-group">
@@ -3066,10 +3208,10 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
       </section>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-secondary" data-close="m-settings">キャンセル</button>
+      <button class="btn btn-secondary" data-close="m-settings">戻る</button>
       <button class="btn btn-primary" id="do-settings-btn">保存</button>
     </div>
-  </div>
+  </section>
 </div>
 
 <!-- 編集履歴 -->
@@ -3809,13 +3951,24 @@ function setHelperStatus(kind, text) {
   document.getElementById('helper-status-text').textContent = text;
 }
 
+function syncWorkspaceScreenState() {
+  const app = document.getElementById('app');
+  if (app) app.inert = document.documentElement.classList.contains('desktop-only-device')
+    || !!document.querySelector('.workspace-screen.open');
+}
+
 function openModal(id)  {
   const modal = document.getElementById(id);
   if (!modal.classList.contains('open')) S._modalOpeners.set(modal, document.activeElement);
   const dialog = modal.querySelector('.modal');
   if (dialog) {
-    dialog.setAttribute('role', 'dialog');
-    dialog.setAttribute('aria-modal', 'true');
+    if (modal.classList.contains('workspace-screen')) {
+      dialog.setAttribute('role', 'region');
+      dialog.removeAttribute('aria-modal');
+    } else {
+      dialog.setAttribute('role', 'dialog');
+      dialog.setAttribute('aria-modal', 'true');
+    }
     if (!dialog.hasAttribute('tabindex')) dialog.setAttribute('tabindex', '-1');
     const title = dialog.querySelector('.modal-title');
     if (title) {
@@ -3824,6 +3977,7 @@ function openModal(id)  {
     }
   }
   modal.classList.add('open');
+  syncWorkspaceScreenState();
   const focusTarget = id === 'm-usb-setup' && modal.querySelector('#usb-setup-done-btn')
     || modal.querySelector('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])');
   (focusTarget || dialog || modal).focus();
@@ -3834,6 +3988,7 @@ function closeModal(id) {
   if (!modal || !modal.classList.contains('open')) return;
   if (id === 'm-tutorial') Tutorial.cleanup();
   modal.classList.remove('open');
+  syncWorkspaceScreenState();
   if (id === 'm-usb-setup') rememberOnboardingDismissal();
   const otherModals = Array.from(document.querySelectorAll('.modal-overlay.open'));
   if (otherModals.length) {
@@ -7876,7 +8031,7 @@ const Cfg = {
     const themeButton = document.getElementById('theme-btn');
     themeButton.setAttribute('aria-label', S.cfg.theme === 'dark' ? 'ライトテーマに切り替え' : 'ダークテーマに切り替え');
     themeButton.setAttribute('aria-pressed', String(S.cfg.theme === 'light'));
-    // 設定モーダル反映
+    // 設定画面へ反映
     const sz = document.getElementById('cfg-fontsize');
     if (sz) sz.value = S.cfg.fontSize;
     const fontSizeValue = document.getElementById('font-size-value');
@@ -8435,7 +8590,7 @@ function initEvents() {
     Cfg.save();
   });
   document.getElementById('settings-open-btn').addEventListener('click', () => { Cfg.applyToUI(); openModal('m-settings'); });
-  // ---- アカウントモーダル ----
+  // ---- アカウント画面 ----
   // パスワード強度スコア計算 (0-4)
   function pwStrengthScore(pw) {
     if (!pw) return 0;
@@ -8687,7 +8842,7 @@ function initEvents() {
   });
   // クラウドスケッチ検索
   document.getElementById('cloud-sk-search').addEventListener('input', () => CloudSketchList.render());
-  // アカウントモーダル表示時にスケッチ一覧を更新
+  // アカウント画面表示時にスケッチ一覧を更新
   document.getElementById('m-account').addEventListener('transitionend', () => {
     if (document.getElementById('m-account').classList.contains('open') && S.account.user) CloudSketchList.render();
   });
@@ -8982,7 +9137,9 @@ function initEvents() {
 
   // モーダル外クリックで閉じる
   document.querySelectorAll('.modal-overlay').forEach(ov => {
-    ov.addEventListener('click', e => { if(e.target===ov) closeModal(ov.id); });
+    ov.addEventListener('click', e => {
+      if (e.target === ov && !ov.classList.contains('workspace-screen')) closeModal(ov.id);
+    });
   });
   // [data-close] ボタン
   document.querySelectorAll('[data-close]').forEach(btn => {
