@@ -207,6 +207,7 @@ install -d -o root -g root -m 0755 "$APP_DIR" "$APP_DIR/www" "$SYSTEMD_DIR" /usr
 for f in "${FILES[@]}"; do
   target="$(target_for "$f")"
   mode="$(mode_for "$f")"
+  install -d -o root -g root -m 0755 "$(dirname "$target")"
   install -m "$mode" -o root -g root "$stage_repo/$f" "$target.new.$$"
 done
 

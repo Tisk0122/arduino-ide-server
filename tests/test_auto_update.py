@@ -30,6 +30,7 @@ class AutoUpdateContractTests(unittest.TestCase):
         }.issubset(files))
         self.assertIn('github-update.sh) printf', updater)
         self.assertIn("configure-github-webhook.sh) printf", updater)
+        self.assertIn('install -d -o root -g root -m 0755 "$(dirname "$target")"', updater)
         self.assertIn('"http://127.0.0.1:$health_port/account"', updater)
         self.assertIn('for pwa_path in /manifest.webmanifest /sw.js /favicon.png /icons/icon-192.png /icons/icon-512.png', updater)
         self.assertIn("アカウントとクラウド保存", updater)
