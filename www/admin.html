@@ -718,7 +718,7 @@ body.phone-blocked > :not(#phone-block) { visibility:hidden!important; pointer-e
     <p class="login-note">
       トークンは <code>--show-tokens</code> で表示できます。<br>
       <code>sudo -u arduino-helper env HELPER_HOME=/var/lib/arduino-helper python3 /opt/arduino-helper/arduino-helper.py --show-tokens</code><br>
-      入力したトークンはこの端末の localStorage にのみ保存されます。
+      入力したトークンはこのタブの sessionStorage に保存され、タブを閉じると破棄されます。
     </p>
   </div>
 </div>
@@ -912,7 +912,7 @@ body.phone-blocked > :not(#phone-block) { visibility:hidden!important; pointer-e
           <span class="sub" id="token-settings-status" role="status"></span>
         </div>
         <div class="sub" id="single-token-prefill-warning" style="margin-top:10px;color:var(--warn)" hidden></div>
-        <div class="sub" style="margin-top:10px">注意: 自動入力を有効にすると、IDE用トークンはブラウザーに送信されます。画面上の入力を省く機能であり、IDE利用者や公開エンドポイントにアクセスできる第三者が開発者ツール等で取得することは防げません。</div>
+        <div class="sub" style="margin-top:10px">注意: 自動入力を有効にすると、IDE用トークンはブラウザーに送信されます。IDEトークンの表示・コピー操作は無効になりますが、開発者ツールや公開エンドポイントからの取得までは防げません。</div>
       </div>
     </section>
 
@@ -1059,18 +1059,21 @@ body.phone-blocked > :not(#phone-block) { visibility:hidden!important; pointer-e
 <script>
 'use strict';
 var $ = function (s) { return document.querySelector(s); };
-var LS_KEY = 'helperAdminToken';
-function safeLocalGet(k, def) {
-  try { return localStorage.getItem(k) || def; } catch(e) { return def; }
+var SESSION_TOKEN_KEY = 'helperAdminToken';
+var LEGACY_TOKEN_KEY = 'helperAdminToken';
+function safeSessionGet(k, def) {
+  try { return sessionStorage.getItem(k) || def; } catch(e) { return def; }
 }
-function safeLocalSet(k, v) {
-  try { localStorage.setItem(k, v); } catch(e) {}
+function safeSessionSet(k, v) {
+  try { sessionStorage.setItem(k, v); } catch(e) {}
 }
-function safeLocalRemove(k) {
-  try { localStorage.removeItem(k); } catch(e) {}
+function safeSessionRemove(k) {
+  try { sessionStorage.removeItem(k); } catch(e) {}
 }
+try { localStorage.removeItem(LEGACY_TOKEN_KEY); }
+catch (err) { console.warn('Legacy admin token could not be removed:', err); }
 var state = {
-  token: safeLocalGet(LS_KEY, ''),
+  token: safeSessionGet(SESSION_TOKEN_KEY, ''),
   data: null,
   settings: null,
   timer: null,
@@ -1187,7 +1190,6 @@ function updateLiveMetrics(metrics, server) {
   updateMetricCard('disk', diskPercent, diskDetail, state.metricHistory.disk || []);
   if (cpu == null) {
     $('#metric-cpu-value').innerHTML = metrics.cpuAvailable ? '計測中' : '取得不可';
-    $('#metric-process-cpu').innerHTML = metrics.cpuAvailable ? '計測中<small>CPU</small>' : '取得不可';
   }
   $('#metric-cpu-cores').textContent = metrics.cpuCores == null ? '取得不可' : metrics.cpuCores + ' コア';
   $('#metric-cpu-sub').textContent = cpu == null
@@ -1198,7 +1200,9 @@ function updateLiveMetrics(metrics, server) {
     : '空き ' + fmtMetricMb(memory.availableMb);
   $('#metric-disk-sub').textContent = disk.path || 'データ保存先のファイルシステム';
   var processCpu = metrics.processCpuPercent;
-  $('#metric-process-cpu').innerHTML = processCpu == null ? '測定中<small>CPU</small>' : processCpu.toFixed(1) + '<small>% CPU</small>';
+  $('#metric-process-cpu').innerHTML = processCpu == null
+    ? (metrics.cpuAvailable ? '測定中<small>CPU</small>' : '取得不可')
+    : processCpu.toFixed(1) + '<small>% CPU</small>';
   var processMeter = $('#metric-process-meter');
   var processPercent = Number.isFinite(processCpu) ? Math.max(0, Math.min(100, processCpu)) : null;
   processMeter.style.width = processPercent == null ? '0%' : processPercent + '%';
@@ -1271,7 +1275,7 @@ function toast(message, type, duration) {
 
 /* ---------------- ログイン ---------------- */
 function showLogin(msg, clear) {
-  if (clear) { state.token = ''; safeLocalRemove(LS_KEY); }
+  if (clear) { state.token = ''; safeSessionRemove(SESSION_TOKEN_KEY); }
   $('#app').hidden = true;
   $('#login').hidden = false;
   $('#login-err').textContent = msg || '';
@@ -1292,7 +1296,7 @@ $('#login-form').addEventListener('submit', function (e) {
   btn.disabled = true; btn.textContent = '確認中...';
   state.token = v;
   api('/admin/api/overview', 15000).then(function () {
-    safeLocalSet(LS_KEY, v);
+    safeSessionSet(SESSION_TOKEN_KEY, v);
     btn.disabled = false; btn.textContent = '接続';
     showApp();
     boot();
@@ -1312,15 +1316,30 @@ function renderTokenSecrets(settings) {
     return '<tr><td><strong>' + esc(row[0]) + '</strong></td><td><div class="token-secret">' +
       '<input class="input" id="' + id + '" type="password" value="' + esc(row[1]) +
       '" readonly autocomplete="off" spellcheck="false" aria-label="' + esc(row[0]) + 'アクセストークン">' +
-      '<button class="btn btn-sm" type="button" data-token-reveal="' + id + '" aria-label="' + esc(row[0]) + 'トークンを表示">表示</button>' +
+      '<button class="btn btn-sm" type="button" data-token-reveal="' + id + '" aria-label="' +
+      esc(row[0]) + 'トークンを表示">表示</button>' +
       '<button class="btn btn-sm" type="button" data-token-copy="' + id + '">コピー</button>' +
       '</div></td></tr>';
   }).join('');
   $('#prefill-student-token').checked = settings.prefillStudentToken;
   $('#prefill-student-token').disabled = false;
   $('#save-token-settings').disabled = false;
+  syncTokenSecretControls();
   $('#token-settings-error').hidden = true;
   $('#token-settings-status').textContent = '';
+}
+
+function syncTokenSecretControls() {
+  var disabled = !state.settings || state.settings.prefillStudentToken ||
+    $('#prefill-student-token').checked;
+  $('#token-secrets-body').querySelectorAll('[data-token-copy], [data-token-reveal]').forEach(function (button) {
+    button.disabled = disabled;
+    button.title = disabled
+      ? (button.hasAttribute('data-token-copy')
+        ? 'IDEトークン自動入力中はコピーできません'
+        : 'IDEトークン自動入力中は表示できません')
+      : '';
+  });
 }
 
 function loadAdminSettings() {
@@ -1348,6 +1367,7 @@ $('#token-secrets-body').addEventListener('click', function (event) {
   }
   var copy = event.target.closest('[data-token-copy]');
   if (copy) {
+    if (copy.disabled || $('#prefill-student-token').checked) return;
     var value = document.getElementById(copy.dataset.tokenCopy).value;
     if (!navigator.clipboard || !navigator.clipboard.writeText) {
       toast('このページではクリップボード機能を利用できません', 'warn');
@@ -1361,6 +1381,17 @@ $('#token-secrets-body').addEventListener('click', function (event) {
   }
 });
 
+$('#token-secrets-body').addEventListener('copy', function (event) {
+  if (state.settings && (state.settings.prefillStudentToken || $('#prefill-student-token').checked)) {
+    event.preventDefault();
+    toast('IDEトークン自動入力中はコピーできません', 'warn');
+  }
+});
+
+$('#prefill-student-token').addEventListener('change', function () {
+  syncTokenSecretControls();
+});
+
 $('#save-token-settings').addEventListener('click', function () {
   var button = this;
   var enabled = $('#prefill-student-token').checked;
@@ -1368,6 +1399,7 @@ $('#save-token-settings').addEventListener('click', function () {
   $('#token-settings-status').textContent = '保存中...';
   api('/admin/api/settings', 15000, 'POST', { prefillStudentToken: enabled }).then(function (settings) {
     state.settings.prefillStudentToken = settings.prefillStudentToken;
+    syncTokenSecretControls();
     $('#token-settings-status').textContent = '';
     $('#token-settings-error').hidden = true;
     toast('設定を保存しました。IDEを再読み込みすると反映されます。', 'ok');

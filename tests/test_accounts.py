@@ -8,6 +8,7 @@ import threading
 import unittest
 import urllib.error
 import urllib.request
+from unittest import mock
 from pathlib import Path
 
 
@@ -234,6 +235,19 @@ class AccountApiTests(unittest.TestCase):
                 elif path == "/sw.js":
                     self.assertEqual(response.headers.get("Service-Worker-Allowed"), "/")
 
+    def test_html_pages_set_browser_security_headers(self):
+        for path in ("/", "/admin"):
+            request = urllib.request.Request(self.base + path)
+            with urllib.request.urlopen(request, timeout=5) as response:
+                self.assertEqual(response.status, 200)
+                self.assertEqual(response.headers.get("X-Content-Type-Options"), "nosniff")
+                self.assertEqual(response.headers.get("X-Frame-Options"), "DENY")
+                self.assertEqual(response.headers.get("Referrer-Policy"), "no-referrer")
+                self.assertIn(
+                    "frame-ancestors 'none'",
+                    response.headers.get("Content-Security-Policy", ""),
+                )
+
     def test_admin_overview_includes_live_system_metrics(self):
         status, result = self.request(
             "/admin/api/overview",
@@ -258,12 +272,19 @@ class AccountApiTests(unittest.TestCase):
         for key in ("cpuPercent", "processCpuPercent"):
             if metrics[key] is not None:
                 self.assertGreaterEqual(metrics[key], 0)
+                self.assertLessEqual(metrics[key], 100)
         if metrics["memory"]["usedPercent"] is not None:
             self.assertGreaterEqual(metrics["memory"]["usedPercent"], 0)
             self.assertLessEqual(metrics["memory"]["usedPercent"], 100)
         if metrics["disk"]["usedPercent"] is not None:
             self.assertGreaterEqual(metrics["disk"]["usedPercent"], 0)
             self.assertLessEqual(metrics["disk"]["usedPercent"], 100)
+
+    def test_linux_cpu_counters_do_not_double_count_guest_time(self):
+        with mock.patch.object(server.os, "name", "posix"), mock.patch(
+                "builtins.open",
+                mock.mock_open(read_data="cpu 100 10 30 800 20 2 3 4 90 9\n")):
+            self.assertEqual(server._host_cpu_counters(), (969, 820))
 
     def test_legacy_school_account_data_is_purged_once_during_schema_upgrade(self):
         db_path = Path(self.temp.name) / "accounts.sqlite3"

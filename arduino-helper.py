@@ -1009,7 +1009,12 @@ def _host_cpu_counters():
             _fields_ = [("low", ctypes.c_uint32), ("high", ctypes.c_uint32)]
 
         idle, kernel, user = FileTime(), FileTime(), FileTime()
-        if not ctypes.windll.kernel32.GetSystemTimes(
+        get_system_times = ctypes.windll.kernel32.GetSystemTimes
+        get_system_times.argtypes = [
+            ctypes.POINTER(FileTime), ctypes.POINTER(FileTime), ctypes.POINTER(FileTime),
+        ]
+        get_system_times.restype = ctypes.c_int
+        if not get_system_times(
                 ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user)):
             raise OSError("GetSystemTimes failed")
 
@@ -1024,7 +1029,8 @@ def _host_cpu_counters():
     if not fields or fields[0] != "cpu":
         raise ValueError("Host CPU counters are unavailable")
     counters = [int(value) for value in fields[1:]]
-    total = sum(counters)
+    # Linux already includes guest time in user and guest_nice in nice.
+    total = sum(counters[:8])
     idle = counters[3] + (counters[4] if len(counters) > 4 else 0)
     return total, idle
 
@@ -1046,7 +1052,10 @@ def _host_memory_mb():
 
         status = MemoryStatus()
         status.length = ctypes.sizeof(status)
-        if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+        get_memory_status = ctypes.windll.kernel32.GlobalMemoryStatusEx
+        get_memory_status.argtypes = [ctypes.POINTER(MemoryStatus)]
+        get_memory_status.restype = ctypes.c_int
+        if not get_memory_status(ctypes.byref(status)):
             raise OSError("GlobalMemoryStatusEx failed")
         return status.total_phys / (1024 * 1024), status.avail_phys / (1024 * 1024)
 
@@ -2165,6 +2174,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
         if close:
             self.send_header("Connection", "close")
             self.close_connection = True
@@ -2190,6 +2201,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Content-Security-Policy", "frame-ancestors 'none'; object-src 'none'; base-uri 'self'")
         self._cors()
         self.end_headers()
         self.wfile.write(body)
@@ -2330,6 +2344,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", str(len(body)))
                 self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("X-Frame-Options", "DENY")
+                self.send_header("Referrer-Policy", "no-referrer")
+                self.send_header("Content-Security-Policy", "frame-ancestors 'none'; object-src 'none'; base-uri 'self'")
                 self._cors()
                 self.end_headers()
                 self.wfile.write(body)
