@@ -319,7 +319,8 @@ svg { display: block; flex-shrink: 0; }
 }
 .tb-icon-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
 .tb-icon-btn svg { width: 16px; height: 16px; }
-#pwa-install-btn[hidden] { display: none; }
+#pwa-settings-install-btn[hidden], #pwa-welcome-install-btn[hidden],
+#pwa-install-card[hidden] { display: none; }
 .theme-switch {
   position: relative;
   flex: none;
@@ -1280,6 +1281,7 @@ svg { display: block; flex-shrink: 0; }
 @keyframes modal-in { from { opacity:0; transform:scale(.97) translateY(-4px) } to { opacity:1; transform:none } }
 .modal.modal-lg { width: 660px; }
 .modal.modal-sm { width: 380px; }
+.modal.modal-pwa { width: 460px; border-color: rgba(45,212,216,.24); }
 .modal.modal-welcome { width: 640px; max-height: min(88vh, 760px); max-height: min(88dvh, 760px); }
 
 .modal-head {
@@ -1313,6 +1315,35 @@ svg { display: block; flex-shrink: 0; }
   border-top: 1px solid var(--bd0);
   flex-shrink: 0;
 }
+.modal-pwa .modal-head { min-height: 42px; padding: 8px 12px 0; border-bottom: 0; }
+.modal-pwa .modal-body { padding: 0 28px 22px; }
+.pwa-promo { display: grid; justify-items: center; text-align: center; }
+.pwa-promo-icon {
+  width: 76px; height: 76px; margin: 2px 0 15px; padding: 5px;
+  border: 1px solid rgba(45,212,216,.28); border-radius: 21px;
+  background: linear-gradient(145deg, rgba(45,212,216,.16), rgba(14,165,168,.04));
+  box-shadow: 0 8px 28px rgba(14,165,168,.18);
+}
+.pwa-promo-icon img { display: block; width: 100%; height: 100%; border-radius: 16px; }
+.pwa-promo-label {
+  margin-bottom: 7px; padding: 4px 9px; border: 1px solid rgba(45,212,216,.25);
+  border-radius: 999px; color: var(--teal-link); background: var(--teal-glow);
+  font-size: 10px; font-weight: 700; letter-spacing: .04em;
+}
+.pwa-promo-title { color: var(--tx0); font-size: 20px; line-height: 1.45; font-weight: 750; letter-spacing: -.03em; }
+.pwa-promo-copy { max-width: 350px; margin-top: 7px; color: var(--tx2); font-size: 12px; line-height: 1.7; }
+.pwa-promo-benefits {
+  display: grid; gap: 10px; width: 100%; margin-top: 20px; padding: 14px;
+  border: 1px solid var(--bd1); border-radius: 10px; background: var(--bg2); text-align: left;
+}
+.pwa-promo-benefit { display: flex; align-items: flex-start; gap: 10px; color: var(--tx1); font-size: 12px; line-height: 1.55; }
+.pwa-promo-benefit svg { width: 16px; height: 16px; margin-top: 1px; color: var(--teal-link); flex: 0 0 auto; }
+.pwa-promo-benefit strong { display: block; margin-bottom: 1px; color: var(--tx0); font-size: 12px; }
+.pwa-promo-action { width: 100%; min-height: 44px; margin-top: 17px; justify-content: center; font-size: 13px; font-weight: 700; }
+.pwa-promo-hint { min-height: 17px; margin-top: 7px; text-align: center; line-height: 1.55; }
+.modal-foot.modal-pwa-foot { justify-content: space-between; align-items: center; gap: 12px; padding: 12px 24px 17px; }
+.modal-pwa-foot .form-check-label { color: var(--tx3); font-size: 11.5px; }
+.modal-pwa-foot .btn { flex: 0 0 auto; }
 
 /* フォーム */
 .form-group { margin-bottom: 16px; }
@@ -1728,6 +1759,9 @@ svg { display: block; flex-shrink: 0; }
   pointer-events: auto;
 }
 @media (max-width: 600px) {
+  .modal.modal-pwa { width: 100%; }
+  .modal-pwa .modal-body { padding-inline: 20px; }
+  .modal-foot.modal-pwa-foot { padding-inline: 20px; }
   .modal.modal-welcome { width: 100%; }
   .welcome-steps { grid-template-columns: 1fr; }
   .modal-foot.welcome-foot { align-items: stretch; flex-direction: column-reverse; }
@@ -2107,9 +2141,6 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
   <div class="topbar-spacer"></div>
 
   <div id="topbar-right">
-    <button class="tb-icon-btn" id="pwa-install-btn" type="button" title="Arduino Web IDEをインストール" aria-label="Arduino Web IDEをインストール" hidden>
-      <i data-lucide="download" aria-hidden="true"></i>
-    </button>
     <button class="tb-icon-btn" id="account-open-btn" title="アカウントとクラウド保存" aria-label="アカウントとクラウド保存">
       <span class="acct-dot" aria-hidden="true"></span>
       <i data-lucide="user-round" aria-hidden="true"></i>
@@ -2620,6 +2651,16 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
         <p class="welcome-copy">許可はこのサイトに保存され、ブラウザーのサイト設定から取り消せます。カメラやマイクの権限は要求しません。</p>
       </section>
       <a class="welcome-docs-link" href="/docs" target="_blank" rel="noopener">使い方と画面のしくみを読む ↗</a>
+      <section class="welcome-usb" id="pwa-install-card" aria-labelledby="pwa-welcome-title">
+        <h2 id="pwa-welcome-title">アプリとしてインストール（おすすめ）</h2>
+        <p class="welcome-copy">インストールすると、ホーム画面やアプリ一覧からArduino Web IDEをすばやく開けます。オフライン時も、このブラウザーに保存したスケッチを編集できます。</p>
+        <button class="btn btn-secondary" id="pwa-welcome-install-btn" type="button">Arduino Web IDEをインストール</button>
+        <label class="form-check-label" style="margin-top:10px">
+          <input type="checkbox" class="form-check-input" id="pwa-welcome-suppress">
+          次回以降、起動時にインストールをおすすめしない
+        </label>
+        <p class="form-hint" id="pwa-welcome-install-hint">ボタンが使えない場合は、ブラウザーのメニューから「アプリをインストール」を選べます。</p>
+      </section>
     </div>
     <div class="modal-foot welcome-foot">
       <div class="welcome-actions welcome-setup-group">
@@ -2627,6 +2668,50 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
         <button class="btn btn-secondary" id="usb-setup-allow-btn">USBポートを許可</button>
       </div>
       <button class="btn btn-primary" id="usb-setup-done-btn">エディターを開く</button>
+    </div>
+  </div>
+</div>
+
+<!-- PWA インストール案内（初回ガイドを閉じた後の再案内） -->
+<div class="modal-overlay" id="m-pwa-install">
+  <div class="modal modal-pwa" role="dialog" aria-modal="true" aria-labelledby="pwa-install-title" aria-describedby="pwa-install-description">
+    <div class="modal-head">
+      <span class="modal-title" aria-hidden="true"></span>
+      <button class="modal-x" data-close="m-pwa-install" title="閉じる" aria-label="閉じる"><i data-lucide="x"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="pwa-promo">
+        <div class="pwa-promo-icon"><img src="/icons/icon-192.png" alt="" width="66" height="66"></div>
+        <span class="pwa-promo-label">無料でインストール</span>
+        <h2 class="pwa-promo-title" id="pwa-install-title">Arduino開発を、<br>もっとすばやく。</h2>
+        <p class="pwa-promo-copy" id="pwa-install-description">アプリとして追加すると、ブラウザーのタブを探さずすぐに起動できます。</p>
+        <button class="btn btn-primary pwa-promo-action" id="pwa-prompt-install-btn" type="button">
+          <i data-lucide="download" aria-hidden="true"></i>
+          Arduino Web IDEをインストール
+        </button>
+        <p class="form-hint pwa-promo-hint" id="pwa-prompt-install-hint">インストール後も、このブラウザーのスケッチや設定はそのまま使えます。</p>
+        <div class="pwa-promo-benefits">
+          <div class="pwa-promo-benefit">
+            <i data-lucide="panel-left" aria-hidden="true"></i>
+            <span><strong>アプリらしく起動</strong>ホーム画面やアプリ一覧からワンクリック。</span>
+          </div>
+          <div class="pwa-promo-benefit">
+            <i data-lucide="save" aria-hidden="true"></i>
+            <span><strong>オフラインでも編集</strong>一度オンラインで開けば、保存済みスケッチを編集できます。</span>
+          </div>
+          <div class="pwa-promo-benefit">
+            <i data-lucide="circle-check" aria-hidden="true"></i>
+            <span><strong>いつものブラウザーで安全</strong>データはこのブラウザー内に保存されます。</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot modal-pwa-foot">
+      <label class="form-check-label">
+        <input type="checkbox" class="form-check-input" id="pwa-prompt-suppress">
+        今後この案内を表示しない
+      </label>
+      <button class="btn btn-secondary" data-close="m-pwa-install">あとで</button>
     </div>
   </div>
 </div>
@@ -2967,6 +3052,18 @@ html[data-reduce-motion="true"] *,html[data-reduce-motion="true"] *::before,html
         </label>
         <div class="form-hint">エラーの原因候補と確認方法を表示します。初期設定はオフです。</div>
       </div>
+      <section class="form-group" aria-labelledby="pwa-settings-title">
+        <h2 class="form-label" id="pwa-settings-title">アプリのインストール</h2>
+        <p class="form-hint">Arduino Web IDEをアプリとしてインストールできます。オフラインでは保存済みスケッチの編集・保存ができますが、コンパイルやサーバー同期には接続が必要です。</p>
+        <button class="btn btn-secondary" id="pwa-settings-install-btn" type="button">Arduino Web IDEをインストール</button>
+        <div class="form-group" style="margin-top:10px">
+          <label class="form-check-label">
+            <input type="checkbox" class="form-check-input" id="cfg-pwa-nudge-dismissed">
+            次回以降、起動時にインストールをおすすめしない
+          </label>
+        </div>
+        <div class="form-hint" id="pwa-settings-install-hint">ボタンが使えない場合は、Chrome／Edgeのメニューから「アプリをインストール」を選んでください。</div>
+      </section>
     </div>
     <div class="modal-foot">
       <button class="btn btn-secondary" data-close="m-settings">キャンセル</button>
@@ -3132,6 +3229,7 @@ const S = {
     fontSize: 13, tabSize: 2, autosave: 5,
     theme: 'dark', lineNums: true, curLine: true, syntax: true, reduceMotion: false,
     compileHelp: false, completion: true, sidebarWidth: 230, panelMinimized: false,
+    pwaInstallNudgeDismissed: false,
   },
   serial: { port: null, reader: null, writer: null, connected: false, supported: true, detectedLabel: '', detectedBoardId: '', detectionGeneration: 0, authorizedPortCount: 0 },
   helper: { url: IDE_DEFAULTS.url, fallback: IDE_DEFAULTS.fallbackUrl, token: IDE_DEFAULTS.token, adminToken: '', adminTokenTarget: '', active: '', userSet: false, prefillStudentToken: false, publicConfigError: '', ok: false, authed: false, admin: false, adminBad: false, gen: 0, info: null },
@@ -7646,6 +7744,7 @@ const Cfg = {
       ? Math.max(EDITOR_FONT_SIZE_MIN, Math.min(EDITOR_FONT_SIZE_MAX, fontSize))
       : 13;
     if (typeof S.cfg.completion !== 'boolean') S.cfg.completion = true;
+    if (typeof S.cfg.pwaInstallNudgeDismissed !== 'boolean') S.cfg.pwaInstallNudgeDismissed = false;
     const sidebarWidth = Number(S.cfg.sidebarWidth);
     S.cfg.sidebarWidth = Number.isFinite(sidebarWidth)
       ? Math.max(SIDEBAR_WIDTH_MIN, Math.min(SIDEBAR_WIDTH_MAX, sidebarWidth))
@@ -7802,6 +7901,12 @@ const Cfg = {
     if (rm) rm.checked = !!S.cfg.reduceMotion;
     const ch = document.getElementById('cfg-compile-help');
     if (ch) ch.checked = S.cfg.compileHelp === true;
+    const pwaNudge = document.getElementById('cfg-pwa-nudge-dismissed');
+    if (pwaNudge) pwaNudge.checked = S.cfg.pwaInstallNudgeDismissed === true;
+    const welcomePwaNudge = document.getElementById('pwa-welcome-suppress');
+    if (welcomePwaNudge) welcomePwaNudge.checked = S.cfg.pwaInstallNudgeDismissed === true;
+    const promptPwaNudge = document.getElementById('pwa-prompt-suppress');
+    if (promptPwaNudge) promptPwaNudge.checked = S.cfg.pwaInstallNudgeDismissed === true;
     document.documentElement.setAttribute('data-reduce-motion', String(!!S.cfg.reduceMotion));
     document.documentElement.style.setProperty('--sidebar-w', `${S.cfg.sidebarWidth}px`);
     const sidebarHandle = document.getElementById('sidebar-resizer');
@@ -8992,13 +9097,16 @@ function updateUsbSetupStatus() {
 function rememberOnboardingDismissal() {
   if (onboardingDismissedThisSession) return;
   onboardingDismissedThisSession = true;
+  const suppressPwaNudge = document.getElementById('pwa-welcome-suppress').checked;
+  S.cfg.pwaInstallNudgeDismissed = suppressPwaNudge;
   for (const key of [USB_SETUP_STORAGE_KEY, WELCOME_STORAGE_KEY]) {
     try { sessionStorage.setItem(key, '1'); } catch (_) {}
   }
   if (S.db) {
     Promise.all([
       IDB.setKV(S.db, 'usbSetupDismissed', '1'),
-      IDB.setKV(S.db, 'welcomeDismissed', '1')
+      IDB.setKV(S.db, 'welcomeDismissed', '1'),
+      Cfg.save()
     ]).catch(err => {
       console.warn('First-run guidance dismissal could not be saved:', err);
       toast('初回案内の終了状態を保存できませんでした。このタブでは再表示しません', 'warn', 5000);
@@ -9011,6 +9119,7 @@ async function maybeShowWelcome() {
   try {
     if (sessionStorage.getItem(USB_SETUP_STORAGE_KEY) === '1') {
       onboardingDismissedThisSession = true;
+      showPwaInstallNudgeIfNeeded();
       return;
     }
   } catch (_) {}
@@ -9018,6 +9127,7 @@ async function maybeShowWelcome() {
     try {
       if ((await IDB.getKV(S.db, 'usbSetupDismissed')) === '1') {
         onboardingDismissedThisSession = true;
+        showPwaInstallNudgeIfNeeded();
         return;
       }
     } catch (err) {
@@ -9028,10 +9138,79 @@ async function maybeShowWelcome() {
   openModal('m-usb-setup');
 }
 
+function showPwaInstallNudgeIfNeeded() {
+  if (!S.cfg.pwaInstallNudgeDismissed && !PWA.isInstalled()) {
+    PWA.updateUI();
+    openModal('m-pwa-install');
+  }
+}
+
+const PWA = {
+  installPrompt: null,
+  isInstalled() {
+    return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  },
+  updateUI() {
+    const installed = this.isInstalled();
+    const installButtons = [
+      document.getElementById('pwa-settings-install-btn'),
+      document.getElementById('pwa-welcome-install-btn'),
+      document.getElementById('pwa-prompt-install-btn')
+    ].filter(Boolean);
+    installButtons.forEach(button => { button.hidden = installed; });
+    const welcomeCard = document.getElementById('pwa-install-card');
+    if (welcomeCard) welcomeCard.hidden = installed;
+    const installHint = installed
+      ? 'Arduino Web IDEはこの端末にインストール済みです。'
+      : this.installPrompt
+        ? 'ボタンからインストールできます。'
+        : 'ボタンが使えない場合は、Chrome／Edgeのメニューから「アプリをインストール」を選んでください。';
+    ['pwa-settings-install-hint', 'pwa-welcome-install-hint', 'pwa-prompt-install-hint']
+      .forEach(id => {
+        const hint = document.getElementById(id);
+        if (hint) hint.textContent = installHint;
+      });
+    ['cfg-pwa-nudge-dismissed', 'pwa-welcome-suppress', 'pwa-prompt-suppress']
+      .forEach(id => {
+        const checkbox = document.getElementById(id);
+        if (checkbox) checkbox.checked = S.cfg.pwaInstallNudgeDismissed === true;
+      });
+  },
+  async setNudgeDismissed(dismissed) {
+    S.cfg.pwaInstallNudgeDismissed = Boolean(dismissed);
+    this.updateUI();
+    await Cfg.save();
+  },
+  async install() {
+    if (this.isInstalled()) {
+      toast('Arduino Web IDEはすでにインストールされています', 'info', 4000);
+      return true;
+    }
+    if (!this.installPrompt) {
+      toast('ブラウザーのメニューから「アプリをインストール」を選んでください。HTTPSで開いているかも確認してください', 'info', 7000);
+      return false;
+    }
+    const prompt = this.installPrompt;
+    this.installPrompt = null;
+    this.updateUI();
+    try {
+      await prompt.prompt();
+      const choice = await prompt.userChoice;
+      if (choice.outcome === 'accepted') {
+        await this.setNudgeDismissed(true);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('PWA installation prompt failed:', err);
+      toast('アプリをインストールできませんでした。ブラウザーのメニューからお試しください', 'warn', 6000);
+      return false;
+    }
+  }
+};
+
 function setupPwa() {
   const networkStatus = document.getElementById('status-network');
-  const installButton = document.getElementById('pwa-install-btn');
-  let installPrompt = null;
   const updateNetworkStatus = () => {
     const offline = !navigator.onLine;
     networkStatus.hidden = !offline;
@@ -9045,27 +9224,40 @@ function setupPwa() {
   window.addEventListener('offline', updateNetworkStatus);
   window.addEventListener('beforeinstallprompt', event => {
     event.preventDefault();
-    installPrompt = event;
-    installButton.hidden = false;
+    PWA.installPrompt = event;
+    PWA.updateUI();
   });
   window.addEventListener('appinstalled', () => {
-    installPrompt = null;
-    installButton.hidden = true;
+    PWA.installPrompt = null;
+    PWA.updateUI();
+    PWA.setNudgeDismissed(true).catch(err => {
+      console.error('Installed app preference could not be saved:', err);
+    });
   });
-  installButton.addEventListener('click', async () => {
-    if (!installPrompt) return;
-    const prompt = installPrompt;
-    installPrompt = null;
-    installButton.hidden = true;
-    try {
-      await prompt.prompt();
-      await prompt.userChoice;
-    } catch (err) {
-      console.error('PWA installation prompt failed:', err);
-      toast('アプリをインストールできませんでした。ブラウザーのメニューからお試しください', 'warn', 6000);
-    }
+  ['pwa-settings-install-btn', 'pwa-welcome-install-btn', 'pwa-prompt-install-btn']
+    .forEach(id => {
+      document.getElementById(id).addEventListener('click', async () => {
+        const installed = await PWA.install();
+        if (installed) {
+          closeModal('m-pwa-install');
+          closeModal('m-usb-setup');
+        }
+      });
+    });
+  ['cfg-pwa-nudge-dismissed', 'pwa-welcome-suppress', 'pwa-prompt-suppress']
+    .forEach(id => {
+      document.getElementById(id).addEventListener('change', event => {
+        PWA.setNudgeDismissed(event.target.checked).catch(err => {
+          console.error('PWA install reminder preference could not be saved:', err);
+          toast('インストール案内の設定を保存できませんでした', 'err', 5000);
+        });
+      });
+    });
+  document.getElementById('m-settings').addEventListener('transitionend', () => {
+    if (document.getElementById('m-settings').classList.contains('open')) PWA.updateUI();
   });
 
+  PWA.updateUI();
   if (window.isSecureContext && 'serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(err => {
       console.error('Offline app support could not be enabled:', err);
