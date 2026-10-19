@@ -2170,14 +2170,22 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_html(Path(__file__).resolve().parent / "www" / "docs.html")
 
         if method == "GET" and path in ("/favicon.ico", "/favicon.svg"):
-            favicon = Path(__file__).resolve().parent / "www" / "favicon.svg"
+            self.send_response(302)
+            self.send_header("Location", "/favicon.png?v=2")
+            self.send_header("Content-Length", "0")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            return
+
+        if method == "GET" and path == "/favicon.png":
+            favicon = Path(__file__).resolve().parent / "www" / "favicon.png"
             if not favicon.is_file():
                 raise ApiError(404, "ファビコンが見つかりません")
             body = favicon.read_bytes()
             self.send_response(200)
-            self.send_header("Content-Type", "image/svg+xml; charset=utf-8")
+            self.send_header("Content-Type", "image/png")
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "public, max-age=3600")
+            self.send_header("Cache-Control", "public, max-age=300")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.end_headers()
             self.wfile.write(body)

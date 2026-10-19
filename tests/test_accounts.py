@@ -196,13 +196,15 @@ class AccountApiTests(unittest.TestCase):
         self.assertEqual(result["users"][0]["username"], "member01")
 
     def test_favicon_is_available_without_authentication(self):
-        for path in ("/favicon.ico", "/favicon.svg"):
+        expected = (ROOT / "www" / "favicon.png").read_bytes()
+        for path in ("/favicon.png?v=2", "/favicon.ico", "/favicon.svg"):
             with self.subTest(path=path):
                 response = urllib.request.urlopen(self.base + path, timeout=5)
                 body = response.read()
                 self.assertEqual(response.status, 200)
-                self.assertEqual(response.headers.get_content_type(), "image/svg+xml")
-                self.assertIn(b"<svg", body)
+                self.assertEqual(response.headers.get_content_type(), "image/png")
+                self.assertEqual(body, expected)
+                self.assertEqual(response.geturl().split(self.base, 1)[-1], "/favicon.png?v=2")
 
     def test_legacy_school_account_data_is_purged_once_during_schema_upgrade(self):
         db_path = Path(self.temp.name) / "accounts.sqlite3"
