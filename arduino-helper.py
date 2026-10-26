@@ -31,6 +31,7 @@ Python 3.8+ の標準ライブラリだけで動きます。arduino-cli が必�
                          loopback の信頼済みプロキシから CF-Connecting-IP を利用
   HELPER_COMPILE_TIMEOUT コンパイルの上限秒 (既定 900)
   HELPER_MIN_FREE_MB     HOME / Arduino CLI データ領域の最小空き容量を下回ると拒否 (既定 1024)
+  HELPER_ACCOUNT_QUOTA_MB アカウントあたりの現行スケッチ+履歴容量 (既定 50、0で無制限)
   HELPER_ALLOW_ASM=1     .s / .S ファイルとアセンブラ指令を許可 (既定は不許可)
 
 ■ API (すべて JSON。Authorization: Bearer <トークン>)
@@ -53,7 +54,13 @@ Python 3.8+ の標準ライブラリだけで動きます。arduino-cli が必�
   GET  /public-config             IDE 用トークン自動入力設定 (有効時のみトークンを返す)
   POST /account/register          個人アカウントの作成
   POST /account/login             個人アカウントのログイン
-  GET  /account/sketches          ログイン中の利用者の作品一覧
+  GET  /account/storage            スケッチ保存量と上限
+  GET  /account/export             スケッチと履歴の一括エクスポート
+  POST /account/delete             アカウントと保存データの削除
+  GET  /account/sketches          ログイン中の利用者のスケッチ一覧
+  GET  /account/sketches/<id>/versions       保存済みの過去版一覧
+  GET  /account/sketches/<id>/versions/<rev>  過去版の内容
+  POST /account/sketches/<id>/restore         過去版を復元 (currentRevision, targetRevision)
   /teacher                        廃止された先生・クラス画面 (404)
   POST /cores/install   {id}      -> {job}
   POST /cores/uninstall {id}      -> {job}
@@ -95,7 +102,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
-VERSION = "2.8.0"
+VERSION = "2.9.0"
 
 
 def env_int(name, default, lo=0, hi=10 ** 9):
@@ -169,6 +176,7 @@ WEBHOOK_LAST = 0.0
 WEBHOOK_COOLDOWN = 30
 ACCOUNT_SESSION_LIMIT = 10
 ACCOUNT_AUDIT_LIMIT = 10000
+ACCOUNT_QUOTA_MB = env_int("HELPER_ACCOUNT_QUOTA_MB", 50, 0, 102400)
 ACCOUNT_SIGNUP_LIMIT = 20
 ACCOUNT_SIGNUP_WINDOW = 3600
 ACCOUNT_SIGNUP_ATTEMPTS = {}
@@ -206,6 +214,7 @@ JOBS = {}
 JOBS_LOCK = threading.RLock()
 QUEUE_CV = threading.Condition(JOBS_LOCK)
 QUEUE = []                      # 待機中のコンパイルジョブ id (先頭が次)
+JOB_DB_LOCK = threading.Lock()
 CLI_LOCK = threading.Lock()     # arduino-cli の変更操作は同時に1つ (コンパイルも含む)
 ADMIN_WAITING = 0
 GEN = 0
@@ -656,6 +665,105 @@ def new_job(kind, client, admin):
     return job
 
 
+def _job_db():
+    HOME.mkdir(parents=True, exist_ok=True)
+    path = HOME / "jobs.sqlite3"
+    with JOB_DB_LOCK:
+        conn = sqlite3.connect(str(path), timeout=10)
+        try:
+            os.chmod(str(path), 0o600)
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS jobs "
+                "(id TEXT PRIMARY KEY, state TEXT NOT NULL, data TEXT NOT NULL, updated_at REAL NOT NULL)"
+            )
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
+            if "state" not in columns:
+                conn.execute("ALTER TABLE jobs ADD COLUMN state TEXT NOT NULL DEFAULT 'queued'")
+                for jid, raw in conn.execute("SELECT id,data FROM jobs").fetchall():
+                    try:
+                        state = json.loads(raw).get("state", "error")
+                    except (TypeError, ValueError):
+                        state = "error"
+                    conn.execute("UPDATE jobs SET state=? WHERE id=?", (state, jid))
+            conn.execute("CREATE INDEX IF NOT EXISTS jobs_updated ON jobs(updated_at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS jobs_state_updated ON jobs(state,updated_at)")
+            conn.execute("DELETE FROM jobs WHERE updated_at<?", (time.time() - 24 * 3600,))
+            conn.commit()
+        finally:
+            conn.close()
+    return path
+
+
+def persist_job(job):
+    result = job.get("result")
+    if isinstance(result, dict):
+        result = dict(result)
+        if result.pop("artifacts", None):
+            result["artifactsUnavailableAfterRestart"] = True
+    record = {
+        "id": job["id"], "kind": job["kind"], "state": job["state"], "rc": job.get("rc"),
+        "lines": job.get("lines", [])[-MAX_JOB_LINES:], "error": job.get("error"),
+        "title": job.get("title", ""), "created": job["created"], "t": job["t"],
+        "client": job["client"], "admin": bool(job["admin"]), "result": result,
+    }
+    path = _job_db()
+    with JOB_DB_LOCK:
+        conn = sqlite3.connect(str(path), timeout=10)
+        try:
+            conn.execute(
+                "INSERT INTO jobs(id,state,data,updated_at) VALUES(?,?,?,?) "
+                "ON CONFLICT(id) DO UPDATE SET state=excluded.state,data=excluded.data,"
+                "updated_at=excluded.updated_at",
+                (job["id"], job["state"], json.dumps(record, ensure_ascii=False), time.time()),
+            )
+            conn.execute("DELETE FROM jobs WHERE updated_at<?", (time.time() - 24 * 3600,))
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def load_jobs():
+    path = _job_db()
+    with JOB_DB_LOCK:
+        conn = sqlite3.connect(str(path), timeout=10)
+        try:
+            cutoff = time.time() - 24 * 3600
+            active = conn.execute(
+                "SELECT id,data FROM jobs WHERE updated_at>=? AND state IN ('queued','running') ORDER BY updated_at",
+                (cutoff,),
+            ).fetchall()
+            recent = conn.execute(
+                "SELECT id,data FROM jobs WHERE updated_at>=? AND state NOT IN ('queued','running') "
+                "ORDER BY updated_at DESC LIMIT 200",
+                (cutoff,),
+            ).fetchall()
+            rows = list(active) + list(recent)
+        finally:
+            conn.close()
+    for jid, raw in rows:
+        try:
+            record = json.loads(raw)
+        except (TypeError, ValueError):
+            log("永続化ジョブ %s の記録を読み取れません" % jid)
+            continue
+        if not isinstance(record, dict) or record.get("id") != jid:
+            log("永続化ジョブ %s の形式が不正です" % jid)
+            continue
+        record["plan"] = None
+        record["cancel"] = False
+        if record.get("state") in ("queued", "running"):
+            record["state"] = "error"
+            record["error"] = "サーバー再起動によりジョブが中断されました。もう一度実行してください"
+            record["t"] = time.time()
+            record["lines"] = (record.get("lines") or []) + [record["error"]]
+            record["result"] = {
+                "success": False, "output": "", "errors": [record["error"]], "time": 0,
+            }
+            persist_job(record)
+        with JOBS_LOCK:
+            JOBS[jid] = record
+
+
 def cancel_path(job):
     return WORK_DIR / ("cancel_" + job["id"])
 
@@ -670,6 +778,10 @@ def finish(job, state, error=None):
         cancel_path(job).unlink()
     except OSError:
         pass
+    try:
+        persist_job(job)
+    except (OSError, sqlite3.Error) as e:
+        log("ジョブ %s の状態を保存できません: %s" % (job["id"], e))
     if prev not in ("done", "error", "cancelled"):
         try:
             history_record(job, state, error)
@@ -831,6 +943,17 @@ def history_record(job, state, error=None):
         trim = HISTORY_LINES > HISTORY_TRIM
     if trim:
         trim_history()
+
+
+def average_compile_seconds():
+    with HISTORY_LOCK:
+        recent = [
+        float(record["time"]) for record in reversed(HISTORY)
+        if record.get("kind") == "compile" and record.get("success")
+        and not record.get("cached") and isinstance(record.get("time"), (int, float))
+        and 0 < record["time"] <= COMPILE_TIMEOUT
+        ][:20]
+    return round(sum(recent) / len(recent)) if recent else None
 
 
 def clear_history():
@@ -1167,6 +1290,10 @@ def start_admin_job(title, args, cleanup=None, client="admin"):
         if not overloaded:
             job = new_job("admin", client, True)
             job["title"] = title
+            try:
+                persist_job(job)
+            except (OSError, sqlite3.Error) as e:
+                log("管理ジョブ %s を永続化できません: %s" % (job["id"], e))
     if overloaded:
         if cleanup:
             cleanup()
@@ -1194,6 +1321,10 @@ def start_admin_job(title, args, cleanup=None, client="admin"):
                 finish(job, "cancelled")
                 return
             job["state"] = "running"
+            try:
+                persist_job(job)
+            except (OSError, sqlite3.Error) as e:
+                log("管理ジョブ %s の実行状態を保存できません: %s" % (job["id"], e))
             def on_line(l):
                 if len(job["lines"]) < MAX_JOB_LINES:
                     job["lines"].append(l)
@@ -1413,6 +1544,9 @@ def validate_compile(req):
     fqbn = req.get("board")
     if not isinstance(fqbn, str) or not RE_FQBN.match(fqbn):
         raise ApiError(400, "ボード(FQBN)が不正です")
+    build_profile = _valid_build_profile(req.get("buildProfile"))
+    if build_profile and build_profile["fqbn"] != fqbn:
+        raise ApiError(400, "ビルド環境情報のFQBNと選択ボードが一致しません")
     files = req.get("files")
     if not isinstance(files, list) or not files or len(files) > MAX_FILES:
         raise ApiError(400, "files が不正です (1〜%d 個)" % MAX_FILES)
@@ -1457,12 +1591,19 @@ def validate_compile(req):
         if w.casefold() in {k.casefold() for k in written}:
             raise ApiError(400, "ファイル名が重複します: %s (メインの .ino は %s に変換されます)" % (name, main_new))
         written[w] = (name, content)
-    return {"fqbn": fqbn, "sketch": sketch, "main": main_new, "files": written}
+    return {"fqbn": fqbn, "sketch": sketch, "main": main_new, "files": written,
+            "buildProfile": build_profile}
 
 
 def plan_key(plan):
     h = hashlib.sha256()
     h.update(("%d|%s|%s|%s\n" % (GEN, VERSION, plan["fqbn"], plan["sketch"])).encode())
+    profile = plan.get("buildProfile")
+    if profile:
+        profile = dict(profile)
+        profile.pop("capturedAt", None)
+    h.update(json.dumps(profile, sort_keys=True, separators=(",", ":")).encode("utf-8"))
+    h.update(b"\n")
     for w in sorted(plan["files"]):
         orig, content = plan["files"][w]
         h.update(("%s\0%s\0" % (w, orig)).encode("utf-8", "replace"))
@@ -1527,6 +1668,10 @@ def submit_compile(req, client):
         job["plan"] = plan
         job["key"] = key
         QUEUE.append(job["id"])
+        try:
+            persist_job(job)
+        except (OSError, sqlite3.Error) as e:
+            log("ジョブ %s を永続化できません: %s" % (job["id"], e))
         QUEUE_CV.notify()
         return job, len(QUEUE)
 
@@ -1624,7 +1769,8 @@ def run_compile(job):
         if m:
             size["data"], size["dataMax"] = int(m.group(1)), int(m.group(2))
         res = {"success": True, "output": out, "errors": [], "artifacts": artifacts,
-               "size": size or None, "time": elapsed, "main": main_new, "gen": GEN}
+               "size": size or None, "time": elapsed, "main": main_new, "gen": GEN,
+               "buildProfile": plan.get("buildProfile")}
         if skipped:
             res["skipped"] = skipped
         return res
@@ -1655,6 +1801,10 @@ def compile_worker():
                 QUEUE.remove(jid)
                 job["state"] = "running"
                 job["t"] = time.time()
+                try:
+                    persist_job(job)
+                except (OSError, sqlite3.Error) as e:
+                    log("コンパイルジョブ %s の実行状態を保存できません: %s" % (job["id"], e))
             try:
                 res = run_compile(job)
                 if job["cancel"] or res is None:
@@ -1970,9 +2120,50 @@ def _valid_sketch(sketch):
             if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0):
                 raise ApiError(400, "%s が不正です" % key)
             timestamps.append(int(value if value is not None else time.time() * 1000))
+        build_profile = _valid_build_profile(sketch.get("buildProfile"))
         return {"id": sid, "name": name.strip(), "files": clean_files,
                 "board": str(sketch.get("board") or "")[:160],
-                "createdAt": timestamps[0], "updatedAt": timestamps[1]}
+                "createdAt": timestamps[0], "updatedAt": timestamps[1],
+                **({"buildProfile": build_profile} if build_profile else {})}
+
+
+def _valid_build_profile(profile):
+        if profile is None:
+            return None
+        if (not isinstance(profile, dict) or isinstance(profile.get("schema"), bool)
+                or profile.get("schema") != 1):
+            raise ApiError(400, "ビルド環境情報の形式が不正です")
+        fqbn = profile.get("fqbn")
+        cli_version = profile.get("cliVersion")
+        captured_at = profile.get("capturedAt")
+        cores = profile.get("cores")
+        libraries = profile.get("libraries")
+        if not isinstance(fqbn, str) or not RE_FQBN.match(fqbn):
+            raise ApiError(400, "ビルド環境のFQBNが不正です")
+        if not isinstance(cli_version, str) or not cli_version or len(cli_version) > 100:
+            raise ApiError(400, "ビルド環境のArduino CLIバージョンが不正です")
+        if isinstance(captured_at, bool) or not isinstance(captured_at, int) or captured_at < 0:
+            raise ApiError(400, "ビルド環境の記録日時が不正です")
+        if not isinstance(cores, list) or len(cores) > 200:
+            raise ApiError(400, "ビルド環境のボードパッケージ一覧が不正です")
+        if not isinstance(libraries, list) or len(libraries) > 2000:
+            raise ApiError(400, "ビルド環境のライブラリ一覧が不正です")
+        clean_cores = []
+        for item in cores:
+            if (not isinstance(item, dict) or not isinstance(item.get("id"), str)
+                    or not re.fullmatch(r"[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+", item["id"])
+                    or not isinstance(item.get("version"), str) or len(item["version"]) > 100):
+                raise ApiError(400, "ボードパッケージ情報が不正です")
+            clean_cores.append({"id": item["id"], "version": item["version"]})
+        clean_libraries = []
+        for item in libraries:
+            if (not isinstance(item, dict) or not isinstance(item.get("name"), str)
+                    or not item["name"] or len(item["name"]) > 160
+                    or not isinstance(item.get("version"), str) or len(item["version"]) > 100):
+                raise ApiError(400, "ライブラリ情報が不正です")
+            clean_libraries.append({"name": item["name"], "version": item["version"]})
+        return {"schema": 1, "fqbn": fqbn, "cliVersion": cli_version,
+                "capturedAt": captured_at, "cores": clean_cores, "libraries": clean_libraries}
 
 
 def _account_sketch_view(row):
@@ -1988,6 +2179,26 @@ def _trim_account_versions(conn, user_id, sketch_id):
         "ORDER BY revision DESC, id DESC LIMIT -1 OFFSET 100)",
         (user_id, sketch_id),
     )
+
+
+def _account_storage(conn, user_id):
+    used = conn.execute(
+        "SELECT COALESCE((SELECT SUM(length(CAST(data AS BLOB))) FROM account_sketches WHERE user_id=?),0) + "
+        "COALESCE((SELECT SUM(length(CAST(data AS BLOB))) FROM account_sketch_versions WHERE user_id=?),0)",
+        (user_id, user_id),
+    ).fetchone()[0]
+    limit = ACCOUNT_QUOTA_MB * 1024 * 1024 if ACCOUNT_QUOTA_MB else 0
+    return {"usedBytes": int(used), "limitBytes": limit,
+            "unlimited": limit == 0, "quotaMb": ACCOUNT_QUOTA_MB}
+
+
+def _enforce_account_quota(conn, user_id):
+    storage = _account_storage(conn, user_id)
+    if storage["limitBytes"] and storage["usedBytes"] > storage["limitBytes"]:
+        used_mb = storage["usedBytes"] / (1024 * 1024)
+        raise ApiError(413, "スケッチと履歴の保存量が上限を超えます (現在 %.2f MiB / 上限 %d MiB)。"
+                       "不要なスケッチや履歴を整理してください" % (used_mb, ACCOUNT_QUOTA_MB),
+                       {"storage": storage})
 
 
 # ---------------------------------------------------------------
@@ -2549,6 +2760,60 @@ class Handler(BaseHTTPRequestHandler):
             user = _session_user(self, conn)
             if method == "GET" and path == "/account/me":
                 return self._send(200, {"ok": True, "user": _account_user(user)})
+            if method == "GET" and path == "/account/storage":
+                return self._send(200, {"ok": True, **_account_storage(conn, user["id"])})
+            if method == "GET" and path == "/account/export":
+                sketches = conn.execute(
+                    "SELECT * FROM account_sketches WHERE user_id=? ORDER BY updated_at DESC",
+                    (user["id"],),
+                ).fetchall()
+                exported = []
+                for row in sketches:
+                    sketch = _account_sketch_view(row)
+                    versions = conn.execute(
+                        "SELECT revision,data,created_at FROM account_sketch_versions "
+                        "WHERE user_id=? AND sketch_id=? ORDER BY revision ASC,id ASC",
+                        (user["id"], row["id"]),
+                    ).fetchall()
+                    sketch["history"] = [
+                        {"revision": item["revision"], "createdAt": item["created_at"],
+                         "sketch": json.loads(item["data"])}
+                        for item in versions
+                    ]
+                    profile = sketch.get("buildProfile")
+                    if profile:
+                        sketch["reproduction"] = {
+                            "cliVersion": profile["cliVersion"],
+                            "fqbn": profile["fqbn"],
+                            "boardPackageInstallArgs": [
+                                ["core", "install", "%s@%s" % (item["id"], item["version"])]
+                                for item in profile["cores"]
+                            ],
+                            "libraryInstallArgs": [
+                                ["lib", "install", "%s@%s" % (item["name"], item["version"])]
+                                for item in profile["libraries"]
+                            ],
+                            "note": "配列はシェルコマンドではなく引数です。実行前に対象CLI・ボードパッケージ・ライブラリの提供元とバージョンを確認してください。",
+                        }
+                    exported.append(sketch)
+                return self._send(200, {
+                    "schema": 1, "exportedAt": int(time.time()), "user": _account_user(user),
+                    "storage": _account_storage(conn, user["id"]), "sketches": exported,
+                })
+            if method == "POST" and path == "/account/delete":
+                wait = auth_blocked(ip)
+                if wait:
+                    raise ApiError(429, "認証の失敗が続いたため、しばらく受け付けません (%d 秒)" % wait,
+                                   {"retryAfter": wait})
+                body = self._body()
+                password = body.get("password")
+                if not _account_password_matches(password, user["password_salt"], user["password_hash"]):
+                    auth_failed(ip)
+                    raise ApiError(403, "パスワードが正しくありません")
+                _account_audit(conn, user["id"], "account.delete", user["id"])
+                conn.execute("DELETE FROM account_users WHERE id=?", (user["id"],))
+                auth_succeeded(ip)
+                return self._send(200, {"ok": True, "deleted": True})
             if method == "POST" and path == "/account/password":
                 wait = auth_blocked(ip)
                 if wait:
@@ -2575,6 +2840,87 @@ class Handler(BaseHTTPRequestHandler):
                 rows = conn.execute("SELECT * FROM account_sketches WHERE user_id=? ORDER BY updated_at DESC",
                                     (user["id"],)).fetchall()
                 return self._send(200, {"sketches": [_account_sketch_view(row) for row in rows]})
+
+            match = re.fullmatch(r"/account/sketches/([A-Za-z0-9_-]{1,80})/versions", path)
+            if method == "GET" and match:
+                if not conn.execute(
+                        "SELECT 1 FROM account_sketches WHERE user_id=? AND id=?",
+                        (user["id"], match.group(1))).fetchone():
+                    raise ApiError(404, "スケッチが見つかりません")
+                rows = conn.execute(
+                    "SELECT revision,created_at FROM account_sketch_versions "
+                    "WHERE user_id=? AND sketch_id=? ORDER BY revision DESC,id DESC",
+                    (user["id"], match.group(1)),
+                ).fetchall()
+                return self._send(200, {"versions": [
+                    {"revision": row["revision"], "createdAt": row["created_at"]}
+                    for row in rows
+                ]})
+
+            match = re.fullmatch(
+                r"/account/sketches/([A-Za-z0-9_-]{1,80})/versions/([0-9]{1,19})", path)
+            if method == "GET" and match:
+                revision = int(match.group(2))
+                if revision >= 2 ** 63:
+                    raise ApiError(400, "revision が不正です")
+                row = conn.execute(
+                    "SELECT data,revision,created_at FROM account_sketch_versions "
+                    "WHERE user_id=? AND sketch_id=? AND revision=? ORDER BY id DESC LIMIT 1",
+                    (user["id"], match.group(1), revision),
+                ).fetchone()
+                if not row:
+                    raise ApiError(404, "指定したスケッチ履歴が見つかりません")
+                sketch = json.loads(row["data"])
+                sketch["revision"] = row["revision"]
+                return self._send(200, {
+                    "sketch": sketch, "revision": row["revision"], "createdAt": row["created_at"],
+                })
+
+            match = re.fullmatch(r"/account/sketches/([A-Za-z0-9_-]{1,80})/restore", path)
+            if method == "POST" and match:
+                body = self._body()
+                current_revision = body.get("currentRevision")
+                target_revision = body.get("targetRevision")
+                if (not isinstance(current_revision, int) or isinstance(current_revision, bool)
+                        or current_revision < 1 or not isinstance(target_revision, int)
+                        or isinstance(target_revision, bool) or target_revision < 1
+                        or current_revision >= 2 ** 63 - 1 or target_revision >= 2 ** 63):
+                    raise ApiError(400, "履歴のrevisionが不正です")
+                sketch_id = match.group(1)
+                current = conn.execute(
+                    "SELECT data,revision FROM account_sketches WHERE user_id=? AND id=?",
+                    (user["id"], sketch_id),
+                ).fetchone()
+                if not current:
+                    raise ApiError(404, "スケッチが見つかりません")
+                if current["revision"] != current_revision:
+                    raise ApiError(409, "別の端末でスケッチが更新されています。履歴を読み直してください")
+                target = conn.execute(
+                    "SELECT data FROM account_sketch_versions "
+                    "WHERE user_id=? AND sketch_id=? AND revision=? ORDER BY id DESC LIMIT 1",
+                    (user["id"], sketch_id, target_revision),
+                ).fetchone()
+                if not target:
+                    raise ApiError(404, "指定したスケッチ履歴が見つかりません")
+                new_revision = current["revision"] + 1
+                now = int(time.time())
+                conn.execute(
+                    "INSERT INTO account_sketch_versions(sketch_id,user_id,revision,editor_id,data,created_at) "
+                    "VALUES(?,?,?,?,?,?)",
+                    (sketch_id, user["id"], current["revision"], user["id"], current["data"], now),
+                )
+                _trim_account_versions(conn, user["id"], sketch_id)
+                restored = json.loads(target["data"])
+                restored["id"] = sketch_id
+                restored["revision"] = new_revision
+                restored["updatedAt"] = int(time.time() * 1000)
+                conn.execute(
+                    "UPDATE account_sketches SET data=?,revision=?,updated_at=? WHERE user_id=? AND id=?",
+                    (json.dumps(restored, ensure_ascii=False), new_revision, now, user["id"], sketch_id),
+                )
+                _enforce_account_quota(conn, user["id"])
+                return self._send(200, {"ok": True, "revision": new_revision, "sketch": restored,
+                                        "storage": _account_storage(conn, user["id"])})
 
             match = re.fullmatch(r"/account/sketches/([A-Za-z0-9_-]{1,80})", path)
             if method == "PUT" and match:
@@ -2609,12 +2955,15 @@ class Handler(BaseHTTPRequestHandler):
                     "updated_at=excluded.updated_at",
                     (sketch["id"], user["id"], json.dumps(sketch, ensure_ascii=False), revision, now),
                 )
-                return self._send(200, {"ok": True, "revision": revision})
+                _enforce_account_quota(conn, user["id"])
+                return self._send(200, {"ok": True, "revision": revision,
+                                        "storage": _account_storage(conn, user["id"])})
             if method == "DELETE" and match:
                 row = conn.execute("SELECT revision FROM account_sketches WHERE user_id=? AND id=?",
                                    (user["id"], match.group(1))).fetchone()
                 if not row:
-                    return self._send(200, {"ok": True, "deleted": False})
+                    return self._send(200, {"ok": True, "deleted": False,
+                                            "storage": _account_storage(conn, user["id"])})
                 expected = q.get("revision")
                 if expected is None or not expected.isdigit() or int(expected) != row["revision"]:
                     raise ApiError(409, "別の端末でスケッチが更新されています。削除を中止しました")
@@ -2622,7 +2971,8 @@ class Handler(BaseHTTPRequestHandler):
                              (user["id"], match.group(1)))
                 conn.execute("DELETE FROM account_sketches WHERE user_id=? AND id=?",
                              (user["id"], match.group(1)))
-                return self._send(200, {"ok": True, "deleted": True})
+                return self._send(200, {"ok": True, "deleted": True,
+                                        "storage": _account_storage(conn, user["id"])})
             raise ApiError(404, "不明なアカウントAPI: %s %s" % (method, path[:80]))
 
     def _dispatch_remainder(self, method, path, q, role):
@@ -2651,6 +3001,7 @@ class Handler(BaseHTTPRequestHandler):
                             "active": bool(r["active"]),
                             "createdAt": r["created_at"],
                             "sketchCount": r["sketch_count"],
+                            **_account_storage(conn, r["id"]),
                         })
                     return self._send(200, {"ok": True, "users": users})
 
@@ -2673,6 +3024,21 @@ class Handler(BaseHTTPRequestHandler):
                     if not row:
                         raise ApiError(404, "スケッチが見つかりません")
                     return self._send(200, {"ok": True, "sketch": _account_sketch_view(row)})
+
+                reset = re.fullmatch(r"/admin/api/accounts/([A-Za-z0-9_-]{1,80})/reset-password", path)
+                if method == "POST" and reset:
+                    uid = reset.group(1)
+                    row = conn.execute("SELECT id,active FROM account_users WHERE id=?", (uid,)).fetchone()
+                    if not row:
+                        raise ApiError(404, "ユーザーが見つかりません")
+                    temporary_password = secrets.token_urlsafe(24)
+                    salt, digest = _account_password(temporary_password)
+                    conn.execute("UPDATE account_users SET password_hash=?,password_salt=? WHERE id=?",
+                                 (digest, salt, uid))
+                    conn.execute("DELETE FROM account_sessions WHERE user_id=?", (uid,))
+                    _account_audit(conn, None, "account.admin_password_reset", uid)
+                    log("管理者がユーザー %s のパスワードを再設定しました" % uid)
+                    return self._send(200, {"ok": True, "temporaryPassword": temporary_password})
 
                 # DELETE /admin/api/accounts/<uid>  → ユーザー削除（スケッチも含む）
                 m3 = re.fullmatch(r"/admin/api/accounts/([A-Za-z0-9_-]{1,80})", path)
@@ -2715,6 +3081,19 @@ class Handler(BaseHTTPRequestHandler):
             settings = {"prefillStudentToken": body["prefillStudentToken"]}
             save_admin_settings(settings)
             return self._send(200, {"ok": True, **settings})
+        if method == "GET":
+            job_match = re.fullmatch(r"/jobs/([0-9a-f]{24})", path)
+            if job_match:
+                return self._send(200, self._job_view(job_match.group(1), q))
+        if method == "POST":
+            cancel_match = re.fullmatch(r"/jobs/([0-9a-f]{24})/cancel", path)
+            if cancel_match:
+                with JOBS_LOCK:
+                    job = JOBS.get(cancel_match.group(1))
+                if not job:
+                    raise ApiError(404, "ジョブが見つかりません")
+                self._need_job_access(job, role)
+                return self._send(200, {"ok": cancel_job(job)})
         if not cli_available():
             return self._send(500, {"success": False, "error": "arduino-cli を実行できません (arduino-build-run が見つかりません)"})
 
@@ -2764,18 +3143,7 @@ class Handler(BaseHTTPRequestHandler):
                     return {"libs": norm_libs_list(data)}
                 data = read_cached("ll", 20, _libs_list)
                 return self._send(200, data)
-            m = re.match(r"^/jobs/([0-9a-f]{24})$", path)
-            if m:
-                return self._send(200, self._job_view(m.group(1), q))
         elif method == "POST":
-            m = re.match(r"^/jobs/([0-9a-f]{24})/cancel$", path)
-            if m:
-                with JOBS_LOCK:
-                    job = JOBS.get(m.group(1))
-                if not job:
-                    raise ApiError(404, "ジョブが見つかりません")
-                self._need_job_access(job, role)
-                return self._send(200, {"ok": cancel_job(job)})
             admin_paths = ("/cores/install", "/cores/uninstall", "/libs/install", "/libs/uninstall",
                            "/libs/install-zip", "/update")
             if path == "/compile":
@@ -2866,23 +3234,43 @@ class Handler(BaseHTTPRequestHandler):
     def _job_view(self, jid, q):
         with JOBS_LOCK:
             job = JOBS.get(jid)
-            if not job:
-                raise ApiError(404, "ジョブが見つかりません (サーバーが再起動した可能性があります)")
-            try:
-                start = max(0, min(MAX_JOB_LINES, int(q.get("from", "0") or 0)))
-            except ValueError:
-                raise ApiError(400, "from が不正です")
-            self._need_job_access(job, role_for(self._token()))
-            d = {"id": job["id"], "kind": job["kind"], "state": job["state"], "rc": job["rc"],
-                 "lines": job["lines"][start:], "next": len(job["lines"]), "error": job["error"],
-                 "elapsed": round(time.time() - job["created"], 1)}
-            if job["state"] == "queued" and job["id"] in QUEUE:
-                d["position"] = QUEUE.index(job["id"]) + 1
-                d["queued"] = len(QUEUE)
-                d["blocked"] = "admin" if CLI_LOCK.locked() else ""
-            if job["state"] in ("done", "error") and job["result"] is not None:
-                d["result"] = job["result"]
-            return d
+        if not job:
+            path = _job_db()
+            with JOB_DB_LOCK:
+                conn = sqlite3.connect(str(path), timeout=10)
+                try:
+                    row = conn.execute("SELECT data FROM jobs WHERE id=? AND updated_at>=?",
+                                       (jid, time.time() - 24 * 3600)).fetchone()
+                finally:
+                    conn.close()
+            if row:
+                try:
+                    job = json.loads(row[0])
+                except (TypeError, ValueError):
+                    raise ApiError(500, "保存済みジョブの状態を読み取れません")
+            else:
+                raise ApiError(404, "ジョブが見つかりません")
+        try:
+            start = max(0, min(MAX_JOB_LINES, int(q.get("from", "0") or 0)))
+        except ValueError:
+            raise ApiError(400, "from が不正です")
+        self._need_job_access(job, role_for(self._token()))
+        lines = job.get("lines") or []
+        d = {"id": job["id"], "kind": job["kind"], "state": job["state"], "rc": job.get("rc"),
+             "lines": lines[start:], "next": len(lines), "error": job.get("error"),
+             "elapsed": round(time.time() - job["created"], 1)}
+        if job["state"] == "queued":
+            with JOBS_LOCK:
+                if jid in QUEUE:
+                    d["position"] = QUEUE.index(jid) + 1
+                    d["queued"] = len(QUEUE)
+                    d["blocked"] = "admin" if CLI_LOCK.locked() else ""
+                    average = average_compile_seconds()
+                    if average is not None and d["blocked"] != "admin":
+                        d["estimatedWaitSeconds"] = d["position"] * average
+        if job["state"] in ("done", "error") and job.get("result") is not None:
+            d["result"] = job["result"]
+        return d
 
     def _run(self, method):
         try:
@@ -3029,6 +3417,7 @@ def main():
             sys.exit("IDE用と管理者用のトークンが同じです。--rotate admin で再発行してください")
     load_gen()
     load_history()
+    load_jobs()
     log("Arduino Web IDE helper %s" % VERSION)
     log("  実行ラッパー : %s" % (WRAPPER or "見つかりません"))
     log("  コンパイル   : %s" % (("sudo -u %s" % BUILD_USER) if BUILD_USER else "このユーザーで直接実行 (権限分離なし)"))

@@ -28,6 +28,7 @@ class AccountApiTests(unittest.TestCase):
         server.WORK_DIR = server.HOME / "work"
         server.WORK_DIR.mkdir()
         server.ACCOUNT_DB_INITIALIZED_PATH = None
+        server.ACCOUNT_QUOTA_MB = 50
         server.ACCOUNT_SESSION_CLEANUP_LAST = 0
         server.ACCOUNT_SIGNUP_ATTEMPTS.clear()
         server.AUTH_FAILS.clear()
@@ -174,6 +175,148 @@ class AccountApiTests(unittest.TestCase):
         status, remote = self.request("/account/sketches", token=first["token"])
         self.assertEqual(status, 200)
         self.assertEqual(remote["sketches"][0]["name"], "My sketch")
+
+    def test_sketch_history_is_private_and_can_be_restored_with_revision_check(self):
+        owner = self.register()
+        other = self.register("member02", "SecondPass-01", "Second")
+        original = {
+            "id": "history_one",
+            "name": "Original",
+            "files": [{"name": "history_one.ino", "content": "void setup() {}"}],
+            "buildProfile": {
+                "schema": 1, "fqbn": "arduino:avr:uno", "cliVersion": "arduino-cli 1.5.1",
+                "capturedAt": 1, "cores": [{"id": "arduino:avr", "version": "1.8.6"}],
+                "libraries": [{"name": "Wire", "version": "1.0.0"}],
+            },
+        }
+        status, saved = self.request("/account/sketches/history_one", "PUT",
+                                     {"sketch": original, "revision": 0}, owner["token"])
+        self.assertEqual(status, 200)
+        updated = dict(original, name="Updated",
+                       files=[{"name": "history_one.ino", "content": "void setup(){ pinMode(LED_BUILTIN, OUTPUT); }"}])
+        status, saved = self.request("/account/sketches/history_one", "PUT",
+                                     {"sketch": updated, "revision": saved["revision"]}, owner["token"])
+        self.assertEqual(status, 200)
+        self.assertEqual(saved["revision"], 2)
+
+        status, versions = self.request(
+            "/account/sketches/history_one/versions", token=owner["token"])
+        self.assertEqual(status, 200)
+        self.assertEqual(versions["versions"][0]["revision"], 1)
+        status, snapshot = self.request(
+            "/account/sketches/history_one/versions/1", token=owner["token"])
+        self.assertEqual(status, 200)
+        self.assertEqual(snapshot["sketch"]["name"], "Original")
+        self.assertEqual(snapshot["sketch"]["buildProfile"]["cores"][0]["version"], "1.8.6")
+
+        status, _ = self.request(
+            "/account/sketches/history_one/versions", token=other["token"])
+        self.assertEqual(status, 404)
+        status, _ = self.request("/account/sketches/history_one/restore", "POST", {
+            "currentRevision": 1, "targetRevision": 1,
+        }, owner["token"])
+        self.assertEqual(status, 409)
+        status, restored = self.request("/account/sketches/history_one/restore", "POST", {
+            "currentRevision": 2, "targetRevision": 1,
+        }, owner["token"])
+        self.assertEqual(status, 200)
+        self.assertEqual(restored["revision"], 3)
+        status, sketches = self.request("/account/sketches", token=owner["token"])
+        self.assertEqual(sketches["sketches"][0]["name"], "Original")
+        status, versions = self.request(
+            "/account/sketches/history_one/versions", token=owner["token"])
+        self.assertEqual({v["revision"] for v in versions["versions"]}, {1, 2})
+
+    def test_account_quota_counts_current_sketch_and_history_and_rolls_back_overflow(self):
+        owner = self.register()
+        server.ACCOUNT_QUOTA_MB = 1
+        sketch = {
+            "id": "quota_test", "name": "Quota",
+            "files": [{"name": "quota_test.ino", "content": "a" * 600_000}],
+        }
+        status, created = self.request("/account/sketches/quota_test", "PUT",
+                                       {"sketch": sketch, "revision": 0}, owner["token"])
+        self.assertEqual(status, 200)
+        updated = dict(sketch, files=[{"name": "quota_test.ino", "content": "b" * 600_000}])
+        status, error = self.request("/account/sketches/quota_test", "PUT",
+                                     {"sketch": updated, "revision": created["revision"]}, owner["token"])
+        self.assertEqual(status, 413)
+        self.assertIn("上限", error["error"])
+        self.assertGreater(error["storage"]["usedBytes"], 1024 * 1024)
+        status, sketches = self.request("/account/sketches", token=owner["token"])
+        self.assertEqual(status, 200)
+        self.assertEqual(sketches["sketches"][0]["revision"], 1)
+        self.assertEqual(sketches["sketches"][0]["files"][0]["content"], "a" * 600_000)
+
+    def test_export_contains_all_versions_and_build_reproduction_arguments(self):
+        owner = self.register()
+        sketch = {
+            "id": "export_one", "name": "Exported",
+            "files": [{"name": "export_one.ino", "content": "void setup() {}"}],
+            "buildProfile": {
+                "schema": 1, "fqbn": "arduino:avr:uno", "cliVersion": "arduino-cli 1.5.1",
+                "capturedAt": 1, "cores": [{"id": "arduino:avr", "version": "1.8.6"}],
+                "libraries": [{"name": "Wire", "version": "1.0.0"}],
+            },
+        }
+        status, first = self.request("/account/sketches/export_one", "PUT",
+                                     {"sketch": sketch, "revision": 0}, owner["token"])
+        self.assertEqual(status, 200)
+        updated = dict(sketch, name="Updated")
+        status, _ = self.request("/account/sketches/export_one", "PUT",
+                                 {"sketch": updated, "revision": first["revision"]}, owner["token"])
+        self.assertEqual(status, 200)
+        status, exported = self.request("/account/export", token=owner["token"])
+        self.assertEqual(status, 200)
+        entry = exported["sketches"][0]
+        self.assertEqual(entry["name"], "Updated")
+        self.assertEqual(entry["history"][0]["sketch"]["name"], "Exported")
+        self.assertEqual(entry["reproduction"]["fqbn"], "arduino:avr:uno")
+        self.assertEqual(entry["reproduction"]["boardPackageInstallArgs"],
+                         [["core", "install", "arduino:avr@1.8.6"]])
+        self.assertEqual(entry["reproduction"]["libraryInstallArgs"],
+                         [["lib", "install", "Wire@1.0.0"]])
+
+    def test_account_deletion_requires_password_and_removes_cloud_data(self):
+        owner = self.register()
+        sketch = {
+            "id": "delete_one", "name": "Delete me",
+            "files": [{"name": "delete_one.ino", "content": "void setup() {}"}],
+        }
+        status, _ = self.request("/account/sketches/delete_one", "PUT",
+                                 {"sketch": sketch, "revision": 0}, owner["token"])
+        self.assertEqual(status, 200)
+        status, _ = self.request("/account/delete", "POST", {"password": "WrongPass-01"}, owner["token"])
+        self.assertEqual(status, 403)
+        status, result = self.request("/account/delete", "POST",
+                                      {"password": "MemberPass-01"}, owner["token"])
+        self.assertEqual(status, 200)
+        self.assertTrue(result["deleted"])
+        status, _ = self.request("/account/me", token=owner["token"])
+        self.assertEqual(status, 401)
+        with server.account_db() as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM account_users").fetchone()[0], 0)
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM account_sketches").fetchone()[0], 0)
+            self.assertTrue(conn.execute(
+                "SELECT 1 FROM account_audit WHERE action='account.delete'"
+            ).fetchone())
+
+    def test_admin_password_reset_revokes_sessions_and_returns_temporary_password(self):
+        owner = self.register()
+        status, reset = self.request(
+            "/admin/api/accounts/" + owner["user"]["id"] + "/reset-password",
+            "POST", {}, headers={"Authorization": "Bearer " + server.ADMIN_TOKEN},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(len(reset["temporaryPassword"]), 32)
+        status, _ = self.request("/account/me", token=owner["token"])
+        self.assertEqual(status, 401)
+        logged_in = self.login("member01", reset["temporaryPassword"])
+        self.assertTrue(logged_in["token"])
+        with server.account_db() as conn:
+            self.assertTrue(conn.execute(
+                "SELECT 1 FROM account_audit WHERE action='account.admin_password_reset'"
+            ).fetchone())
 
     def test_teacher_and_class_routes_are_removed(self):
         status, error = self.request("/teacher")

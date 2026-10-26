@@ -1,8 +1,12 @@
 import importlib.util
+import hashlib
+import hmac
 import json
 import os
 import tempfile
+import threading
 import unittest
+import urllib.request
 from pathlib import Path
 from unittest.mock import patch
 
@@ -61,6 +65,32 @@ class ServerLimitTests(unittest.TestCase):
         self.assertEqual(server.HISTORY_LINES, 1500)
         self.assertEqual(server.history_stats(list(server.HISTORY))["total"], 1500)
 
+    def test_build_environment_profile_is_validated_and_scopes_compile_cache(self):
+        profile = {
+            "schema": 1,
+            "fqbn": "arduino:avr:uno",
+            "cliVersion": "arduino-cli 1.5.1",
+            "capturedAt": 100,
+            "cores": [{"id": "arduino:avr", "version": "1.8.6"}],
+            "libraries": [{"name": "Wire", "version": "1.0.0"}],
+        }
+        request = {
+            "sketch": "Blink",
+            "board": "arduino:avr:uno",
+            "files": [{"name": "Blink.ino", "content": "void setup() {}\nvoid loop() {}"}],
+            "buildProfile": profile,
+        }
+        first = server.validate_compile(request)
+        same_environment = dict(request, buildProfile=dict(profile, capturedAt=200))
+        changed_environment = dict(request, buildProfile=dict(
+            profile, libraries=[{"name": "Wire", "version": "2.0.0"}]))
+        self.assertEqual(server.plan_key(first), server.plan_key(server.validate_compile(same_environment)))
+        self.assertNotEqual(server.plan_key(first), server.plan_key(server.validate_compile(changed_environment)))
+
+        mismatch = dict(request, buildProfile=dict(profile, fqbn="arduino:avr:nano"))
+        with self.assertRaises(server.ApiError):
+            server.validate_compile(mismatch)
+
     def test_history_trim_synchronizes_file_and_memory(self):
         records = [
             {"t": 1_700_000_000 + i, "id": str(i), "kind": "compile",
@@ -77,6 +107,65 @@ class ServerLimitTests(unittest.TestCase):
         self.assertEqual(server.HISTORY_LINES, server.HISTORY_KEEP // 2)
         self.assertEqual(len(server.HISTORY), server.HISTORY_KEEP // 2)
         self.assertEqual(server.HISTORY[0]["id"], str(server.HISTORY_TRIM + 1 - server.HISTORY_KEEP // 2))
+
+    def test_job_store_survives_restart_and_marks_active_jobs_interrupted(self):
+        active = server.new_job("compile", "network-a", False)
+        active["state"] = "running"
+        active["sketch"] = "Blink"
+        server.persist_job(active)
+        completed = server.new_job("compile", "network-b", False)
+        completed["state"] = "done"
+        completed["rc"] = 0
+        completed["result"] = {
+            "success": True, "output": "compiled", "errors": [], "time": 1,
+            "artifacts": {"firmware.hex": "ZmlybXdhcmU="},
+        }
+        server.persist_job(completed)
+
+        server.JOBS.clear()
+        server.load_jobs()
+
+        self.assertEqual(server.JOBS[active["id"]]["state"], "error")
+        self.assertIn("再起動", server.JOBS[active["id"]]["error"])
+        self.assertEqual(server.JOBS[completed["id"]]["state"], "done")
+        self.assertNotIn("artifacts", server.JOBS[completed["id"]]["result"])
+        self.assertTrue(server.JOBS[completed["id"]]["result"]["artifactsUnavailableAfterRestart"])
+
+    def test_interrupted_job_remains_queryable_after_restart_without_cli(self):
+        client = "net-" + hmac.new(
+            server.ADMIN_TOKEN.encode(), b"127.0.0.1", hashlib.sha256,
+        ).hexdigest()[:32]
+        job = server.new_job("compile", client, False)
+        job["state"] = "running"
+        server.persist_job(job)
+        server.JOBS.clear()
+        server.load_jobs()
+        httpd = server.Server(("127.0.0.1", 0), server.Handler)
+        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        thread.start()
+        request = urllib.request.Request(
+            "http://127.0.0.1:%d/jobs/%s" % (httpd.server_address[1], job["id"]),
+            headers={"Authorization": "Bearer " + server.TOKEN},
+        )
+        try:
+            with patch.object(server, "cli_available", return_value=False):
+                response = urllib.request.urlopen(request, timeout=5)
+                result = json.loads(response.read().decode("utf-8"))
+        finally:
+            httpd.shutdown()
+            thread.join(timeout=2)
+            httpd.server_close()
+        self.assertEqual(result["state"], "error")
+        self.assertIn("再起動", result["error"])
+
+    def test_queue_wait_estimate_uses_recent_successful_uncached_compiles(self):
+        server.HISTORY.extend([
+            {"kind": "compile", "success": True, "time": 30},
+            {"kind": "compile", "success": True, "time": 90, "cached": True},
+            {"kind": "compile", "success": False, "time": 120},
+            {"kind": "compile", "success": True, "time": 60},
+        ])
+        self.assertEqual(server.average_compile_seconds(), 45)
 
     def test_stale_compile_job_is_failed_and_recorded_not_silently_removed(self):
         job = server.new_job("compile", "network-a", False)

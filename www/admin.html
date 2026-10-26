@@ -986,7 +986,7 @@ body.phone-blocked > :not(#phone-block) { visibility:hidden!important; pointer-e
         <span class="sec-note">登録ユーザーとクラウド保存スケッチを管理します</span>
       </div>
       <div class="notice" role="note" style="margin-bottom:12px;">
-        管理者は、各ユーザーのスケッチ一覧と内容を閲覧できます。スケッチに個人情報や秘密情報を含めないよう、利用者に案内してください。
+        管理者は、各ユーザーのスケッチ一覧と内容を閲覧できます。スケッチに個人情報や秘密情報を含めないよう、利用者に案内してください。PW再設定で発行する一時パスワードは画面に一度だけ表示され、全セッションが失効します。本人へ安全な方法で伝え、ログイン後すぐ変更するよう案内してください。
       </div>
       <div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
         <input class="input" id="user-search" type="search" placeholder="ユーザー名・表示名で検索…" style="flex:1;min-width:160px;max-width:300px;" autocomplete="off">
@@ -2063,10 +2063,12 @@ var userMgr = {
         '<td>' + esc(u.name) + '</td>' +
         '<td style="text-align:center;">' +
           '<button type="button" class="btn btn-sm btn-ghost" data-act="sketches" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '" style="font-weight:600;color:var(--teal-lt);text-decoration:underline;">' +
-            esc(String(u.sketchCount)) + ' 件<span aria-hidden="true"> →</span></button></td>' +
+            esc(String(u.sketchCount)) + ' 件<span aria-hidden="true"> →</span></button><br><span class="sub">' +
+            esc(fmtBytes(u.usedBytes)) + (u.limitBytes ? ' / ' + esc(fmtBytes(u.limitBytes)) : ' / 上限なし') + '</span></td>' +
         '<td>' + fmtTime(u.createdAt) + '</td>' +
         '<td style="display:flex;gap:6px;flex-wrap:wrap;">' +
           '<button type="button" class="btn btn-sm btn-ghost" data-act="sketches" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '">スケッチ一覧</button>' +
+          '<button type="button" class="btn btn-sm btn-ghost" data-act="reset-password" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '">PW再設定</button>' +
           '<button type="button" class="btn btn-sm btn-ghost" data-act="toggle" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '" data-active="' + (u.active ? '1' : '0') + '">' +
             (u.active ? '無効化' : '有効化') + '</button>' +
           '<button type="button" class="btn btn-sm" data-act="delete" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '" style="background:rgba(224,82,82,.15);color:var(--err);border:1px solid rgba(224,82,82,.3);">削除</button>' +
@@ -2176,6 +2178,16 @@ var userMgr = {
       .catch(function(err) { toast(label + 'に失敗しました: ' + err.message, 'err'); });
   },
 
+  resetPassword: function(uid, uname) {
+    if (!confirm('@' + uname + ' のパスワードを再設定しますか？\n\n既存の全セッションは失効します。新しい一時パスワードはこの画面で一度だけ表示されます。')) return;
+    api('/admin/api/accounts/' + encodeURIComponent(uid) + '/reset-password', 10000, 'POST', {})
+      .then(function(data) {
+        window.prompt('@' + uname + ' の一時パスワードです。利用者へ安全な方法で伝え、新しいパスワードへ変更するよう案内してください。', data.temporaryPassword);
+        toast('@' + uname + ' のパスワードを再設定しました。全セッションを失効しました。', 'ok', 9000);
+      })
+      .catch(function(err) { toast('パスワード再設定に失敗しました: ' + err.message, 'err'); });
+  },
+
   deleteUser: function(uid, uname) {
     confirmDialog(
       '@' + uname + ' を削除',
@@ -2220,6 +2232,7 @@ document.addEventListener('click', function(e) {
     var uname = actBtn.dataset.uname;
     if (act === 'sketches' && uid) { userMgr.loadSketches(uid, uname); return; }
     if (act === 'toggle' && uid) { userMgr.toggleUser(uid, uname, actBtn.dataset.active === '1'); return; }
+    if (act === 'reset-password' && uid) { userMgr.resetPassword(uid, uname); return; }
     if (act === 'delete' && uid) { userMgr.deleteUser(uid, uname); return; }
     if (act === 'view') { userMgr.viewSketch(actBtn.dataset.sid, actBtn.dataset.sname); return; }
   }

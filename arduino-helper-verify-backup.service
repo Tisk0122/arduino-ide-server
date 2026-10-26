@@ -1,0 +1,15 @@
+[Unit]
+Description=Verify the latest Arduino Web IDE backup by isolated restore
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+EnvironmentFile=-/etc/arduino-helper/backup.env
+ExecStart=/usr/local/sbin/arduino-helper-verify-backup
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=5h

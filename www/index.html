@@ -3037,6 +3037,7 @@ body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer
               <div class="cloud-stat-lbl">最終同期</div>
             </div>
           </div>
+          <p class="form-hint" id="account-storage-usage" role="status" aria-live="polite">保存容量を確認しています…</p>
           <!-- 検索 -->
           <div class="cloud-sketch-header">
             <input type="search" class="cloud-sketch-search" id="cloud-sk-search" placeholder="スケッチを検索…" autocomplete="off" aria-label="クラウドスケッチを検索">
@@ -3098,12 +3099,21 @@ body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer
             </div>
           </details>
           <div class="account-session-actions">
+            <button class="btn btn-secondary" id="account-export-data" type="button" style="justify-content:center;">
+              <i data-lucide="download" style="width:14px;height:14px;" aria-hidden="true"></i>
+              スケッチと履歴をエクスポート
+            </button>
             <button class="btn btn-secondary" id="account-logout" type="button" style="justify-content:center;">
               <i data-lucide="log-out" style="width:14px;height:14px;" aria-hidden="true"></i>
               ログアウト
             </button>
           </div>
           <p class="form-hint">スケッチの変更は自動で同期します。別の端末で同じスケッチを編集した場合、どちらも残して確認できます。共有端末では利用後にログアウトしてください。</p>
+          <details class="account-pw-section">
+            <summary class="account-pw-summary" style="color:var(--err,#e05252);">アカウントを削除</summary>
+            <p class="form-hint">クラウド上のアカウント、スケッチ、保存履歴、ログインセッションを削除します。元に戻せません。定期バックアップには保持期間中データが残る場合があります。ブラウザー内のローカルスケッチは削除されません。</p>
+            <button class="btn btn-secondary" id="account-delete-self" type="button" style="color:var(--err,#e05252);">アカウントとクラウドデータを削除</button>
+          </details>
         </div>
       </div>
     </div>
@@ -3228,6 +3238,14 @@ body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer
       <div class="history-list" id="history-list" role="listbox" aria-label="保存された編集履歴"></div>
       <pre class="history-preview" id="history-preview" aria-label="選択した履歴のプレビュー">履歴を選択してください</pre>
       <div class="form-hint">編集履歴はこのブラウザーに最大20件保存されます（1ファイル250KB以下）。別の端末とは共有されません。</div>
+      <section id="account-history-section" hidden aria-labelledby="account-history-title">
+        <h3 id="account-history-title">アカウントのサーバー履歴</h3>
+        <p class="form-hint">保存済みのスケッチ全体を別の端末でも確認・復元できます（スケッチごとに過去100版）。復元すると現在の内容も履歴に残ります。</p>
+        <button class="btn btn-secondary" id="account-history-load-btn" type="button">サーバー履歴を読み込む</button>
+        <div class="history-list" id="account-history-list" role="listbox" aria-label="サーバーに保存されたスケッチ履歴"></div>
+        <pre class="history-preview" id="account-history-preview" aria-label="選択したサーバー履歴のプレビュー">履歴を選択してください</pre>
+        <button class="btn btn-primary" id="account-history-restore-btn" type="button" disabled>選択した履歴を復元</button>
+      </section>
     </div>
     <div class="modal-foot">
       <button class="btn btn-secondary" data-close="m-history">閉じる</button>
@@ -5040,6 +5058,9 @@ const History = {
   timer: null,
   entries: [],
   selectedIndex: -1,
+  accountEntries: [],
+  accountSelectedIndex: -1,
+  accountSketchId: '',
   _writes: new Map(),
 
   _key() {
@@ -5103,6 +5124,14 @@ const History = {
     this.selectedIndex = -1;
     document.getElementById('history-file-label').textContent = `${sketch.name} / ${file.name}`;
     this.render();
+    const accountSection = document.getElementById('account-history-section');
+    accountSection.hidden = !S.account.user;
+    this.accountEntries = [];
+    this.accountSelectedIndex = -1;
+    this.accountSketchId = sketch.id;
+    document.getElementById('account-history-list').replaceChildren();
+    document.getElementById('account-history-preview').textContent = '履歴を選択してください';
+    document.getElementById('account-history-restore-btn').disabled = true;
     openModal('m-history');
   },
 
@@ -5150,6 +5179,82 @@ const History = {
     Ed._onInput();
     closeModal('m-history');
     toast('編集履歴から復元しました', 'ok');
+  },
+
+  async loadAccount() {
+    const sketch = Sk.cur();
+    if (!S.account.user || !sketch || sketch.id !== this.accountSketchId) return;
+    const button = document.getElementById('account-history-load-btn');
+    button.disabled = true;
+    try {
+      const data = await Account.sketchVersions(sketch.id);
+      this.accountEntries = Array.isArray(data.versions) ? data.versions : [];
+      this.accountSelectedIndex = -1;
+      this.renderAccount();
+    } catch (error) {
+      toast('サーバー履歴を読み込めませんでした: ' + error.message, 'err');
+    } finally {
+      button.disabled = false;
+    }
+  },
+
+  renderAccount() {
+    const list = document.getElementById('account-history-list');
+    const preview = document.getElementById('account-history-preview');
+    const restore = document.getElementById('account-history-restore-btn');
+    list.replaceChildren();
+    if (!this.accountEntries.length) {
+      const empty = document.createElement('div');
+      empty.className = 'history-empty';
+      empty.textContent = 'サーバーに復元できる過去版はありません。';
+      list.appendChild(empty);
+    }
+    this.accountEntries.forEach((entry, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'history-entry' + (index === this.accountSelectedIndex ? ' active' : '');
+      button.setAttribute('role', 'option');
+      button.setAttribute('aria-selected', String(index === this.accountSelectedIndex));
+      const revision = document.createElement('span');
+      revision.textContent = `リビジョン ${entry.revision}`;
+      const date = document.createElement('span');
+      date.textContent = new Date(entry.createdAt * 1000).toLocaleString();
+      button.append(revision, date);
+      button.addEventListener('click', async () => {
+        try {
+          const snapshot = await Account.sketchVersion(this.accountSketchId, entry.revision);
+          this.accountSelectedIndex = index;
+          const parts = snapshot.sketch.files.map(file => `// ${file.name}\n${file.content}`);
+          preview.textContent = `${snapshot.sketch.name} — リビジョン ${snapshot.revision}\n\n${parts.join('\n\n')}`;
+          restore.disabled = false;
+          this.renderAccount();
+          preview.textContent = `${snapshot.sketch.name} — リビジョン ${snapshot.revision}\n\n${parts.join('\n\n')}`;
+        } catch (error) {
+          toast('サーバー履歴を開けませんでした: ' + error.message, 'err');
+        }
+      });
+      list.appendChild(button);
+    });
+    if (this.accountSelectedIndex < 0) preview.textContent = '履歴を選択してください';
+    restore.disabled = this.accountSelectedIndex < 0;
+  },
+
+  async restoreAccount() {
+    const entry = this.accountEntries[this.accountSelectedIndex];
+    const sketch = Sk.cur();
+    if (!entry || !sketch || sketch.id !== this.accountSketchId) return;
+    if (!confirm(`リビジョン ${entry.revision} を復元しますか？現在の保存内容も新しい履歴として残ります。`)) return;
+    const button = document.getElementById('account-history-restore-btn');
+    button.disabled = true;
+    try {
+      await Account.restoreSketchVersion(sketch, entry.revision);
+      closeModal('m-history');
+      toast('サーバー履歴からスケッチを復元しました', 'ok');
+    } catch (error) {
+      toast('スケッチを復元できませんでした: ' + error.message, 'err', 8000);
+    } finally {
+      button.disabled = false;
+    }
   },
 };
 
@@ -5418,7 +5523,12 @@ const Sk = {
     this._flushCurrent();
     const sk = this.cur();
     if (!sk) return;
-    const files = sk.files.map(f => ({ name: `${safeFileName(sk.name) || 'sketch'}/${safeFileName(f.name)}`, data: f.content }));
+    const folder = safeFileName(sk.name) || 'sketch';
+    const files = sk.files.map(f => ({ name: `${folder}/${safeFileName(f.name)}`, data: f.content }));
+    files.push({name: '.ide-meta.json', data: JSON.stringify({
+      version: 1,
+      sketches: {[folder]: {name: sk.name, board: sk.board, buildProfile: sk.buildProfile || null}},
+    })});
     const zip = Zip.make(files);
     dlBlob(new Blob([zip], { type:'application/zip' }), sk.name+'.zip');
     toast(`${sk.name}.zip をエクスポートしました`, 'ok');
@@ -5789,6 +5899,22 @@ const Helper = {
 const Account = {
   key: 'arduino_helper_account_session',
   error(message, status) { const e = new Error(message); e.status = status; return e; },
+  formatBytes(value) {
+    const bytes = Math.max(0, Number(value) || 0);
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+  },
+  showStorage(storage) {
+    if (!storage) return;
+    const usage = document.getElementById('account-storage-usage');
+    if (!usage) return;
+    const used = Number(storage.usedBytes) || 0;
+    const limit = Number(storage.limitBytes) || 0;
+    usage.textContent = limit
+      ? `クラウド保存量（現行スケッチ＋履歴）：${this.formatBytes(used)} / ${this.formatBytes(limit)}`
+      : `クラウド保存量（現行スケッチ＋履歴）：${this.formatBytes(used)} / 上限なし`;
+  },
   async request(path, method='GET', body, token=S.account.token) {
     const bases = Helper.order();
     if (!bases.length) throw this.error('コンパイルサーバーURLを先に設定してください');
@@ -5812,7 +5938,25 @@ const Account = {
     const result = await this.request('/account/sketches/' + encodeURIComponent(sketch.id), 'PUT',
       { sketch, revision: Number(sketch.revision || 0) });
     sketch.revision = result.revision;
+    this.showStorage(result.storage);
     await IDB.put(S.db, sketch, false);
+  },
+  async refreshStorage() {
+    const storage = await this.request('/account/storage');
+    this.showStorage(storage);
+    return storage;
+  },
+  async exportData() {
+    const data = await this.request('/account/export');
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `arduino-helper-sketches-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   },
   async resolveConflict(sketch) {
     const data = await this.request('/account/sketches');
@@ -5837,6 +5981,7 @@ const Account = {
     const result = await this.request('/account/sketches/' + encodeURIComponent(localCopy.id), 'PUT',
       {sketch:localCopy,revision:0});
     localCopy.revision = result.revision;
+    this.showStorage(result.storage);
     await IDB.put(S.db, localCopy, false);
     if (S.curId === originalId && Ed.ta) {
       S.curId = localCopy.id;
@@ -5859,13 +6004,54 @@ const Account = {
   },
   async deleteSketch(id, revision) {
     if (!S.account.user || this.loading) return;
-    await this.request('/account/sketches/' + encodeURIComponent(id) + '?revision=' + encodeURIComponent(revision || 0), 'DELETE');
+    const result = await this.request('/account/sketches/' + encodeURIComponent(id) + '?revision=' + encodeURIComponent(revision || 0), 'DELETE');
+    this.showStorage(result.storage);
+  },
+  async sketchVersions(id) {
+    return this.request('/account/sketches/' + encodeURIComponent(id) + '/versions');
+  },
+  async sketchVersion(id, revision) {
+    return this.request('/account/sketches/' + encodeURIComponent(id) + '/versions/' + encodeURIComponent(revision));
+  },
+  async restoreSketchVersion(sketch, targetRevision) {
+    if (!S.account.user || this.loading) throw this.error('アカウントにログインしてください');
+    if (S.dirty.size || S.saveFailed) await Sk.saveAll();
+    if (S.saveFailed || S.dirty.size) throw this.error('現在の変更を保存できませんでした。復元を中止しました');
+    const result = await this.request(
+      '/account/sketches/' + encodeURIComponent(sketch.id) + '/restore', 'POST',
+      {currentRevision: Number(sketch.revision), targetRevision});
+    const restored = result.sketch;
+    if (!restored || restored.revision !== result.revision || restored.id !== sketch.id) {
+      throw this.error('復元結果を確認できませんでした。サーバーのスケッチ一覧を再読み込みしてください');
+    }
+    await IDB.put(S.db, restored, false);
+    this.showStorage(result.storage);
+    const index = S.sketches.findIndex(item => item.id === restored.id);
+    if (index >= 0) S.sketches[index] = restored;
+    else S.sketches.unshift(restored);
+    for (const key of Array.from(S.dirty)) {
+      if (key.startsWith(restored.id + ':')) S.dirty.delete(key);
+    }
+    S.savedContent.forEach((content, key) => {
+      if (key.startsWith(restored.id + ':')) S.savedContent.delete(key);
+    });
+    restored.files.forEach((file, fileIndex) => {
+      S.savedContent.set(`${restored.id}:${fileIndex}`, file.content);
+    });
+    if (S.curId === restored.id) {
+      S.curId = null;
+      Sk.open(restored.id);
+    }
+    Sk.renderList();
+    updateAutosaveIndicator();
+    return restored;
   },
   async synchronize() {
     if (!S.account.user || S.account.syncing) return;
     S.account.syncing = true;
     try {
       const data = await this.request('/account/sketches');
+      await this.refreshStorage();
       const remoteById = new Map(data.sketches.map(sk => [sk.id, sk]));
       const local = await IDB.getAll(S.db);
       const localById = new Map(local.map(sk => [sk.id, sk]));
@@ -6016,6 +6202,10 @@ const Account = {
     await Sk.saveAll();
     try { await this.request('/account/logout', 'POST', {}); } catch (err) { console.warn('Account logout request failed:', err); }
     await this.clearSession('ログアウトしました。スケッチはサーバーに保存されています。');
+  },
+  async deleteAccount(password) {
+    await this.request('/account/delete', 'POST', { password });
+    await this.clearSession('アカウントとクラウドデータを削除しました。ブラウザー内のローカルスケッチは残っています。');
   },
 };
 
@@ -6470,7 +6660,7 @@ function helperErrorGuidance(err, adminJob) {
     };
   }
   if (err && err.kind === 'lost') {
-    return { text: 'サーバー再起動後はジョブの状態を復元できません。管理操作の場合は一覧で状態を確認してから再試行してください。' };
+    return { text: 'ジョブの記録が見つかりません。受付から24時間を超えた場合は保存期間が終了しています。処理をもう一度実行してください。' };
   }
   if (adminJob) {
     return { text: '詳細ログを確認してください。解決しない場合は、エラー内容をサーバー管理者に伝えてください。' };
@@ -6756,6 +6946,27 @@ const Build = {
     };
   },
 
+  async _readBuildProfile(fqbn) {
+    if (!S.helper.info || !S.helper.info.cli) await Helper.connect();
+    const [coreData, libraryData] = await Promise.all([
+      Helper.req('GET', '/cores/list', null, 30000),
+      Helper.req('GET', '/libs/list', null, 30000),
+    ]);
+    const cliVersion = S.helper.info && S.helper.info.cli;
+    if (typeof cliVersion !== 'string' || !cliVersion) {
+      throw new Error('Arduino CLIのバージョンを取得できません');
+    }
+    const cores = (coreData.cores || [])
+      .filter(item => item && item.installed)
+      .map(item => ({id: String(item.id), version: String(item.installed)}))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    const libraries = (libraryData.libraries || [])
+      .filter(item => item && item.name && item.version)
+      .map(item => ({name: String(item.name), version: String(item.version)}))
+      .sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version));
+    return {schema: 1, fqbn, cliVersion, cores, libraries, capturedAt: Date.now()};
+  },
+
   /** コンパイル。成功時は結果 (boardUsed 付き)。サーバーに届かない場合だけ {offline:true}。
       サーバーが拒否・失敗した場合は {success:false, serverError:true} */
   async compile() {
@@ -6802,6 +7013,31 @@ const Build = {
         setStatus('コンパイル失敗', 'err');
         return { success: false, serverError: true, boardUsed: board };
       }
+      let buildProfile;
+      try {
+        buildProfile = await this._readBuildProfile(board.fqbn);
+      } catch (error) {
+        const message = 'ビルド環境のバージョン情報を取得できません: ' + error.message;
+        this._log(message, 'err');
+        toast(message, 'err', 8000);
+        JC.compile.end(tk, false, 'ビルド環境を確認できません', 'ボード・ライブラリ一覧を再読み込みしてから、もう一度お試しください。');
+        setStatus('コンパイル失敗', 'err');
+        return {success: false, serverError: true, error: message, boardUsed: board};
+      }
+      const coreId = board.fqbn.split(':').slice(0, 2).join(':');
+      const selectedCore = buildProfile.cores.find(core => core.id === coreId);
+      this._log('ビルド環境: ' + buildProfile.cliVersion +
+        (selectedCore ? ` / ${coreId} ${selectedCore.version}` : '') +
+        ` / ライブラリ ${buildProfile.libraries.length} 件`, 'info');
+      if (isValidBuildProfile(sk.buildProfile) && sk.buildProfile.fqbn === board.fqbn &&
+          buildProfileSignature(sk.buildProfile) !== buildProfileSignature(buildProfile) &&
+          !confirm('前回のコンパイル後に Arduino CLI、ボードパッケージ、またはライブラリのバージョンが変わっています。今回の環境でコンパイルし、新しい環境情報に更新しますか？')) {
+        this._log('ビルド環境が前回と異なるため、コンパイルを中止しました', 'warn');
+        setStatus('コンパイルを中止しました');
+        JC.compile.hide();
+        return null;
+      }
+      payload.buildProfile = buildProfile;
       const ck = await CCache.key(payload);
       let r = await CCache.get(ck);
       if (cancelRequested && !jobId) {
@@ -6822,8 +7058,10 @@ const Build = {
             onStatus: s => {
               let txt = '';
               if (s.state === 'queued') {
+                const eta = Number.isFinite(s.estimatedWaitSeconds)
+                  ? ` (待ち時間の目安 約${Math.ceil(s.estimatedWaitSeconds / 60)}分)` : '';
                 txt = s.blocked === 'admin' ? '管理作業 (ボード・ライブラリの更新) が終わるまで待っています…'
-                  : `順番待ち: ${s.position || 1} 番目 (待機 ${s.queued || 1} 件)`;
+                  : `順番待ち: ${s.position || 1} 番目 (待機 ${s.queued || 1} 件)${eta}`;
               } else if (s.state === 'running') txt = 'サーバーでコンパイルしています…';
               if (txt && txt !== lastMsg) { lastMsg = txt; JC.compile.step(tk, txt); this._log(txt, 'info'); }
             },
@@ -6869,6 +7107,13 @@ const Build = {
         this._log(l, t);
       });
       if (r.success) {
+        if (!isValidBuildProfile(sk.buildProfile) ||
+            buildProfileSignature(sk.buildProfile) !== buildProfileSignature(buildProfile)) {
+          sk.buildProfile = buildProfile;
+          if (!await IDB.put(S.db, sk)) {
+            this._log('コンパイルは成功しましたが、ビルド環境情報を保存できませんでした', 'warn');
+          }
+        }
         this._log('コンパイル成功' + (r.time != null ? ` (${r.time} 秒)` : '') + (r.cached ? ' [サーバーのキャッシュ]' : ''), 'ok');
         if (r.skipped && r.skipped.length) {
           this._log('サイズが大きいため含めなかったファイル: ' + r.skipped.join(', '), 'warn');
@@ -7579,7 +7824,9 @@ const Zip = {
 const CCache = {
   mem: new Map(),
   async key(p) {
-    const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([S.helper.gen || 0, p])));
+    const profile = p.buildProfile ? {...p.buildProfile, capturedAt: 0} : null;
+    const cachePayload = {...p, buildProfile: profile};
+    const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([S.helper.gen || 0, cachePayload])));
     return Array.from(new Uint8Array(b), x => x.toString(16).padStart(2, '0')).join('');
   },
   async get(k) {
@@ -7607,6 +7854,28 @@ const CCache = {
   },
 };
 
+function buildProfileSignature(profile) {
+  return JSON.stringify([
+    profile.fqbn, profile.cliVersion, profile.cores, profile.libraries,
+  ]);
+}
+
+function isValidBuildProfile(profile) {
+  return !!profile && profile.schema === 1 &&
+    typeof profile.fqbn === 'string' &&
+    /^[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+(?::[A-Za-z0-9_.,=-]+)?$/.test(profile.fqbn) &&
+    typeof profile.cliVersion === 'string' && profile.cliVersion.length > 0 && profile.cliVersion.length <= 100 &&
+    Number.isSafeInteger(profile.capturedAt) && profile.capturedAt >= 0 &&
+    Array.isArray(profile.cores) && profile.cores.length <= 200 &&
+    Array.isArray(profile.libraries) && profile.libraries.length <= 2000 &&
+    profile.cores.every(item => item && typeof item.id === 'string' &&
+      /^[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+$/.test(item.id) &&
+      typeof item.version === 'string' && item.version.length <= 100) &&
+    profile.libraries.every(item => item && typeof item.name === 'string' &&
+      item.name.length > 0 && item.name.length <= 160 &&
+      typeof item.version === 'string' && item.version.length <= 100);
+}
+
 const Backup = {
   menu: null,
   _snap() { Sk._flushCurrent(); return S.sketches; },
@@ -7626,7 +7895,7 @@ const Backup = {
     const fol = this._folders(sks), fs = [], meta = {};
     sks.forEach(sk => {
       const f = fol.get(sk.id);
-      meta[f] = { name: sk.name, board: sk.board };
+      meta[f] = { name: sk.name, board: sk.board, buildProfile: sk.buildProfile || null };
       sk.files.forEach(x => fs.push({ name: f + '/' + safeFileName(x.name), data: x.content }));
     });
     fs.push({ name: '.ide-meta.json', data: JSON.stringify({ version: 1, sketches: meta }) });
@@ -7683,7 +7952,9 @@ const Backup = {
           const base = nm + '_復元'; nm = base; let i = 2;
           while (S.sketches.some(s => s.name === nm)) nm = base + (i++);
         }
-        const sk = { id: uid(), name: nm, files: g[top], board: m.board || Boards.currentId(), createdAt: Date.now(), updatedAt: Date.now() };
+        const sk = { id: uid(), name: nm, files: g[top], board: m.board || Boards.currentId(),
+          createdAt: Date.now(), updatedAt: Date.now(),
+          ...(isValidBuildProfile(m.buildProfile) ? {buildProfile: m.buildProfile} : {}) };
         await IDB.put(S.db, sk); S.sketches.unshift(sk);
       }
       Sk.renderList();
@@ -8530,6 +8801,8 @@ function initEvents() {
   document.getElementById('format-code-btn').addEventListener('click', () => Ed.formatCode());
   document.getElementById('history-open-btn').addEventListener('click', () => History.open());
   document.getElementById('history-restore-btn').addEventListener('click', () => History.restore());
+  document.getElementById('account-history-load-btn').addEventListener('click', () => History.loadAccount());
+  document.getElementById('account-history-restore-btn').addEventListener('click', () => History.restoreAccount());
   document.getElementById('verify-btn').addEventListener('click', () => Build.verify());
   document.getElementById('upload-btn').addEventListener('click', () => Build.upload());
   document.getElementById('compile-cancel-btn').addEventListener('click', () => {
@@ -8829,6 +9102,34 @@ function initEvents() {
   document.getElementById('account-logout').addEventListener('click', async () => {
     try { await Account.logout(); closeModal('m-account'); }
     catch (err) { toast('ログアウト前の保存に失敗しました。接続を確認してください: ' + err.message, 'err', 9000); }
+  });
+  document.getElementById('account-export-data').addEventListener('click', async event => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      await Account.exportData();
+      toast('スケッチと保存履歴をエクスポートしました', 'ok');
+    } catch (err) {
+      toast('エクスポートに失敗しました: ' + err.message, 'err', 9000);
+    } finally {
+      button.disabled = false;
+    }
+  });
+  document.getElementById('account-delete-self').addEventListener('click', async event => {
+    if (!confirm('アカウント、サーバー上の全スケッチと保存履歴を削除します。この操作は元に戻せません。定期バックアップには保持期間中データが残る場合があります。')) return;
+    const password = prompt('本人確認のため、現在のパスワードを入力してください。');
+    if (password === null) return;
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      await Account.deleteAccount(password);
+      closeModal('m-account');
+      toast('アカウントとクラウドデータを削除しました', 'ok');
+    } catch (err) {
+      toast('アカウント削除に失敗しました: ' + err.message, 'err', 9000);
+    } finally {
+      button.disabled = false;
+    }
   });
   // アカウントタブ切り替え
   document.getElementById('acct-tabs').addEventListener('click', e => {

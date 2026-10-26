@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily isolated restore verification for Arduino Web IDE backups
+
+[Timer]
+OnCalendar=*-*-* 04:10:00
+RandomizedDelaySec=10m
+Persistent=true
+Unit=arduino-helper-verify-backup.service
+
+[Install]
+WantedBy=timers.target

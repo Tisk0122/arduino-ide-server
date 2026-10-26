@@ -41,7 +41,7 @@ warn() { printf '警告: %s\n' "$*" >&2; }
 die()  { printf 'エラー: %s\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || die "root 権限で実行してください:  sudo bash install.sh"
-for f in arduino-helper.py arduino-build-run github-update.sh arduino-helper-update.service arduino-helper-update.timer configure-github-webhook.sh backup-arduino-helper.sh www/index.html www/admin.html www/docs.html; do
+for f in arduino-helper.py arduino-build-run github-update.sh arduino-helper-update.service arduino-helper-update.timer arduino-helper-backup.service arduino-helper-backup.timer configure-github-webhook.sh backup-arduino-helper.sh www/index.html www/admin.html www/docs.html; do
   [ -f "$HERE/$f" ] || die "$HERE/$f がありません。アーカイブを展開したフォルダで実行してください"
 done
 command -v systemctl >/dev/null || die "systemd が必要です"
@@ -62,7 +62,7 @@ done
 say "1/8 必要なパッケージ"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq python3 curl ca-certificates sudo tar >/dev/null
+apt-get install -y -qq python3 curl ca-certificates sudo tar util-linux >/dev/null
 if ! apt-get install -y -qq python3-venv python3-serial >/dev/null 2>&1; then
   warn "python3-venv / python3-serial を入れられませんでした (ESP32 の一部ツールで必要になることがあります)"
 fi
@@ -155,8 +155,25 @@ install -m 0644 -o root -g root "$HERE/www/docs.html" "$APP_DIR/www/docs.html"
 install -m 0700 -o root -g root "$HERE/github-update.sh" /usr/local/libexec/arduino-helper-update
 install -m 0644 -o root -g root "$HERE/arduino-helper-update.service" /etc/systemd/system/arduino-helper-update.service
 install -m 0644 -o root -g root "$HERE/arduino-helper-update.timer" /etc/systemd/system/arduino-helper-update.timer
+install -m 0644 -o root -g root "$HERE/arduino-helper-backup.service" /etc/systemd/system/arduino-helper-backup.service
+install -m 0644 -o root -g root "$HERE/arduino-helper-backup.timer" /etc/systemd/system/arduino-helper-backup.timer
+install -m 0644 -o root -g root "$HERE/arduino-helper-verify-backup.service" /etc/systemd/system/arduino-helper-verify-backup.service
+install -m 0644 -o root -g root "$HERE/arduino-helper-verify-backup.timer" /etc/systemd/system/arduino-helper-verify-backup.timer
 install -m 0700 -o root -g root "$HERE/configure-github-webhook.sh" /usr/local/libexec/arduino-helper-configure-github-webhook
 install -m 0750 -o root -g root "$HERE/backup-arduino-helper.sh" /usr/local/sbin/arduino-helper-backup
+install -m 0750 -o root -g root "$HERE/verify-arduino-helper-backup.sh" /usr/local/sbin/arduino-helper-verify-backup
+if [ ! -f "$CONF_DIR/backup.env" ]; then
+  cat > "$CONF_DIR/backup.env" <<'EOF'
+# 定期バックアップの設定。変更後: sudo systemctl restart arduino-helper-backup.timer
+HELPER_BACKUP_DIR=/var/backups/arduino-helper
+HELPER_BACKUP_RETENTION=14
+# オフサイト保管には rclone を構成した後、例の形式で指定してください。
+#HELPER_BACKUP_REMOTE=secure-backup:arduino-helper
+EOF
+  chmod 0600 "$CONF_DIR/backup.env"
+fi
+chown root:root "$CONF_DIR/backup.env"
+chmod 0600 "$CONF_DIR/backup.env"
 cat > "$CONF_DIR/build-run.conf" <<EOF
 {"workroot": "$H_HOME", "cli": "$CLI"}
 EOF
@@ -172,6 +189,7 @@ if [ ! -f "$CONF_DIR/helper.env" ]; then
 #HELPER_TRUST_CF_CONNECTING_IP=0 # 信頼できるローカルプロキシを使わない場合
 #HELPER_COMPILE_TIMEOUT=900     # 1回のコンパイルの上限 (秒)
 #HELPER_MIN_FREE_MB=1024        # 空きがこれ未満ならコンパイルを断る
+#HELPER_ACCOUNT_QUOTA_MB=50     # アカウントごとの現行スケッチ+履歴上限 (0で無制限)
 #HELPER_SINGLE_TOKEN=1          # 1人で使うとき: IDE 用トークンで管理操作もできる
 #HELPER_ALLOW_ASM=1             # アセンブラを明示的に許可する場合のみ
 # GitHub 自動更新を使う場合は configure-github-webhook.sh で設定します。
@@ -290,6 +308,8 @@ LockPersonality=yes
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
+systemctl enable --now arduino-helper-backup.timer
+systemctl enable --now arduino-helper-verify-backup.timer
 if [ -r "$CONF_DIR/github-webhook.env" ]; then
   systemctl enable --now arduino-helper-update.timer
 fi

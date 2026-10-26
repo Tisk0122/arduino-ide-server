@@ -74,16 +74,24 @@ FILES=(
   "www/icons/icon-192.png"
   "www/icons/icon-512.png"
   "configure-github-webhook.sh"
+  "backup-arduino-helper.sh"
   "github-update.sh"
   "arduino-helper-update.service"
   "arduino-helper-update.timer"
+  "arduino-helper-backup.service"
+  "arduino-helper-backup.timer"
+  "arduino-helper-verify-backup.service"
+  "arduino-helper-verify-backup.timer"
+  "verify-arduino-helper-backup.sh"
 )
 
 target_for() {
   case "$1" in
     configure-github-webhook.sh) printf '%s\n' /usr/local/libexec/arduino-helper-configure-github-webhook ;;
+    backup-arduino-helper.sh) printf '%s\n' /usr/local/sbin/arduino-helper-backup ;;
+    verify-arduino-helper-backup.sh) printf '%s\n' /usr/local/sbin/arduino-helper-verify-backup ;;
     github-update.sh) printf '%s\n' "$UPDATER_PATH" ;;
-    arduino-helper-update.service|arduino-helper-update.timer)
+    arduino-helper-update.service|arduino-helper-update.timer|arduino-helper-backup.service|arduino-helper-backup.timer|arduino-helper-verify-backup.service|arduino-helper-verify-backup.timer)
       printf '%s/%s\n' "$SYSTEMD_DIR" "$1"
       ;;
     *) printf '%s/%s\n' "$APP_DIR" "$1" ;;
@@ -93,6 +101,7 @@ target_for() {
 mode_for() {
   case "$1" in
     arduino-build-run|configure-github-webhook.sh|github-update.sh) printf '0700\n' ;;
+    backup-arduino-helper.sh|verify-arduino-helper-backup.sh) printf '0750\n' ;;
     *) printf '0644\n' ;;
   esac
 }
@@ -119,6 +128,16 @@ rollback() {
     systemctl restart arduino-helper-update.timer || log "更新確認timerの復旧に失敗しました"
   else
     systemctl disable --now arduino-helper-update.timer >/dev/null 2>&1 || true
+  fi
+  if [ -f "$stage/had/arduino-helper-backup.timer" ]; then
+    systemctl restart arduino-helper-backup.timer || log "バックアップtimerの復旧に失敗しました"
+  else
+    systemctl disable --now arduino-helper-backup.timer >/dev/null 2>&1 || true
+  fi
+  if [ -f "$stage/had/arduino-helper-verify-backup.timer" ]; then
+    systemctl restart arduino-helper-verify-backup.timer || log "復元検証timerの復旧に失敗しました"
+  else
+    systemctl disable --now arduino-helper-verify-backup.timer >/dev/null 2>&1 || true
   fi
   if ! systemctl restart "$SERVICE"; then
     log "ロールバック後のサービス再起動にも失敗しました"
@@ -268,6 +287,14 @@ run_logged systemctl enable --now arduino-helper-update.timer
 run_logged systemctl restart arduino-helper-update.timer
 systemctl is-enabled --quiet arduino-helper-update.timer || die "更新確認timerが enabled ではありません"
 systemctl is-active --quiet arduino-helper-update.timer || die "更新確認timerが active ではありません"
+run_logged systemctl enable --now arduino-helper-backup.timer
+run_logged systemctl restart arduino-helper-backup.timer
+systemctl is-enabled --quiet arduino-helper-backup.timer || die "バックアップtimerが enabled ではありません"
+systemctl is-active --quiet arduino-helper-backup.timer || die "バックアップtimerが active ではありません"
+run_logged systemctl enable --now arduino-helper-verify-backup.timer
+run_logged systemctl restart arduino-helper-verify-backup.timer
+systemctl is-enabled --quiet arduino-helper-verify-backup.timer || die "復元検証timerが enabled ではありません"
+systemctl is-active --quiet arduino-helper-verify-backup.timer || die "復元検証timerが active ではありません"
 
 commit="$(git rev-parse HEAD)"
 printf '%s\n' "$commit" > "$UPDATE_DIR/applied-commit.new.$$"

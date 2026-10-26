@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Arduino Web IDE backup
+
+[Timer]
+OnCalendar=*-*-* 03:20:00
+RandomizedDelaySec=20m
+Persistent=true
+Unit=arduino-helper-backup.service
+
+[Install]
+WantedBy=timers.target

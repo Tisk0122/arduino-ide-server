@@ -1,0 +1,14 @@
+[Unit]
+Description=Create a verified Arduino Web IDE backup
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+EnvironmentFile=-/etc/arduino-helper/backup.env
+ExecStart=/usr/local/sbin/arduino-helper-backup
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
