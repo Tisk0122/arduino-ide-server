@@ -1,0 +1,6 @@
+[Unit]
+Description=Record an Arduino Web IDE service failure in the system journal
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/logger --priority daemon.err --tag arduino-helper -- Unit %I failed; inspect journalctl -u %I

@@ -805,6 +805,18 @@ body.phone-blocked > :not(#phone-block) { visibility:hidden!important; pointer-e
           <div class="metric-detail"><span>ロード平均 (1 / 5 / 15分)</span><strong id="metric-load-average">-</strong></div>
         </article>
       </div>
+      <div class="card" style="margin-top:12px;">
+        <div class="sec-head" style="margin-bottom:8px;"><h2 style="font-size:14px;">運用監視</h2>
+          <span class="sec-note" id="monitoring-summary">状態を取得しています</span></div>
+        <div id="monitoring-warnings" role="status" aria-live="polite"></div>
+        <div class="grid g2" style="margin-top:8px;">
+          <div class="stat"><span class="k">アカウントDB / WAL</span><span class="v" id="monitoring-db">-</span></div>
+          <div class="stat"><span class="k">バックアップ</span><span class="v" id="monitoring-backup">-</span></div>
+          <div class="stat"><span class="k">バックアップ総量 / 世代数</span><span class="v" id="monitoring-backup-total">-</span></div>
+          <div class="stat"><span class="k">直近バックアップ検査</span><span class="v" id="monitoring-verify">-</span></div>
+          <div class="stat"><span class="k">直近コンパイル失敗率</span><span class="v" id="monitoring-compile">-</span></div>
+        </div>
+      </div>
     </section>
 
     <section id="section-server">
@@ -1000,6 +1012,24 @@ body.phone-blocked > :not(#phone-block) { visibility:hidden!important; pointer-e
           </tr></thead>
           <tbody id="user-body"></tbody>
         </table>
+      </div>
+      <div style="margin-top:18px;">
+        <div class="sec-head"><h3>アカウント監査ログ</h3>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span class="sec-note" id="audit-count"></span>
+            <button type="button" class="btn btn-sm" id="btn-reload-audit">監査ログを更新</button>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th scope="col">日時</th><th scope="col">実行者</th><th scope="col">操作</th><th scope="col">対象</th><th scope="col">詳細</th></tr></thead>
+            <tbody id="audit-body"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+          <button type="button" class="btn btn-sm" id="btn-audit-prev" disabled>新しいログ</button>
+          <button type="button" class="btn btn-sm" id="btn-audit-next" disabled>古いログ</button>
+        </div>
       </div>
 
       <!-- スケッチ一覧パネル -->
@@ -1490,9 +1520,46 @@ function setRefreshFeedback(message, busy) {
 }
 
 /* ---------------- 描画 ---------------- */
+function renderMonitoring(monitoring) {
+  monitoring = monitoring || {};
+  var warnings = monitoring.warnings || [];
+  $('#monitoring-summary').textContent = warnings.length
+    ? warnings.length + ' 件の警告'
+    : '警告はありません';
+  $('#monitoring-warnings').innerHTML = warnings.length
+    ? '<ul style="margin:0;padding-left:20px;color:var(--warn);">' +
+      warnings.map(function(item) {
+        var unit = item.code === 'database_size' ? ' MiB'
+          : item.code === 'backup_stale' ? ' 時間' : '%';
+        var value = item.value == null ? '' : ' (' + item.value +
+          unit + (item.threshold == null ? '' : ' / 警戒値 ' + item.threshold + unit) + ')';
+        return '<li>' + esc(item.message) + esc(value) + '</li>';
+      }).join('') + '</ul>'
+    : '<span class="ok">警告はありません</span>';
+  var db = monitoring.database || {};
+  $('#monitoring-db').textContent = fmtMetricBytes(db.bytes);
+  var backup = monitoring.backup || {};
+  $('#monitoring-backup').textContent = backup.lastSuccess
+    ? userMgr.fmtRelDate(backup.lastSuccess) + ' · ' + fmtMetricBytes(backup.sizeBytes)
+    : '成功記録なし';
+  $('#monitoring-backup-total').textContent = backup.totalBytes == null
+    ? '取得不可'
+    : fmtMetricBytes(backup.totalBytes) + ' / ' + (backup.count == null ? '-' : backup.count) + '世代';
+  $('#monitoring-verify').textContent = backup.lastVerifyOk === true
+    ? '成功 · ' + userMgr.fmtRelDate(backup.lastVerifyAt) + ' (' + (backup.lastVerifyMode || '-') + ')'
+    : backup.lastVerifyOk === false
+      ? '失敗 · ' + userMgr.fmtRelDate(backup.lastVerifyAt)
+      : '検査記録なし';
+  var compile = monitoring.compileWindow || {};
+  $('#monitoring-compile').textContent = compile.failurePercent == null
+    ? 'データ不足 (' + (compile.sampleCount || 0) + '件)'
+    : compile.failurePercent + '% (' + compile.failures + '/' + compile.sampleCount + '件)';
+}
+
 function render(d) {
   var s = d.server || {}, q = d.queue || {}, st = d.stats || {};
   var cliOk = s.wrapperFound;
+  renderMonitoring(d.monitoring);
 
   /* トップバー */
   $('#st-version').textContent = s.version || '-';
@@ -1602,6 +1669,7 @@ function render(d) {
   lim.push(stat('接続元あたり同時実行', lm.perClient));
   lim.push(stat('コンパイル上限', lm.compileTimeout + ' 秒'));
   lim.push(stat('空きディスク下限', lm.minFreeMb + ' MB'));
+  lim.push(stat('空きメモリ下限', lm.minMemoryMb ? lm.minMemoryMb + ' MB' : '無効'));
   lim.push(stat('ジョブ保持時間', lm.jobKeepSec + ' 秒'));
   lim.push(stat('ソース上限', lm.maxSourceMb + ' MB / ' + lm.maxFiles + ' ファイル'));
   lim.push(stat('リクエスト上限', lm.maxBodyMb + ' MB'));
@@ -2006,6 +2074,7 @@ var userMgr = {
   users: [],
   currentUid: null,
   sketches: [],
+  auditOffset: 0,
 
   fmtRelDate: function(ts) {
     if (!ts) return '-';
@@ -2025,6 +2094,7 @@ var userMgr = {
       .then(function(d) {
         userMgr.users = d.users || [];
         userMgr.renderUsers();
+        userMgr.loadAudit(0);
         $('#user-count').textContent = userMgr.users.length + '人のユーザー';
       })
       .catch(function(err) {
@@ -2034,6 +2104,24 @@ var userMgr = {
         btn.disabled = false;
         btn.textContent = 'ユーザー一覧を更新';
       });
+  },
+
+  loadAudit: function(offset) {
+    if (offset != null) userMgr.auditOffset = offset;
+    api('/admin/api/accounts/audit?offset=' + userMgr.auditOffset + '&limit=50', 10000)
+      .then(function(d) {
+        var body = $('#audit-body');
+        body.innerHTML = d.items.length ? d.items.map(function(item) {
+          return '<tr><td>' + fmtTime(item.createdAt) + '</td>' +
+            '<td>' + esc(item.actorName || '管理者') + '</td>' +
+            '<td>' + esc(item.action) + '</td><td>' + esc(item.target) + '</td>' +
+            '<td><code>' + esc(JSON.stringify(item.details || {})) + '</code></td></tr>';
+        }).join('') : '<tr><td colspan="5" style="text-align:center;padding:18px;">監査ログがありません</td></tr>';
+        $('#audit-count').textContent = d.total + '件';
+        $('#btn-audit-prev').disabled = userMgr.auditOffset <= 0;
+        $('#btn-audit-next').disabled = userMgr.auditOffset + d.items.length >= d.total;
+      })
+      .catch(function(err) { toast('監査ログの取得に失敗しました: ' + err.message, 'err'); });
   },
 
   renderUsers: function() {
@@ -2064,11 +2152,13 @@ var userMgr = {
         '<td style="text-align:center;">' +
           '<button type="button" class="btn btn-sm btn-ghost" data-act="sketches" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '" style="font-weight:600;color:var(--teal-lt);text-decoration:underline;">' +
             esc(String(u.sketchCount)) + ' 件<span aria-hidden="true"> →</span></button><br><span class="sub">' +
-            esc(fmtBytes(u.usedBytes)) + (u.limitBytes ? ' / ' + esc(fmtBytes(u.limitBytes)) : ' / 上限なし') + '</span></td>' +
+            esc(fmtBytes(u.usedBytes)) + (u.limitBytes ? ' / ' + esc(fmtBytes(u.limitBytes)) : ' / 上限なし') +
+            ' · セッション ' + esc(String(u.activeSessionCount || 0)) + '</span></td>' +
         '<td>' + fmtTime(u.createdAt) + '</td>' +
         '<td style="display:flex;gap:6px;flex-wrap:wrap;">' +
           '<button type="button" class="btn btn-sm btn-ghost" data-act="sketches" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '">スケッチ一覧</button>' +
           '<button type="button" class="btn btn-sm btn-ghost" data-act="reset-password" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '">PW再設定</button>' +
+          '<button type="button" class="btn btn-sm btn-ghost" data-act="revoke-sessions" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '">全セッション失効</button>' +
           '<button type="button" class="btn btn-sm btn-ghost" data-act="toggle" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '" data-active="' + (u.active ? '1' : '0') + '">' +
             (u.active ? '無効化' : '有効化') + '</button>' +
           '<button type="button" class="btn btn-sm" data-act="delete" data-uid="' + esc(u.id) + '" data-uname="' + esc(u.username) + '" style="background:rgba(224,82,82,.15);color:var(--err);border:1px solid rgba(224,82,82,.3);">削除</button>' +
@@ -2170,10 +2260,13 @@ var userMgr = {
       .then(function(d) {
         toast('@' + uname + ' を' + (d.active ? '有効化' : '無効化') + 'しました', 'ok');
         userMgr.users = userMgr.users.map(function(u) {
-          if (u.id === uid) return Object.assign({}, u, { active: d.active });
+          if (u.id === uid) return Object.assign({}, u, {
+            active: d.active, activeSessionCount: d.active ? u.activeSessionCount : 0
+          });
           return u;
         });
         userMgr.renderUsers();
+        userMgr.loadAudit(0);
       })
       .catch(function(err) { toast(label + 'に失敗しました: ' + err.message, 'err'); });
   },
@@ -2184,8 +2277,21 @@ var userMgr = {
       .then(function(data) {
         window.prompt('@' + uname + ' の一時パスワードです。利用者へ安全な方法で伝え、新しいパスワードへ変更するよう案内してください。', data.temporaryPassword);
         toast('@' + uname + ' のパスワードを再設定しました。全セッションを失効しました。', 'ok', 9000);
+        userMgr.load();
+        userMgr.loadAudit(0);
       })
       .catch(function(err) { toast('パスワード再設定に失敗しました: ' + err.message, 'err'); });
+  },
+
+  revokeSessions: function(uid, uname) {
+    if (!confirm('@' + uname + ' の全セッションを失効しますか？')) return;
+    api('/admin/api/accounts/' + encodeURIComponent(uid) + '/revoke-sessions', 8000, 'POST', {})
+      .then(function(data) {
+        toast('@' + uname + ' のセッションを ' + data.revokedSessions + ' 件失効しました', 'ok');
+        userMgr.load();
+        userMgr.loadAudit(0);
+      })
+      .catch(function(err) { toast('セッション失効に失敗しました: ' + err.message, 'err'); });
   },
 
   deleteUser: function(uid, uname) {
@@ -2233,6 +2339,7 @@ document.addEventListener('click', function(e) {
     if (act === 'sketches' && uid) { userMgr.loadSketches(uid, uname); return; }
     if (act === 'toggle' && uid) { userMgr.toggleUser(uid, uname, actBtn.dataset.active === '1'); return; }
     if (act === 'reset-password' && uid) { userMgr.resetPassword(uid, uname); return; }
+    if (act === 'revoke-sessions' && uid) { userMgr.revokeSessions(uid, uname); return; }
     if (act === 'delete' && uid) { userMgr.deleteUser(uid, uname); return; }
     if (act === 'view') { userMgr.viewSketch(actBtn.dataset.sid, actBtn.dataset.sname); return; }
   }
@@ -2254,6 +2361,13 @@ document.addEventListener('click', function(e) {
 
 $('#user-search').addEventListener('input', function() { userMgr.renderUsers(); });
 $('#btn-reload-users').addEventListener('click', function() { userMgr.load(); });
+$('#btn-reload-audit').addEventListener('click', function() { userMgr.loadAudit(0); });
+$('#btn-audit-prev').addEventListener('click', function() {
+  userMgr.loadAudit(Math.max(0, userMgr.auditOffset - 50));
+});
+$('#btn-audit-next').addEventListener('click', function() {
+  userMgr.loadAudit(userMgr.auditOffset + 50);
+});
 
 function boot() {
   showApp();

@@ -851,6 +851,7 @@ svg { display: block; flex-shrink: 0; }
 #cur-line-hl.has-error { background: color-mix(in srgb, #e05252 13%, var(--ed-line)); border-bottom: 1px solid #e05252; }
 .history-list { display: grid; gap: 6px; max-height: 220px; overflow: auto; margin-bottom: 12px; }
 .history-entry { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 8px 10px; border: 1px solid var(--bd1); border-radius: var(--radius); color: var(--tx1); background: var(--bg2); text-align: left; cursor: pointer; }
+.account-history-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center; }
 .history-entry:hover, .history-entry.active { border-color: var(--teal); background: var(--bg3); }
 .history-preview { max-height: 190px; overflow: auto; padding: 10px; border: 1px solid var(--bd1); border-radius: var(--radius); background: var(--bg-input); color: var(--tx1); font: 11px/1.6 var(--ff-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .history-empty { padding: 14px; color: var(--tx3); text-align: center; }
@@ -3240,10 +3241,11 @@ body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer
       <div class="form-hint">編集履歴はこのブラウザーに最大20件保存されます（1ファイル250KB以下）。別の端末とは共有されません。</div>
       <section id="account-history-section" hidden aria-labelledby="account-history-title">
         <h3 id="account-history-title">アカウントのサーバー履歴</h3>
-        <p class="form-hint">保存済みのスケッチ全体を別の端末でも確認・復元できます（スケッチごとに過去100版）。復元すると現在の内容も履歴に残ります。</p>
+        <p class="form-hint" id="account-history-retention">保存済みのスケッチ全体を別の端末でも確認・復元できます。復元すると現在の内容も履歴に残ります。</p>
         <button class="btn btn-secondary" id="account-history-load-btn" type="button">サーバー履歴を読み込む</button>
         <div class="history-list" id="account-history-list" role="listbox" aria-label="サーバーに保存されたスケッチ履歴"></div>
         <pre class="history-preview" id="account-history-preview" aria-label="選択したサーバー履歴のプレビュー">履歴を選択してください</pre>
+        <button class="btn btn-secondary" id="account-history-delete-btn" type="button" disabled>選択した履歴を削除</button>
         <button class="btn btn-primary" id="account-history-restore-btn" type="button" disabled>選択した履歴を復元</button>
       </section>
     </div>
@@ -5061,6 +5063,8 @@ const History = {
   accountEntries: [],
   accountSelectedIndex: -1,
   accountSketchId: '',
+  accountDeleteRevisions: new Set(),
+  accountMaxVersions: 100,
   _writes: new Map(),
 
   _key() {
@@ -5128,10 +5132,12 @@ const History = {
     accountSection.hidden = !S.account.user;
     this.accountEntries = [];
     this.accountSelectedIndex = -1;
+    this.accountDeleteRevisions = new Set();
     this.accountSketchId = sketch.id;
     document.getElementById('account-history-list').replaceChildren();
     document.getElementById('account-history-preview').textContent = '履歴を選択してください';
     document.getElementById('account-history-restore-btn').disabled = true;
+    document.getElementById('account-history-delete-btn').disabled = true;
     openModal('m-history');
   },
 
@@ -5190,6 +5196,10 @@ const History = {
       const data = await Account.sketchVersions(sketch.id);
       this.accountEntries = Array.isArray(data.versions) ? data.versions : [];
       this.accountSelectedIndex = -1;
+      this.accountDeleteRevisions = new Set();
+      this.accountMaxVersions = Number.isInteger(data.maxVersions) ? data.maxVersions : 100;
+      document.getElementById('account-history-retention').textContent =
+        `別の端末でも確認・復元できます。スケッチごとの履歴保持上限は${this.accountMaxVersions}版です。上限を変更した場合、既存履歴は次回の保存・復元時に整理されます。復元すると現在の内容も履歴に残ります。`;
       this.renderAccount();
     } catch (error) {
       toast('サーバー履歴を読み込めませんでした: ' + error.message, 'err');
@@ -5233,10 +5243,48 @@ const History = {
           toast('サーバー履歴を開けませんでした: ' + error.message, 'err');
         }
       });
-      list.appendChild(button);
+      const row = document.createElement('div');
+      row.className = 'account-history-row';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = this.accountDeleteRevisions.has(entry.revision);
+      checkbox.setAttribute('aria-label', `リビジョン ${entry.revision} を削除対象にする`);
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) this.accountDeleteRevisions.add(entry.revision);
+        else this.accountDeleteRevisions.delete(entry.revision);
+        document.getElementById('account-history-delete-btn').disabled =
+          this.accountDeleteRevisions.size === 0;
+      });
+      row.append(checkbox, button);
+      list.appendChild(row);
     });
     if (this.accountSelectedIndex < 0) preview.textContent = '履歴を選択してください';
     restore.disabled = this.accountSelectedIndex < 0;
+    document.getElementById('account-history-delete-btn').disabled =
+      this.accountDeleteRevisions.size === 0;
+  },
+
+  async deleteAccountVersions() {
+    const revisions = Array.from(this.accountDeleteRevisions);
+    if (!revisions.length || !S.account.user || S.account.loading) return;
+    if (!confirm(`${revisions.length} 件のサーバー履歴を削除しますか？現在のスケッチは削除されません。`)) return;
+    const button = document.getElementById('account-history-delete-btn');
+    button.disabled = true;
+    try {
+      const result = await Account.deleteSketchVersions(this.accountSketchId, revisions);
+      const deleted = new Set(revisions);
+      this.accountEntries = this.accountEntries.filter(entry => !deleted.has(entry.revision));
+      this.accountDeleteRevisions.clear();
+      this.accountSelectedIndex = -1;
+      document.getElementById('account-history-preview').textContent = '履歴を選択してください';
+      Account.showStorage(result.storage);
+      this.renderAccount();
+      toast(`${result.deleted} 件の履歴を削除しました`, 'ok');
+    } catch (error) {
+      toast('サーバー履歴を削除できませんでした: ' + error.message, 'err');
+    } finally {
+      button.disabled = this.accountDeleteRevisions.size === 0;
+    }
   },
 
   async restoreAccount() {
@@ -6012,6 +6060,9 @@ const Account = {
   },
   async sketchVersion(id, revision) {
     return this.request('/account/sketches/' + encodeURIComponent(id) + '/versions/' + encodeURIComponent(revision));
+  },
+  async deleteSketchVersions(id, revisions) {
+    return this.request('/account/sketches/' + encodeURIComponent(id) + '/versions', 'DELETE', {revisions});
   },
   async restoreSketchVersion(sketch, targetRevision) {
     if (!S.account.user || this.loading) throw this.error('アカウントにログインしてください');
@@ -8803,6 +8854,7 @@ function initEvents() {
   document.getElementById('history-restore-btn').addEventListener('click', () => History.restore());
   document.getElementById('account-history-load-btn').addEventListener('click', () => History.loadAccount());
   document.getElementById('account-history-restore-btn').addEventListener('click', () => History.restoreAccount());
+  document.getElementById('account-history-delete-btn').addEventListener('click', () => History.deleteAccountVersions());
   document.getElementById('verify-btn').addEventListener('click', () => Build.verify());
   document.getElementById('upload-btn').addEventListener('click', () => Build.upload());
   document.getElementById('compile-cancel-btn').addEventListener('click', () => {

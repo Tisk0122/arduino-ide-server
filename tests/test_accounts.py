@@ -28,7 +28,9 @@ class AccountApiTests(unittest.TestCase):
         server.WORK_DIR = server.HOME / "work"
         server.WORK_DIR.mkdir()
         server.ACCOUNT_DB_INITIALIZED_PATH = None
+        server.BACKUP_STATUS_FILE = server.HOME / "backup-status.json"
         server.ACCOUNT_QUOTA_MB = 50
+        server.ACCOUNT_VERSION_LIMIT = 100
         server.ACCOUNT_SESSION_CLEANUP_LAST = 0
         server.ACCOUNT_SIGNUP_ATTEMPTS.clear()
         server.AUTH_FAILS.clear()
@@ -227,6 +229,82 @@ class AccountApiTests(unittest.TestCase):
             "/account/sketches/history_one/versions", token=owner["token"])
         self.assertEqual({v["revision"] for v in versions["versions"]}, {1, 2})
 
+    def test_history_retention_is_configurable_and_selected_deletion_preserves_current_sketch(self):
+        owner = self.register()
+        other = self.register("member02", "SecondPass-01", "Second")
+        server.ACCOUNT_VERSION_LIMIT = 2
+        sketch = {
+            "id": "trim_history",
+            "name": "Version 1",
+            "files": [{"name": "trim_history.ino", "content": "void setup() {}"}],
+        }
+        status, saved = self.request("/account/sketches/trim_history", "PUT",
+                                     {"sketch": sketch, "revision": 0}, owner["token"])
+        self.assertEqual(status, 200)
+        for revision in range(2, 5):
+            sketch = dict(sketch, name="Version %d" % revision)
+            status, saved = self.request(
+                "/account/sketches/trim_history", "PUT",
+                {"sketch": sketch, "revision": saved["revision"]}, owner["token"])
+            self.assertEqual(status, 200)
+
+        status, versions = self.request(
+            "/account/sketches/trim_history/versions", token=owner["token"])
+        self.assertEqual(status, 200)
+        self.assertEqual(versions["maxVersions"], 2)
+        self.assertEqual({item["revision"] for item in versions["versions"]}, {2, 3})
+        before = self.request("/account/storage", token=owner["token"])[1]["usedBytes"]
+
+        status, deleted = self.request("/account/sketches/trim_history/versions", "DELETE",
+                                       {"revisions": [2]}, owner["token"])
+        self.assertEqual(status, 200)
+        self.assertEqual(deleted["deleted"], 1)
+        self.assertLess(deleted["storage"]["usedBytes"], before)
+        status, current = self.request("/account/sketches", token=owner["token"])
+        self.assertEqual(current["sketches"][0]["revision"], 4)
+        self.assertEqual(current["sketches"][0]["name"], "Version 4")
+
+        status, _ = self.request("/account/sketches/trim_history/versions", "DELETE",
+                                 {"revisions": [3]}, other["token"])
+        self.assertEqual(status, 404)
+        status, _ = self.request("/account/sketches/trim_history/versions", "DELETE",
+                                 {"revisions": [3, 99]}, owner["token"])
+        self.assertEqual(status, 404)
+        status, _ = self.request("/account/sketches/trim_history/versions", "DELETE",
+                                 {"revisions": [3, 3]}, owner["token"])
+        self.assertEqual(status, 400)
+        status, versions = self.request(
+            "/account/sketches/trim_history/versions", token=owner["token"])
+        self.assertEqual({item["revision"] for item in versions["versions"]}, {3})
+
+    def test_bulk_history_deletion_handles_maximum_supported_selection(self):
+        owner = self.register()
+        sketch = {
+            "id": "bulk_history",
+            "name": "Current",
+            "files": [{"name": "bulk_history.ino", "content": "void setup() {}"}],
+        }
+        status, saved = self.request("/account/sketches/bulk_history", "PUT",
+                                     {"sketch": sketch, "revision": 0}, owner["token"])
+        self.assertEqual(status, 200)
+        with server.account_db() as conn:
+            conn.executemany(
+                "INSERT INTO account_sketch_versions"
+                "(sketch_id,user_id,revision,editor_id,data,created_at) VALUES(?,?,?,?,?,?)",
+                [("bulk_history", owner["user"]["id"], revision, owner["user"]["id"],
+                  json.dumps(dict(sketch, name="Old %d" % revision)), revision)
+                 for revision in range(1, 1001)],
+            )
+
+        status, result = self.request(
+            "/account/sketches/bulk_history/versions", "DELETE",
+            {"revisions": list(range(1, 1001))}, owner["token"])
+        self.assertEqual(status, 200)
+        self.assertEqual(result["deleted"], 1000)
+        status, current = self.request("/account/sketches", token=owner["token"])
+        self.assertEqual(current["sketches"][0]["revision"], saved["revision"])
+        self.assertEqual(current["sketches"][0]["name"], "Current")
+
     def test_account_quota_counts_current_sketch_and_history_and_rolls_back_overflow(self):
         owner = self.register()
         server.ACCOUNT_QUOTA_MB = 1
@@ -297,9 +375,11 @@ class AccountApiTests(unittest.TestCase):
         with server.account_db() as conn:
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM account_users").fetchone()[0], 0)
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM account_sketches").fetchone()[0], 0)
-            self.assertTrue(conn.execute(
-                "SELECT 1 FROM account_audit WHERE action='account.delete'"
-            ).fetchone())
+            event = conn.execute(
+                "SELECT actor_id,details FROM account_audit WHERE action='account.delete'"
+            ).fetchone()
+            self.assertIsNone(event["actor_id"])
+            self.assertEqual(json.loads(event["details"])["actorName"], "member01")
 
     def test_admin_password_reset_revokes_sessions_and_returns_temporary_password(self):
         owner = self.register()
@@ -339,6 +419,106 @@ class AccountApiTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(len(result["users"]), 1)
         self.assertEqual(result["users"][0]["username"], "member01")
+        self.assertEqual(result["users"][0]["activeSessionCount"], 1)
+
+    def test_admin_can_revoke_all_sessions_and_review_audited_actions(self):
+        owner = self.register()
+        another_session = self.login("member01", "MemberPass-01")
+        uid = owner["user"]["id"]
+        admin_headers = {"Authorization": "Bearer " + server.ADMIN_TOKEN}
+
+        status, forbidden = self.request(
+            "/admin/api/accounts/" + uid + "/revoke-sessions", "POST", {},
+            headers={"Authorization": "Bearer " + server.TOKEN})
+        self.assertEqual(status, 403)
+        self.assertIn("管理者", forbidden["error"])
+
+        status, result = self.request(
+            "/admin/api/accounts/" + uid + "/revoke-sessions", "POST", {},
+            headers=admin_headers)
+        self.assertEqual(status, 200)
+        self.assertEqual(result["revokedSessions"], 2)
+        for token in (owner["token"], another_session["token"]):
+            status, _ = self.request("/account/me", token=token)
+            self.assertEqual(status, 401)
+
+        status, audit = self.request("/admin/api/accounts/audit?limit=10", headers=admin_headers)
+        self.assertEqual(status, 200)
+        event = next(item for item in audit["items"]
+                     if item["action"] == "account.admin_sessions_revoked")
+        self.assertEqual(event["target"], uid)
+        self.assertEqual(event["details"], {"actor": "admin-token", "revokedSessions": 2})
+
+        status, _ = self.request(
+            "/admin/api/accounts/audit",
+            headers={"Authorization": "Bearer " + server.TOKEN})
+        self.assertEqual(status, 403)
+
+    def test_admin_toggle_and_delete_actions_keep_audit_actor_details(self):
+        owner = self.register()
+        uid = owner["user"]["id"]
+        admin_headers = {"Authorization": "Bearer " + server.ADMIN_TOKEN}
+
+        status, disabled = self.request(
+            "/admin/api/accounts/" + uid + "/toggle", "POST", {}, headers=admin_headers)
+        self.assertEqual(status, 200)
+        self.assertFalse(disabled["active"])
+        status, enabled = self.request(
+            "/admin/api/accounts/" + uid + "/toggle", "POST", {}, headers=admin_headers)
+        self.assertEqual(status, 200)
+        self.assertTrue(enabled["active"])
+
+        status, deleted = self.request(
+            "/admin/api/accounts/" + uid, "DELETE", headers=admin_headers)
+        self.assertEqual(status, 200)
+        self.assertEqual(deleted["deleted"], uid)
+        status, audit = self.request("/admin/api/accounts/audit?limit=20", headers=admin_headers)
+        self.assertEqual(status, 200)
+        actions = {item["action"]: item for item in audit["items"]}
+        toggle_states = {
+            item["details"]["active"] for item in audit["items"]
+            if item["action"] == "account.admin_toggle"
+        }
+        self.assertEqual(toggle_states, {False, True})
+        self.assertEqual(actions["account.admin_delete"]["actorName"], "管理者")
+        self.assertEqual(actions["account.register"]["actorName"], "member01")
+
+    def test_admin_overview_exposes_threshold_warnings_and_backup_state(self):
+        now = int(server.time.time())
+        server.WARN_DISK_PERCENT = 85
+        server.WARN_MEMORY_PERCENT = 90
+        server.WARN_DATABASE_MB = 512
+        server.WARN_BACKUP_AGE_HOURS = 36
+        server.WARN_COMPILE_FAIL_PERCENT = 25
+        server.WARN_QUEUE_PERCENT = 80
+        server.BACKUP_STATUS_FILE.write_text(json.dumps({
+            "lastBackupSuccess": now - 48 * 3600,
+            "lastBackupArchive": "arduino-helper-old.tar.gz",
+            "lastBackupSizeBytes": 2048,
+            "backupCount": 2,
+            "backupTotalBytes": 4096,
+            "lastVerifyOk": False,
+            "lastVerifyAt": now - 47 * 3600,
+            "lastVerifyMode": "full",
+        }), encoding="utf-8")
+        records = [{"kind": "compile", "success": False, "state": "error"} for _ in range(5)]
+        monitoring = server._admin_monitoring({
+            "disk": {"usedPercent": 90},
+            "memory": {"usedPercent": 95},
+        }, records, server.MAX_QUEUE)
+        codes = {warning["code"] for warning in monitoring["warnings"]}
+        self.assertTrue({
+            "disk_usage", "memory_usage", "compile_queue", "backup_stale",
+            "backup_verify_failed", "compile_failures",
+        }.issubset(codes))
+        self.assertEqual(monitoring["backup"]["archive"], "arduino-helper-old.tar.gz")
+        self.assertEqual(monitoring["compileWindow"]["failurePercent"], 100)
+        status, overview = self.request(
+            "/admin/api/overview",
+            headers={"Authorization": "Bearer " + server.ADMIN_TOKEN})
+        self.assertEqual(status, 200)
+        self.assertIn("warnings", overview["monitoring"])
+        self.assertIn("backup", overview["monitoring"])
 
     def test_favicon_is_available_without_authentication(self):
         expected = (ROOT / "www" / "favicon.png").read_bytes()
@@ -455,6 +635,41 @@ class AccountApiTests(unittest.TestCase):
                 "SELECT name FROM sqlite_master WHERE type='table'"
             )}
         self.assertNotIn("account_classes", tables)
+        backups = list((Path(self.temp.name) / "migration-backups").glob(
+            "accounts-pre-v1-*.sqlite3"))
+        self.assertEqual(len(backups), 1)
+        backup = sqlite3.connect(str(backups[0]))
+        try:
+            self.assertEqual(backup.execute(
+                "SELECT COUNT(*) FROM account_users").fetchone()[0], 1)
+            self.assertEqual(backup.execute(
+                "SELECT COUNT(*) FROM account_classes").fetchone()[0], 1)
+            self.assertEqual(backup.execute("PRAGMA integrity_check").fetchone()[0], "ok")
+        finally:
+            backup.close()
+
+    def test_legacy_schema_migration_aborts_when_pre_migration_backup_fails(self):
+        db_path = Path(self.temp.name) / "accounts.sqlite3"
+        conn = sqlite3.connect(str(db_path))
+        conn.execute("CREATE TABLE account_classes(id TEXT PRIMARY KEY, name TEXT)")
+        conn.execute("INSERT INTO account_classes VALUES('class1', 'Class')")
+        conn.commit()
+        conn.close()
+        server.ACCOUNT_DB_INITIALIZED_PATH = None
+
+        with mock.patch.object(server, "_backup_legacy_account_db",
+                               side_effect=OSError("backup storage unavailable")):
+            with self.assertRaisesRegex(OSError, "backup storage unavailable"):
+                with server.account_db():
+                    pass
+
+        unchanged = sqlite3.connect(str(db_path))
+        try:
+            self.assertEqual(unchanged.execute("PRAGMA user_version").fetchone()[0], 0)
+            self.assertEqual(unchanged.execute(
+                "SELECT COUNT(*) FROM account_classes").fetchone()[0], 1)
+        finally:
+            unchanged.close()
 
     def test_audit_log_is_bounded_and_uses_user_actor_ids(self):
         account = self.register()

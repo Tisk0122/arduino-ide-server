@@ -1,6 +1,7 @@
 [Unit]
 Description=Create a verified Arduino Web IDE backup
 After=local-fs.target
+OnFailure=arduino-helper-failure-notice@%p.service
 
 [Service]
 Type=oneshot
@@ -12,3 +13,4 @@ ExecStart=/usr/local/sbin/arduino-helper-backup
 Nice=10
 IOSchedulingClass=best-effort
 IOSchedulingPriority=7
+TimeoutStartSec=5h

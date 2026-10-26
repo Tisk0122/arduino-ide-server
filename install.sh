@@ -41,14 +41,14 @@ warn() { printf '警告: %s\n' "$*" >&2; }
 die()  { printf 'エラー: %s\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || die "root 権限で実行してください:  sudo bash install.sh"
-for f in arduino-helper.py arduino-build-run github-update.sh arduino-helper-update.service arduino-helper-update.timer arduino-helper-backup.service arduino-helper-backup.timer configure-github-webhook.sh backup-arduino-helper.sh www/index.html www/admin.html www/docs.html; do
+for f in arduino-helper.py restore-test-arduino-helper.py backup-status-arduino-helper.py arduino-build-run github-update.sh arduino-helper-update.service arduino-helper-update.timer arduino-helper-backup.service arduino-helper-backup.timer arduino-helper-verify-backup.service arduino-helper-verify-backup.timer arduino-helper-full-restore.service arduino-helper-full-restore.timer arduino-helper-failure-notice@.service configure-github-webhook.sh backup-arduino-helper.sh verify-arduino-helper-backup.sh www/index.html www/admin.html www/docs.html; do
   [ -f "$HERE/$f" ] || die "$HERE/$f がありません。アーカイブを展開したフォルダで実行してください"
 done
 command -v systemctl >/dev/null || die "systemd が必要です"
 
 # Windows 環境で作成された場合に CRLF が混入することがあるため、
 # シェルスクリプト・systemd ユニット・Python ファイルを自動的に LF に変換する
-for f in arduino-helper.py arduino-build-run github-update.sh arduino-helper-update.service arduino-helper-update.timer configure-github-webhook.sh backup-arduino-helper.sh; do
+for f in arduino-helper.py restore-test-arduino-helper.py backup-status-arduino-helper.py arduino-build-run github-update.sh arduino-helper-update.service arduino-helper-update.timer arduino-helper-backup.service arduino-helper-backup.timer arduino-helper-verify-backup.service arduino-helper-verify-backup.timer arduino-helper-full-restore.service arduino-helper-full-restore.timer arduino-helper-failure-notice@.service configure-github-webhook.sh backup-arduino-helper.sh verify-arduino-helper-backup.sh; do
   if grep -qU $'\r' "$HERE/$f" 2>/dev/null; then
     warn "$f に Windows 改行 (CRLF) が含まれています。自動的に LF に変換します"
     if command -v dos2unix >/dev/null 2>&1; then
@@ -159,7 +159,12 @@ install -m 0644 -o root -g root "$HERE/arduino-helper-backup.service" /etc/syste
 install -m 0644 -o root -g root "$HERE/arduino-helper-backup.timer" /etc/systemd/system/arduino-helper-backup.timer
 install -m 0644 -o root -g root "$HERE/arduino-helper-verify-backup.service" /etc/systemd/system/arduino-helper-verify-backup.service
 install -m 0644 -o root -g root "$HERE/arduino-helper-verify-backup.timer" /etc/systemd/system/arduino-helper-verify-backup.timer
+install -m 0644 -o root -g root "$HERE/arduino-helper-full-restore.service" /etc/systemd/system/arduino-helper-full-restore.service
+install -m 0644 -o root -g root "$HERE/arduino-helper-full-restore.timer" /etc/systemd/system/arduino-helper-full-restore.timer
+install -m 0644 -o root -g root "$HERE/arduino-helper-failure-notice@.service" /etc/systemd/system/arduino-helper-failure-notice@.service
 install -m 0700 -o root -g root "$HERE/configure-github-webhook.sh" /usr/local/libexec/arduino-helper-configure-github-webhook
+install -m 0750 -o root -g root "$HERE/restore-test-arduino-helper.py" /usr/local/libexec/arduino-helper-restore-test
+install -m 0750 -o root -g root "$HERE/backup-status-arduino-helper.py" /usr/local/libexec/arduino-helper-backup-status
 install -m 0750 -o root -g root "$HERE/backup-arduino-helper.sh" /usr/local/sbin/arduino-helper-backup
 install -m 0750 -o root -g root "$HERE/verify-arduino-helper-backup.sh" /usr/local/sbin/arduino-helper-verify-backup
 if [ ! -f "$CONF_DIR/backup.env" ]; then
@@ -169,6 +174,7 @@ HELPER_BACKUP_DIR=/var/backups/arduino-helper
 HELPER_BACKUP_RETENTION=14
 # オフサイト保管には rclone を構成した後、例の形式で指定してください。
 #HELPER_BACKUP_REMOTE=secure-backup:arduino-helper
+HELPER_RESTORE_TEST_MAX_GIB=20
 EOF
   chmod 0600 "$CONF_DIR/backup.env"
 fi
@@ -189,7 +195,9 @@ if [ ! -f "$CONF_DIR/helper.env" ]; then
 #HELPER_TRUST_CF_CONNECTING_IP=0 # 信頼できるローカルプロキシを使わない場合
 #HELPER_COMPILE_TIMEOUT=900     # 1回のコンパイルの上限 (秒)
 #HELPER_MIN_FREE_MB=1024        # 空きがこれ未満ならコンパイルを断る
+#HELPER_MIN_MEMORY_MB=0         # コンパイル前の空きメモリ下限 (0で無効)
 #HELPER_ACCOUNT_QUOTA_MB=50     # アカウントごとの現行スケッチ+履歴上限 (0で無制限)
+#HELPER_ACCOUNT_VERSION_LIMIT=100 # スケッチごとの過去版保持上限 (1〜1000)
 #HELPER_SINGLE_TOKEN=1          # 1人で使うとき: IDE 用トークンで管理操作もできる
 #HELPER_ALLOW_ASM=1             # アセンブラを明示的に許可する場合のみ
 # GitHub 自動更新を使う場合は configure-github-webhook.sh で設定します。
@@ -274,6 +282,7 @@ User=$H_USER
 Group=$H_USER
 UMask=0007
 Environment=HELPER_HOME=$H_HOME
+Environment=HELPER_BACKUP_STATUS_FILE=$H_HOME/backup-status.json
 Environment=HELPER_HOST=127.0.0.1
 Environment=HELPER_PORT=$HELPER_PORT
 Environment=HELPER_TRUST_CF_CONNECTING_IP=1
@@ -310,6 +319,7 @@ EOF
 systemctl daemon-reload
 systemctl enable --now arduino-helper-backup.timer
 systemctl enable --now arduino-helper-verify-backup.timer
+systemctl enable --now arduino-helper-full-restore.timer
 if [ -r "$CONF_DIR/github-webhook.env" ]; then
   systemctl enable --now arduino-helper-update.timer
 fi

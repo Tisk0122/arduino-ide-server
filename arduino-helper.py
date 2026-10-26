@@ -31,7 +31,15 @@ Python 3.8+ の標準ライブラリだけで動きます。arduino-cli が必�
                          loopback の信頼済みプロキシから CF-Connecting-IP を利用
   HELPER_COMPILE_TIMEOUT コンパイルの上限秒 (既定 900)
   HELPER_MIN_FREE_MB     HOME / Arduino CLI データ領域の最小空き容量を下回ると拒否 (既定 1024)
+  HELPER_MIN_MEMORY_MB   コンパイル前の最小空きメモリ (既定 0=無効)
   HELPER_ACCOUNT_QUOTA_MB アカウントあたりの現行スケッチ+履歴容量 (既定 50、0で無制限)
+  HELPER_ACCOUNT_VERSION_LIMIT スケッチごとの過去版保持数 (既定 100)
+  HELPER_WARN_DISK_PERCENT       管理画面のディスク警戒値 (既定 85%)
+  HELPER_WARN_MEMORY_PERCENT     管理画面のメモリ警戒値 (既定 90%)
+  HELPER_WARN_DATABASE_MB        DB+WAL 容量警戒値 (既定 512 MiB)
+  HELPER_WARN_BACKUP_AGE_HOURS   バックアップ経過時間警戒値 (既定 36時間)
+  HELPER_WARN_COMPILE_FAIL_PERCENT 直近コンパイル失敗率警戒値 (既定 25%)
+  HELPER_WARN_QUEUE_PERCENT      待ち行列使用率警戒値 (既定 80%)
   HELPER_ALLOW_ASM=1     .s / .S ファイルとアセンブラ指令を許可 (既定は不許可)
 
 ■ API (すべて JSON。Authorization: Bearer <トークン>)
@@ -60,6 +68,7 @@ Python 3.8+ の標準ライブラリだけで動きます。arduino-cli が必�
   GET  /account/sketches          ログイン中の利用者のスケッチ一覧
   GET  /account/sketches/<id>/versions       保存済みの過去版一覧
   GET  /account/sketches/<id>/versions/<rev>  過去版の内容
+  DELETE /account/sketches/<id>/versions      過去版を選択削除
   POST /account/sketches/<id>/restore         過去版を復元 (currentRevision, targetRevision)
   /teacher                        廃止された先生・クラス画面 (404)
   POST /cores/install   {id}      -> {job}
@@ -166,6 +175,7 @@ TRUST_CF_CONNECTING_IP = os.environ.get("HELPER_TRUST_CF_CONNECTING_IP") == "1"
 COMPILE_TIMEOUT = env_int("HELPER_COMPILE_TIMEOUT", 900, 30, 7200)
 OP_TIMEOUT = 3600
 MIN_FREE_MB = env_int("HELPER_MIN_FREE_MB", 1024, 0, 10 ** 6)
+MIN_MEMORY_MB = env_int("HELPER_MIN_MEMORY_MB", 0, 0, 10 ** 6)
 GITHUB_WEBHOOK_SECRET = os.environ.get("GITHUB_WEBHOOK_SECRET", "")
 GITHUB_WEBHOOK_REPO = os.environ.get("GITHUB_WEBHOOK_REPO", "")
 GITHUB_WEBHOOK_BRANCH = os.environ.get("GITHUB_WEBHOOK_BRANCH", "main")
@@ -177,12 +187,21 @@ WEBHOOK_COOLDOWN = 30
 ACCOUNT_SESSION_LIMIT = 10
 ACCOUNT_AUDIT_LIMIT = 10000
 ACCOUNT_QUOTA_MB = env_int("HELPER_ACCOUNT_QUOTA_MB", 50, 0, 102400)
+ACCOUNT_VERSION_LIMIT = env_int("HELPER_ACCOUNT_VERSION_LIMIT", 100, 1, 1000)
 ACCOUNT_SIGNUP_LIMIT = 20
 ACCOUNT_SIGNUP_WINDOW = 3600
 ACCOUNT_SIGNUP_ATTEMPTS = {}
 ACCOUNT_SIGNUP_LOCK = threading.Lock()
 ACCOUNT_SESSION_CLEANUP_LOCK = threading.Lock()
 ACCOUNT_SESSION_CLEANUP_LAST = 0
+BACKUP_STATUS_FILE = Path(os.environ.get(
+    "HELPER_BACKUP_STATUS_FILE", "/var/lib/arduino-helper/backup-status.json"))
+WARN_DISK_PERCENT = env_int("HELPER_WARN_DISK_PERCENT", 85, 1, 100)
+WARN_MEMORY_PERCENT = env_int("HELPER_WARN_MEMORY_PERCENT", 90, 1, 100)
+WARN_DATABASE_MB = env_int("HELPER_WARN_DATABASE_MB", 512, 1, 1024 * 1024)
+WARN_BACKUP_AGE_HOURS = env_int("HELPER_WARN_BACKUP_AGE_HOURS", 36, 1, 8760)
+WARN_COMPILE_FAIL_PERCENT = env_int("HELPER_WARN_COMPILE_FAIL_PERCENT", 25, 1, 100)
+WARN_QUEUE_PERCENT = env_int("HELPER_WARN_QUEUE_PERCENT", 80, 1, 100)
 MAX_JOB_LINES = 4000
 MAX_OUTPUT_CHARS = 300000        # コンパイルログ等テキスト出力の上限
 MAX_JSON_OUTPUT_CHARS = 20000000  # JSON取得コマンド (lib search 等) の上限 (~20MB)
@@ -1279,6 +1298,119 @@ def system_metrics():
     }
 
 
+def _admin_monitoring(metrics, recs, queued):
+    """Build operator warnings from current resource use and recent backup/compile state."""
+    warnings = []
+
+    def warn(code, message, value=None, threshold=None):
+        item = {"code": code, "message": message}
+        if value is not None:
+            item["value"] = value
+        if threshold is not None:
+            item["threshold"] = threshold
+        warnings.append(item)
+
+    disk_percent = metrics["disk"].get("usedPercent")
+    if disk_percent is None:
+        warn("disk_metrics_unavailable", "ディスク使用率を取得できません")
+    elif disk_percent >= WARN_DISK_PERCENT:
+        warn("disk_usage", "ディスク使用率が警戒値以上です", disk_percent, WARN_DISK_PERCENT)
+    memory_percent = metrics["memory"].get("usedPercent")
+    if memory_percent is None:
+        warn("memory_metrics_unavailable", "メモリ使用率を取得できません")
+    elif memory_percent >= WARN_MEMORY_PERCENT:
+        warn("memory_usage", "メモリ使用率が警戒値以上です", memory_percent, WARN_MEMORY_PERCENT)
+    queue_percent = queued * 100.0 / MAX_QUEUE if MAX_QUEUE else 0
+    if queue_percent >= WARN_QUEUE_PERCENT:
+        warn("compile_queue", "コンパイル待ち行列が警戒値以上です", round(queue_percent, 1),
+             WARN_QUEUE_PERCENT)
+
+    database_bytes = 0
+    for suffix in ("", "-wal", "-shm"):
+        try:
+            database_bytes += (HOME / ("accounts.sqlite3" + suffix)).stat().st_size
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            log("アカウントDB容量を取得できません: %s" % exc)
+            warn("database_unavailable", "アカウントDB容量を取得できません")
+            break
+    database_mb = round(database_bytes / (1024.0 * 1024.0), 2)
+    if database_mb >= WARN_DATABASE_MB:
+        warn("database_size", "アカウントDBとWALの容量が警戒値以上です",
+             database_mb, WARN_DATABASE_MB)
+
+    backup = None
+    try:
+        with BACKUP_STATUS_FILE.open("r", encoding="utf-8") as status_file:
+            raw_status = status_file.read(65537)
+        if len(raw_status) > 65536:
+            raise ValueError("バックアップ状態ファイルが大きすぎます")
+        backup = json.loads(raw_status)
+        if not isinstance(backup, dict):
+            raise ValueError("バックアップ状態の形式が不正です")
+    except FileNotFoundError:
+        warn("backup_status_missing", "バックアップ状態がまだ記録されていません")
+    except (OSError, ValueError) as exc:
+        log("バックアップ状態を読み取れません: %s" % exc)
+        warn("backup_status_invalid", "バックアップ状態を読み取れません")
+
+    backup_view = {}
+    if backup is not None:
+        last_success = backup.get("lastBackupSuccess")
+        if backup.get("lastBackupOk") is False:
+            warn("backup_last_attempt_failed", "直近のバックアップ実行が失敗しています")
+        if isinstance(last_success, (int, float)) and last_success > 0:
+            backup_view = {
+                "lastSuccess": last_success,
+                "ageHours": round(max(0, time.time() - last_success) / 3600.0, 1),
+                "archive": backup.get("lastBackupArchive", ""),
+                "sizeBytes": backup.get("lastBackupSizeBytes"),
+                "count": backup.get("backupCount"),
+                "totalBytes": backup.get("backupTotalBytes"),
+            }
+            if time.time() - last_success > WARN_BACKUP_AGE_HOURS * 3600:
+                warn("backup_stale", "最新のバックアップが警戒時間より古くなっています",
+                     backup_view["ageHours"], WARN_BACKUP_AGE_HOURS)
+        else:
+            warn("backup_never_succeeded", "成功したバックアップが記録されていません")
+        if backup.get("lastVerifyOk") is False:
+            warn("backup_verify_failed", "直近のバックアップ検査が失敗しています")
+        elif backup.get("lastVerifyOk") is not True:
+            warn("backup_verify_missing", "バックアップ検査結果がまだ記録されていません")
+        backup_view.update({
+            "lastVerifyAt": backup.get("lastVerifyAt"),
+            "lastVerifyOk": backup.get("lastVerifyOk"),
+            "lastVerifyMode": backup.get("lastVerifyMode"),
+        })
+
+    recent_compiles = [
+        item for item in reversed(recs)
+        if item.get("kind") == "compile" and item.get("state") != "cancelled"
+    ][:50]
+    compile_failures = sum(1 for item in recent_compiles if not item.get("success"))
+    compile_fail_percent = (
+        round(compile_failures * 100.0 / len(recent_compiles), 1) if recent_compiles else None
+    )
+    if len(recent_compiles) >= 5 and compile_fail_percent >= WARN_COMPILE_FAIL_PERCENT:
+        warn("compile_failures", "直近のコンパイル失敗率が警戒値以上です",
+             compile_fail_percent, WARN_COMPILE_FAIL_PERCENT)
+    return {
+        "warnings": warnings,
+        "database": {"bytes": database_bytes, "megabytes": database_mb},
+        "backup": backup_view,
+        "compileWindow": {
+            "sampleCount": len(recent_compiles), "failures": compile_failures,
+            "failurePercent": compile_fail_percent,
+        },
+        "thresholds": {
+            "diskPercent": WARN_DISK_PERCENT, "memoryPercent": WARN_MEMORY_PERCENT,
+            "databaseMb": WARN_DATABASE_MB, "backupAgeHours": WARN_BACKUP_AGE_HOURS,
+            "compileFailPercent": WARN_COMPILE_FAIL_PERCENT, "queuePercent": WARN_QUEUE_PERCENT,
+        },
+    }
+
+
 # ---------------------------------------------------------------
 # 管理ジョブ (ボード・ライブラリの変更)
 # ---------------------------------------------------------------
@@ -1713,6 +1845,13 @@ def run_compile(job):
         raise ApiError(503, "サーバーの空き容量を確認できません。管理者に連絡してください")
     if available_mb < MIN_FREE_MB:
         raise ApiError(507, "サーバーのディスク空きが不足しています。管理者に連絡してください")
+    if MIN_MEMORY_MB:
+        try:
+            _, available_memory_mb = _host_memory_mb()
+        except (OSError, ValueError) as exc:
+            raise ApiError(503, "サーバーの空きメモリを確認できません。管理者に連絡してください") from exc
+        if available_memory_mb < MIN_MEMORY_MB:
+            raise ApiError(503, "サーバーの空きメモリが不足しています。管理者に連絡してください")
     jobdir = WORK_DIR / ("j_" + job["id"])
     sdir = jobdir / sketch
     odir = jobdir / "out"
@@ -1910,6 +2049,96 @@ def role_for(token):
     return None
 
 
+def _account_table_counts(conn):
+    tables = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' "
+        "ORDER BY name"
+    ).fetchall()
+    counts = {}
+    for row in tables:
+        name = row[0].replace('"', '""')
+        counts[row[0]] = conn.execute('SELECT COUNT(*) FROM "%s"' % name).fetchone()[0]
+    return counts
+
+
+def _backup_legacy_account_db(conn, table_counts):
+    if not any(table_counts.values()):
+        return None
+    backup_dir = HOME / "migration-backups"
+    backup_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(str(backup_dir), 0o700)
+    fd, backup_path = tempfile.mkstemp(
+        prefix="accounts-pre-v1-", suffix=".sqlite3", dir=str(backup_dir))
+    os.close(fd)
+    backup_conn = None
+    try:
+        backup_conn = sqlite3.connect(backup_path, timeout=30)
+        conn.backup(backup_conn)
+        result = backup_conn.execute("PRAGMA integrity_check").fetchone()
+        if not result or result[0] != "ok":
+            raise RuntimeError("移行前アカウントDBのバックアップ検査に失敗しました")
+        if _account_table_counts(backup_conn) != table_counts:
+            raise RuntimeError("移行前バックアップのテーブル件数が元DBと一致しません")
+        backup_conn.close()
+        backup_conn = None
+        os.chmod(backup_path, 0o600)
+        if os.name == "posix":
+            sync_fd = os.open(backup_path, os.O_RDONLY)
+            try:
+                os.fsync(sync_fd)
+            finally:
+                os.close(sync_fd)
+        log("破壊的なスキーマ移行前のバックアップを作成しました: %s" % backup_path)
+        return Path(backup_path)
+    except Exception:
+        if backup_conn is not None:
+            backup_conn.close()
+        try:
+            os.unlink(backup_path)
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def _verify_account_schema_v1(conn):
+    required = {
+        "account_users", "account_sessions", "account_sketches",
+        "account_sketch_versions", "account_audit",
+    }
+    tables = {row[0] for row in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'")}
+    if not required.issubset(tables):
+        raise RuntimeError("移行後のアカウントDBに必要なテーブルがありません")
+    if {"account_comments", "account_classes"} & tables:
+        raise RuntimeError("旧スキーマのテーブルが移行後も残っています")
+    if conn.execute("PRAGMA user_version").fetchone()[0] != 1:
+        raise RuntimeError("移行後のアカウントDBバージョンが一致しません")
+    if any(_account_table_counts(conn).get(table) != 0 for table in required):
+        raise RuntimeError("移行後の新しいアカウントテーブルが空ではありません")
+    result = conn.execute("PRAGMA integrity_check").fetchone()
+    if not result or result[0] != "ok":
+        raise RuntimeError("移行後のアカウントDB integrity_check に失敗しました")
+    if conn.execute("PRAGMA foreign_key_check").fetchone():
+        raise RuntimeError("移行後のアカウントDB foreign_key_check に失敗しました")
+
+
+def _trim_account_migration_backups():
+    backup_dir = HOME / "migration-backups"
+    if not backup_dir.is_dir():
+        return
+    try:
+        backups = sorted(backup_dir.glob("accounts-pre-v1-*.sqlite3"),
+                         key=lambda path: path.stat().st_mtime, reverse=True)
+    except OSError as exc:
+        log("移行前バックアップ一覧を確認できません: %s" % exc)
+        return
+    for stale in backups[3:]:
+        try:
+            stale.unlink()
+        except OSError as exc:
+            log("古い移行前バックアップを削除できません (%s): %s" % (stale, exc))
+
+
 @contextlib.contextmanager
 def account_db():
     global ACCOUNT_DB_INITIALIZED_PATH
@@ -1930,6 +2159,11 @@ def account_db():
                 if version > 1:
                     raise RuntimeError("アカウントDBのバージョンが新しすぎます")
                 if version < 1:
+                    table_counts = _account_table_counts(conn)
+                    migration_backup = _backup_legacy_account_db(
+                        conn, table_counts)
+                    if migration_backup:
+                        _trim_account_migration_backups()
                     conn.execute("BEGIN IMMEDIATE")
                     for table in (
                             "account_comments", "account_sketch_versions", "account_sketches",
@@ -1995,6 +2229,7 @@ def account_db():
                     )
                     conn.execute("CREATE INDEX account_audit_created ON account_audit(created_at)")
                     conn.execute("PRAGMA user_version = 1")
+                    _verify_account_schema_v1(conn)
                     conn.commit()
                 ACCOUNT_DB_INITIALIZED_PATH = path_key
         yield conn
@@ -2037,6 +2272,28 @@ def _account_audit(conn, actor, action, target, details=None):
             "(SELECT id FROM account_audit ORDER BY id DESC LIMIT ?)",
             (ACCOUNT_AUDIT_LIMIT,),
         )
+
+
+def _preserve_account_audit_actor(conn, user_id, username):
+        rows = conn.execute(
+            "SELECT id,details FROM account_audit WHERE actor_id=?", (user_id,)
+        ).fetchall()
+        for row in rows:
+            try:
+                details = json.loads(row["details"])
+            except (TypeError, ValueError):
+                details = {}
+            if not isinstance(details, dict):
+                details = {}
+            details.update({
+                "actor": "account-owner",
+                "actorId": user_id,
+                "actorName": username,
+            })
+            conn.execute(
+                "UPDATE account_audit SET actor_id=NULL,details=? WHERE id=?",
+                (json.dumps(details, ensure_ascii=False), row["id"]),
+            )
 
 
 def _account_signup_allowed(ip):
@@ -2176,8 +2433,8 @@ def _trim_account_versions(conn, user_id, sketch_id):
     conn.execute(
         "DELETE FROM account_sketch_versions WHERE id IN ("
         "SELECT id FROM account_sketch_versions WHERE user_id=? AND sketch_id=? "
-        "ORDER BY revision DESC, id DESC LIMIT -1 OFFSET 100)",
-        (user_id, sketch_id),
+        "ORDER BY revision DESC, id DESC LIMIT -1 OFFSET ?)",
+        (user_id, sketch_id, ACCOUNT_VERSION_LIMIT),
     )
 
 
@@ -2273,6 +2530,7 @@ def admin_overview():
         fails = sum(1 for lst in AUTH_FAILS.values() for t in lst if now - t < 60)
     stats = history_stats(recs)
     stats["compilesSinceStart"] = compiles_done
+    monitoring = _admin_monitoring(metrics, recs, len(queued_ids))
     return {
         "ok": True,
         "now": round(now, 1),
@@ -2291,7 +2549,8 @@ def admin_overview():
         "limits": {
             "maxQueue": MAX_QUEUE, "perClient": PER_CLIENT, "adminMaxQueue": ADMIN_MAX_QUEUE,
             "compileTimeout": COMPILE_TIMEOUT,
-            "minFreeMb": MIN_FREE_MB, "jobKeepSec": JOB_KEEP_SEC, "maxBodyMb": MAX_BODY // (1024 * 1024),
+            "minFreeMb": MIN_FREE_MB, "minMemoryMb": MIN_MEMORY_MB,
+            "jobKeepSec": JOB_KEEP_SEC, "maxBodyMb": MAX_BODY // (1024 * 1024),
             "maxSourceMb": MAX_SOURCE_TOTAL // (1024 * 1024), "maxFiles": MAX_FILES,
             "resultCacheEntries": RESULT_CACHE_ENTRIES, "resultCacheMb": RESULT_CACHE_BYTES // (1024 * 1024),
         },
@@ -2306,6 +2565,7 @@ def admin_overview():
                     "repo": GITHUB_WEBHOOK_REPO, "branch": GITHUB_WEBHOOK_BRANCH,
                     "last": round(WEBHOOK_LAST, 1) if WEBHOOK_LAST else 0},
         "stats": stats,
+        "monitoring": monitoring,
         "history": list(reversed(recs))[:50],
     }
 
@@ -2811,6 +3071,7 @@ class Handler(BaseHTTPRequestHandler):
                     auth_failed(ip)
                     raise ApiError(403, "パスワードが正しくありません")
                 _account_audit(conn, user["id"], "account.delete", user["id"])
+                _preserve_account_audit_actor(conn, user["id"], user["username"])
                 conn.execute("DELETE FROM account_users WHERE id=?", (user["id"],))
                 auth_succeeded(ip)
                 return self._send(200, {"ok": True, "deleted": True})
@@ -2855,7 +3116,42 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"versions": [
                     {"revision": row["revision"], "createdAt": row["created_at"]}
                     for row in rows
-                ]})
+                ], "maxVersions": ACCOUNT_VERSION_LIMIT})
+
+            match = re.fullmatch(r"/account/sketches/([A-Za-z0-9_-]{1,80})/versions", path)
+            if method == "DELETE" and match:
+                sketch_id = match.group(1)
+                body = self._body()
+                revisions = body.get("revisions")
+                if (not isinstance(revisions, list) or not revisions or len(revisions) > 1000
+                        or any(not isinstance(revision, int) or isinstance(revision, bool)
+                               or revision < 1 or revision >= 2 ** 63 for revision in revisions)
+                        or len(set(revisions)) != len(revisions)):
+                    raise ApiError(400, "削除する履歴revisionの一覧が不正です")
+                if not conn.execute(
+                        "SELECT 1 FROM account_sketches WHERE user_id=? AND id=?",
+                        (user["id"], sketch_id)).fetchone():
+                    raise ApiError(404, "スケッチが見つかりません")
+                existing = {
+                    row["revision"] for row in conn.execute(
+                        "SELECT revision FROM account_sketch_versions WHERE user_id=? AND sketch_id=?",
+                        (user["id"], sketch_id),
+                    ).fetchall()
+                }
+                if not set(revisions).issubset(existing):
+                    raise ApiError(404, "削除対象に見つからない履歴があります。履歴を読み直してください")
+                for offset in range(0, len(revisions), 900):
+                    chunk = revisions[offset:offset + 900]
+                    placeholders = ",".join("?" for _ in chunk)
+                    conn.execute(
+                        "DELETE FROM account_sketch_versions WHERE user_id=? AND sketch_id=? "
+                        "AND revision IN (" + placeholders + ")",
+                        (user["id"], sketch_id, *chunk),
+                    )
+                return self._send(200, {
+                    "ok": True, "deleted": len(revisions),
+                    "storage": _account_storage(conn, user["id"]),
+                })
 
             match = re.fullmatch(
                 r"/account/sketches/([A-Za-z0-9_-]{1,80})/versions/([0-9]{1,19})", path)
@@ -2987,10 +3283,13 @@ class Handler(BaseHTTPRequestHandler):
                 if method == "GET" and path == "/admin/api/accounts":
                     rows = conn.execute(
                         "SELECT u.id, u.username, u.display_name, u.active, u.created_at, "
-                        "COUNT(s.id) AS sketch_count "
+                        "COUNT(s.id) AS sketch_count, "
+                        "(SELECT COUNT(*) FROM account_sessions a "
+                        " WHERE a.user_id=u.id AND a.expires_at>?) AS active_session_count "
                         "FROM account_users u "
                         "LEFT JOIN account_sketches s ON s.user_id = u.id "
-                        "GROUP BY u.id ORDER BY u.created_at DESC"
+                        "GROUP BY u.id ORDER BY u.created_at DESC",
+                        (int(time.time()),)
                     ).fetchall()
                     users = []
                     for r in rows:
@@ -3001,9 +3300,39 @@ class Handler(BaseHTTPRequestHandler):
                             "active": bool(r["active"]),
                             "createdAt": r["created_at"],
                             "sketchCount": r["sketch_count"],
+                            "activeSessionCount": r["active_session_count"],
                             **_account_storage(conn, r["id"]),
                         })
                     return self._send(200, {"ok": True, "users": users})
+
+                if method == "GET" and path == "/admin/api/accounts/audit":
+                    offset = _int_q(q, "offset", 0, 0, 10 ** 9)
+                    limit = _int_q(q, "limit", 50, 1, 200)
+                    total = conn.execute("SELECT COUNT(*) FROM account_audit").fetchone()[0]
+                    rows = conn.execute(
+                        "SELECT a.id,a.actor_id,a.action,a.target,a.details,a.created_at,u.username "
+                        "FROM account_audit a LEFT JOIN account_users u ON u.id=a.actor_id "
+                        "ORDER BY a.id DESC LIMIT ? OFFSET ?",
+                        (limit, offset),
+                    ).fetchall()
+                    items = []
+                    for row in rows:
+                        try:
+                            details = json.loads(row["details"])
+                        except (TypeError, ValueError):
+                            details = {"invalid": True}
+                        if not isinstance(details, dict):
+                            details = {"invalid": True}
+                        items.append({
+                            "id": row["id"], "actorId": row["actor_id"],
+                            "actorName": row["username"] or details.get("actorName") or (
+                                "管理者" if details.get("actor") == "admin-token" else "記録なし"),
+                            "action": row["action"], "target": row["target"],
+                            "details": details, "createdAt": row["created_at"],
+                        })
+                    return self._send(200, {
+                        "ok": True, "total": total, "offset": offset, "items": items,
+                    })
 
                 # GET /admin/api/accounts/<uid>/sketches  → ユーザーのスケッチ一覧
                 m = re.fullmatch(r"/admin/api/accounts/([A-Za-z0-9_-]{1,80})/sketches", path)
@@ -3035,21 +3364,43 @@ class Handler(BaseHTTPRequestHandler):
                     salt, digest = _account_password(temporary_password)
                     conn.execute("UPDATE account_users SET password_hash=?,password_salt=? WHERE id=?",
                                  (digest, salt, uid))
-                    conn.execute("DELETE FROM account_sessions WHERE user_id=?", (uid,))
-                    _account_audit(conn, None, "account.admin_password_reset", uid)
+                    revoked = conn.execute(
+                        "DELETE FROM account_sessions WHERE user_id=?", (uid,)).rowcount
+                    _account_audit(conn, None, "account.admin_password_reset", uid, {
+                        "actor": "admin-token", "revokedSessions": revoked,
+                    })
                     log("管理者がユーザー %s のパスワードを再設定しました" % uid)
                     return self._send(200, {"ok": True, "temporaryPassword": temporary_password})
+
+                revoke = re.fullmatch(r"/admin/api/accounts/([A-Za-z0-9_-]{1,80})/revoke-sessions", path)
+                if method == "POST" and revoke:
+                    uid = revoke.group(1)
+                    row = conn.execute("SELECT id FROM account_users WHERE id=?", (uid,)).fetchone()
+                    if not row:
+                        raise ApiError(404, "ユーザーが見つかりません")
+                    revoked = conn.execute(
+                        "DELETE FROM account_sessions WHERE user_id=?", (uid,)).rowcount
+                    _account_audit(conn, None, "account.admin_sessions_revoked", uid, {
+                        "actor": "admin-token", "revokedSessions": revoked,
+                    })
+                    return self._send(200, {"ok": True, "revokedSessions": revoked})
 
                 # DELETE /admin/api/accounts/<uid>  → ユーザー削除（スケッチも含む）
                 m3 = re.fullmatch(r"/admin/api/accounts/([A-Za-z0-9_-]{1,80})", path)
                 if method == "DELETE" and m3:
                     uid = m3.group(1)
-                    row = conn.execute("SELECT id FROM account_users WHERE id=?", (uid,)).fetchone()
+                    row = conn.execute(
+                        "SELECT id,username FROM account_users WHERE id=?", (uid,)
+                    ).fetchone()
                     if not row:
                         raise ApiError(404, "ユーザーが見つかりません")
                     conn.execute("DELETE FROM account_sketch_versions WHERE user_id=?", (uid,))
                     conn.execute("DELETE FROM account_sketches WHERE user_id=?", (uid,))
                     conn.execute("DELETE FROM account_sessions WHERE user_id=?", (uid,))
+                    _account_audit(conn, None, "account.admin_delete", uid, {
+                        "actor": "admin-token",
+                    })
+                    _preserve_account_audit_actor(conn, uid, row["username"])
                     conn.execute("DELETE FROM account_users WHERE id=?", (uid,))
                     return self._send(200, {"ok": True, "deleted": uid})
 
@@ -3062,8 +3413,14 @@ class Handler(BaseHTTPRequestHandler):
                         raise ApiError(404, "ユーザーが見つかりません")
                     new_active = 0 if row["active"] else 1
                     conn.execute("UPDATE account_users SET active=? WHERE id=?", (new_active, uid))
+                    revoked = 0
                     if not new_active:
-                        conn.execute("DELETE FROM account_sessions WHERE user_id=?", (uid,))
+                        revoked = conn.execute(
+                            "DELETE FROM account_sessions WHERE user_id=?", (uid,)).rowcount
+                    _account_audit(conn, None, "account.admin_toggle", uid, {
+                        "actor": "admin-token", "active": bool(new_active),
+                        "revokedSessions": revoked,
+                    })
                     return self._send(200, {"ok": True, "active": bool(new_active)})
 
                 raise ApiError(404, "不明な管理APIエンドポイント: %s %s" % (method, path[:80]))
@@ -3418,6 +3775,9 @@ def main():
     load_gen()
     load_history()
     load_jobs()
+    with account_db():
+        pass
+    log("  アカウントDB : スキーマ検査済み")
     log("Arduino Web IDE helper %s" % VERSION)
     log("  実行ラッパー : %s" % (WRAPPER or "見つかりません"))
     log("  コンパイル   : %s" % (("sudo -u %s" % BUILD_USER) if BUILD_USER else "このユーザーで直接実行 (権限分離なし)"))

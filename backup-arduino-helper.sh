@@ -16,9 +16,16 @@ if ! flock -n 9; then
   echo "エラー: 別のバックアップ処理が実行中です" >&2
   exit 1
 fi
+install -d -o root -g root -m 0700 /var/lib/arduino-helper-updater
+exec 8>/var/lib/arduino-helper-updater/update.lock
+if ! flock -s -w 14400 8; then
+  echo "エラー: 更新処理の完了を4時間以内に確認できませんでした" >&2
+  exit 1
+fi
 
 backup_dir="${1:-${HELPER_BACKUP_DIR:-/var/backups/arduino-helper}}"
 backup_dir="$(realpath -m "$backup_dir")"
+status_writer=/usr/local/libexec/arduino-helper-backup-status
 retention="${HELPER_BACKUP_RETENTION:-14}"
 remote="${HELPER_BACKUP_REMOTE:-}"
 if ! [[ "$retention" =~ ^[0-9]+$ ]] || [ "$retention" -lt 1 ] || [ "$retention" -gt 3650 ]; then
@@ -33,7 +40,8 @@ if [ -n "$remote" ]; then
 fi
 case "$backup_dir/" in
   /var/lib/arduino-helper/*|/var/lib/arduino-build/*|/etc/arduino-helper/*|\
-  /etc/systemd/system/*|/etc/sudoers.d/*)
+  /etc/systemd/system/*|/etc/sudoers.d/*|/opt/arduino-helper/*|/opt/arduino-cli/*|\
+  /usr/local/libexec/*|/usr/local/sbin/*)
     echo "エラー: バックアップ先を対象データの中には指定できません" >&2
     exit 1
     ;;
@@ -48,6 +56,7 @@ if [ -e "$archive" ]; then
 fi
 tmp_archive="$(mktemp "$backup_dir/.arduino-helper-backup-XXXXXX.tar.gz")"
 tmp_checksum="$(mktemp "$backup_dir/.arduino-helper-checksum-XXXXXX")"
+backup_complete=0
 was_active=0
 if systemctl is-active --quiet arduino-helper.service; then
   was_active=1
@@ -66,9 +75,21 @@ finish() {
     echo "エラー: バックアップ後にサービスを再起動できません。状態を確認してください" >&2
     result=1
   fi
+  if [ "$backup_complete" -eq 1 ] && [ "$result" -eq 0 ]; then
+    if ! python3 "$status_writer" backup-success "$archive" "$backup_dir"; then
+      echo "エラー: バックアップ状態を記録できませんでした" >&2
+      result=1
+    fi
+  else
+    python3 "$status_writer" backup-failed || {
+      echo "エラー: バックアップ失敗状態を記録できませんでした" >&2
+      result=1
+    }
+  fi
   exit "$result"
 }
 trap finish EXIT
+python3 "$status_writer" backup-start
 
 if [ "$was_active" -eq 1 ]; then
   systemctl stop arduino-helper.service
@@ -77,12 +98,25 @@ fi
 tar --acls --xattrs -czf "$tmp_archive" -C / \
   var/lib/arduino-helper \
   var/lib/arduino-build \
+  opt/arduino-helper \
+  opt/arduino-cli \
   etc/arduino-helper \
   etc/systemd/system/arduino-helper.service \
   etc/systemd/system/arduino-helper-backup.service \
   etc/systemd/system/arduino-helper-backup.timer \
   etc/systemd/system/arduino-helper-verify-backup.service \
   etc/systemd/system/arduino-helper-verify-backup.timer \
+  etc/systemd/system/arduino-helper-full-restore.service \
+  etc/systemd/system/arduino-helper-full-restore.timer \
+  etc/systemd/system/arduino-helper-failure-notice@.service \
+  etc/systemd/system/arduino-helper-update.service \
+  etc/systemd/system/arduino-helper-update.timer \
+  usr/local/libexec/arduino-build-run \
+  usr/local/libexec/arduino-helper-update \
+  usr/local/libexec/arduino-helper-backup-status \
+  usr/local/libexec/arduino-helper-configure-github-webhook \
+  usr/local/libexec/arduino-helper-restore-test \
+  usr/local/sbin/arduino-helper-backup \
   usr/local/sbin/arduino-helper-verify-backup \
   etc/sudoers.d/arduino-helper
 if [ "$was_active" -eq 1 ]; then
@@ -108,3 +142,4 @@ if [ "${#archives[@]}" -gt "$retention" ]; then
   done
 fi
 echo "バックアップを作成しました: $archive"
+backup_complete=1

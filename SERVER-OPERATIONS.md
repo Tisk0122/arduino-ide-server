@@ -1,6 +1,6 @@
 # Arduino Web IDE サーバーの運用
 
-この手順は `install.sh` で構築した Ubuntu / Debian 環境向けです。バックアップにはIDE用・管理者用トークン、アカウントとスケッチ、コンパイルジョブの状態・ログ、利用履歴、ボード・ライブラリのデータが含まれます。バックアップファイルは機密情報として扱い、アクセス制限と暗号化を行ったうえで、サーバー外にも保管してください。
+この手順は `install.sh` で構築した Ubuntu / Debian 環境向けです。バックアップにはIDE用・管理者用トークン、アカウントとスケッチ、コンパイルジョブの状態・ログ、利用履歴、ボード・ライブラリのデータ、アプリ本体、Arduino CLIが含まれます。バックアップファイルは機密情報として扱い、アクセス制限と暗号化を行ったうえで、サーバー外にも保管してください。
 
 ## バックアップ
 
@@ -18,7 +18,7 @@ sudo arduino-helper-backup /mnt/secure-backups/arduino-helper
 
 インストール時に毎日03:20（最大20分のランダム遅延）に動く `arduino-helper-backup.timer` が有効になります。既定では `/var/backups/arduino-helper` に直近14世代を保存します。保存先と保持数は `/etc/arduino-helper/backup.env` の `HELPER_BACKUP_DIR` と `HELPER_BACKUP_RETENTION` で変更できます。保持数は1〜3650です。設定変更後は `sudo systemctl restart arduino-helper-backup.timer` を実行してください。
 
-毎日04:10（最大10分のランダム遅延）には `arduino-helper-verify-backup.timer` が最新のバックアップを一時領域へ隔離復元し、アカウントDBのSQLite `integrity_check` とSHA-256を検証します。検証結果と失敗理由はsystemd journalに記録されます。通知を外部へ転送する場合は、ホストのjournal監視・systemd失敗通知を運用側で構成してください。
+毎日04:10（最大10分のランダム遅延）には `arduino-helper-verify-backup.timer` が最新のバックアップのSHA-256とアカウントDBのSQLite `integrity_check` を検証します。毎週月曜04:40（最大15分のランダム遅延）には `arduino-helper-full-restore.timer` が最大20 GiBまでのアーカイブを隔離領域へ復元し、DB検査、アプリ・CLI・systemdファイルの存在確認、復元したアプリの起動、HTTPとアカウントAPIの疎通を確認します。隔離したArduino CLIは `arduino-build` ユーザーとして、専用の一時HOMEとデータ領域で `version` と `core list` を実行します。パッケージの更新・インストール、ネットワーク取得、実スケッチのコンパイルは行いません。フル検査は一時領域に展開サイズ＋1 GiB以上の空き容量が必要です。上限または空き容量を超える場合は失敗として記録されます。上限は `/etc/arduino-helper/backup.env` の `HELPER_RESTORE_TEST_MAX_GIB`（1〜1024、既定20）で変更できます。バックアップ、軽量検査、フル検査の失敗時にはsystemdがjournalへ通知を記録します。メールや外部通知サービスへの送信は行いません。
 
 サービスが稼働中の場合、整合性を保つためバックアップ中は一時停止してから再起動します。実行中のコンパイルや管理操作は中断されるため、利用の少ない時間帯にスケジュールしてください。アーカイブと SHA-256 チェックサムは root のみ読み取り可能で、同じ保存先に作成されます。保存先は別のディスクまたはマウント済みの暗号化領域を指定できます。ボードデータを含むため、初回やボード追加後のバックアップには数GB必要になることがあります。
 
@@ -33,9 +33,13 @@ sudo journalctl -u arduino-helper-backup.service -n 50 --no-pager
 systemctl list-timers arduino-helper-verify-backup.timer --no-pager
 sudo systemctl status arduino-helper-verify-backup.service --no-pager
 sudo journalctl -u arduino-helper-verify-backup.service -n 50 --no-pager
+systemctl list-timers arduino-helper-full-restore.timer --no-pager
+sudo systemctl status arduino-helper-full-restore.service --no-pager
+sudo journalctl -u arduino-helper-full-restore.service -n 50 --no-pager
+sudo journalctl -t arduino-helper -n 20 --no-pager
 ```
 
-手動で最新の世代を検証するには `sudo arduino-helper-verify-backup`、特定のアーカイブを指定するには `sudo arduino-helper-verify-backup /var/backups/arduino-helper/arduino-helper-YYYYMMDD-HHMMSS.tar.gz` を実行します。この検査は隔離環境でアカウントDBの整合性まで確認しますが、サービス一式の実起動やArduinoボードの再インストールまでは行いません。
+手動で軽量検査するには `sudo arduino-helper-verify-backup`、特定のアーカイブを指定するには `sudo arduino-helper-verify-backup /var/backups/arduino-helper/arduino-helper-YYYYMMDD-HHMMSS.tar.gz` を実行します。フル復元検査は `sudo arduino-helper-verify-backup --full` です。隔離テストでもCLIバイナリーを実行するため、信頼できるローカルバックアップのみ検査対象にしてください。CLIは `arduino-build` に権限を落として隔離設定で確認します。ボードパッケージの更新・インストール、実スケッチのコンパイルは行いません。
 
 復元前にチェックサムとアーカイブ内容を検証します。
 
@@ -74,6 +78,8 @@ install -o root -g root -m 0700 "$tmp/repo/github-update.sh" /usr/local/libexec/
 
 このブートストラップは、既に `/etc/arduino-helper/github-webhook.env` が設定され、GitHubリポジトリへ接続できるサーバーで実行します。更新スクリプトは取得したコミットのファイルを配置し、サービス再起動と `/ping`・`/docs`・`/account` の応答を確認します。検査に失敗した場合は配置ファイルを保存済みバックアップへ戻します。成功したら `applied-commit` がGitHubの `main` と一致することを確認してください。既にWebhook・timerが設定済みなら、Webhook Secretの再入力や `configure-github-webhook` の再実行は不要です。
 
+GitHub Actions は Ubuntu 上で本物の `bash` とファイルシステムを使い、同じ `github-update.sh` のデプロイ成功とヘルスチェック失敗時のロールバックを検査します。専用の一時ルートに隔離し、本番の `/opt`、`/etc`、`/var/lib`、systemdには触れません。
+
 状態・実行結果の確認:
 
 ```bash
@@ -108,7 +114,7 @@ sudo journalctl -t arduino-helper-update -n 100 --no-pager
 
 上記の並列構成は**現在のままCPUやメモリを増やすだけでは有効になりません**。現行サーバーはHTTPリクエストをスレッド処理し、1プロセスあたり最大150接続を扱いますが、Arduino CLIのコンパイルは共有ロックと単一ワーカーで1件ずつ実行します。また、ジョブキューやCLIロックはプロセス内メモリにあるため、同じSQLite DBやArduinoデータ領域を複数サーバープロセスから共有して水平スケールする構成にもなっていません。並列化には複数コンパイルワーカー、ジョブ単位の独立したbuild path、一貫したキュー／排他制御、メモリ・CPU・ディスク使用量に応じた同時実行上限の実装と試験が必要です。
 
-現行の既定値ではコンパイル待ちキューは40件、同じ接続元からの実行・待機は合計2件までです。同じNAT配下の利用者はこの上限を共有する場合があります。`HELPER_PER_CLIENT` は最大50まで設定できますが、`HELPER_MAX_QUEUE` を増やしてもコンパイルは直列のままです。過去の成功したコンパイル時間（最大20件）から待ち時間の目安を表示しますが、ボードやキャッシュ状態で大きく変わるため保証値ではありません。200〜300人が同時にIDEを開いて編集・保存する負荷と、200〜300人が同時にコンパイルを押す負荷は異なります。現行構成で一斉コンパイルすると、多くはHTTP 429（混雑）になるか、受付済みのものも長い待ち時間になります。授業ではコンパイルを数回に分ける運用を推奨します。全員のコンパイルを一斉に受け付けることが要件なら、先にジョブキューの容量・接続元制限・待ち時間を含む設計と並列ワーカーを実装してください。
+現行の既定値ではコンパイル待ちキューは40件、同じ接続元からの実行・待機は合計2件までです。同じNAT配下の利用者はこの上限を共有する場合があります。`HELPER_PER_CLIENT` は最大50まで設定できますが、`HELPER_MAX_QUEUE` を増やしてもコンパイルは直列のままです。並列数を安易に増やすとArduino CLIの共有データやメモリを競合させるため、本実装は引き続き直列実行にします。過去の成功したコンパイル時間（最大20件）から待ち時間の目安を表示しますが、ボードやキャッシュ状態で大きく変わるため保証値ではありません。200〜300人が同時にIDEを開いて編集・保存する負荷と、200〜300人が同時にコンパイルを押す負荷は異なります。現行構成で一斉コンパイルすると、多くはHTTP 429（混雑）になるか、受付済みのものも長い待ち時間になります。授業ではコンパイルを数回に分ける運用を推奨します。全員のコンパイルを一斉に受け付けることが要件なら、先にボードとスケッチを使った実機負荷試験、ジョブキューの容量・接続元制限・待ち時間を含む設計と分離済み並列ワーカーを行ってください。
 
 ### 保存領域の見積もり
 
@@ -126,11 +132,17 @@ sudo journalctl -t arduino-helper-update -n 100 --no-pager
 
 バックアップはライブデータとは別の保存先を用意してください。バックアップにはArduinoデータとスケッチDBも含まれ、1世代だけでもライブ使用量相当以上の領域が必要になる場合があります。最大14世代を保持する既定設定では、700アカウントが容量上限を使い切った場合、スケッチDB分だけで最大約478 GiBにDB・ボードデータ等が加算されます。実使用量と保持世代数をもとに保存先を見積もり、サーバーと同じディスクだけにバックアップを置かないでください。
 
+## 管理画面の監視とアカウント操作
+
+管理画面の運用監視には、ディスク・メモリ・コンパイル待ち行列、アカウントDB/WAL容量、直近50件のコンパイル失敗率、バックアップの最終成功時刻・容量・世代数、直近の検査結果が表示されます。初期警戒値はディスク85%、メモリ90%、DB/WAL 512 MiB、バックアップ36時間、失敗率25%（直近5件以上）、待ち行列80%です。`helper.env` で `HELPER_WARN_DISK_PERCENT`、`HELPER_WARN_MEMORY_PERCENT`、`HELPER_WARN_DATABASE_MB`、`HELPER_WARN_BACKUP_AGE_HOURS`、`HELPER_WARN_COMPILE_FAIL_PERCENT`、`HELPER_WARN_QUEUE_PERCENT` を変更できます。バックアップ状態ファイルはrootが原子的に更新し、サービスには読み取り権限のみを与えます。
+
+ユーザー管理では有効なセッション数を確認でき、選択ユーザーの全セッションを一括失効できます。パスワード再設定・有効/無効切り替え・削除・セッション失効はアカウント監査ログに記録されます。管理画面の「アカウント監査ログ」で直近の操作をページング表示できます。監査記録は最新の上限件数を保持し、パスワードやセッショントークンなどの秘密情報は記録しません。
+
 ## 個人アカウント
 
 利用者はIDEのアカウント画面からユーザー名とパスワードを使って登録・ログインします。ユーザー名は重複不可、パスワードは10〜256文字です。メールによるパスワード再設定はありません。パスワード変更後はそのアカウントの全セッションが失効し、再ログインが必要です。アカウントのスケッチは他の利用者のアカウントから参照できません。
 
-既定の保存上限は1アカウント50 MiBで、現行スケッチと過去版のUTF-8 JSONサイズを合算します。上限超過となる保存・履歴復元はトランザクション単位で拒否され、部分的な更新は残りません。変更する場合は `/etc/arduino-helper/helper.env` に `HELPER_ACCOUNT_QUOTA_MB=<MiB>` を設定してサービスを再起動してください。0は無制限、最大値は102400 MiBです。使用量はIDEのアカウント画面と管理コンソールのユーザー一覧で確認できます。
+既定の保存上限は1アカウント50 MiBで、現行スケッチと過去版のUTF-8 JSONサイズを合算します。上限超過となる保存・履歴復元はトランザクション単位で拒否され、部分的な更新は残りません。変更する場合は `/etc/arduino-helper/helper.env` に `HELPER_ACCOUNT_QUOTA_MB=<MiB>` を設定してサービスを再起動してください。0は無制限、最大値は102400 MiBです。スケッチごとの過去版保持数は既定100版で、`HELPER_ACCOUNT_VERSION_LIMIT` を1〜1000の範囲で設定できます。変更後の保持数は各スケッチの次回保存・復元時に適用されます。利用者は履歴画面から不要な過去版を選択削除できます。削除後の保存量はすぐに再計算され、現行スケッチやrevisionは変更されません。使用量はIDEのアカウント画面と管理コンソールのユーザー一覧で確認できます。
 
 管理コンソールの「PW再設定」は暗号学的乱数による一時パスワードを一度だけ応答し、そのユーザーの全セッションを失効させます。パスワード自体はログに出力されません。表示された一時パスワードは安全な方法で本人に伝え、ログイン後すぐ変更するよう案内してください。メール送信や本人確認を伴う自動再設定には対応していません。
 
@@ -143,11 +155,11 @@ sudo -u arduino-helper env HELPER_HOME=/var/lib/arduino-helper \
   python3 /opt/arduino-helper/arduino-helper.py --show-tokens
 ```
 
-この版では最初のアカウントAPI利用時に、アカウントDBを一般ユーザー用スキーマへ更新します。旧学校用のアカウント、クラス、スケッチ、コメント、過去版のデータは削除され、元に戻せません。必要な場合はアップデート前にバックアップを確認して保管してください。ユーザーセッションの有効期間は12時間です。
+アカウントDBのスキーマ移行はAPIの受付開始前に実行します。旧学校用テーブルにデータがある場合、破壊的変更の前にSQLite整合性と各テーブルの件数を検証したスナップショットを `/var/lib/arduino-helper/migration-backups/` に作成します。スナップショット作成または移行後のスキーマ・件数・SQLite整合性検査に失敗すると、起動を中止してエラーをjournalへ記録します。スナップショットを確認し、必要なら別の安全な保存先へコピーしてから原因を調査してください。正常完了後も直近3件を保持します。移行時はアカウントDBと同程度の追加空き容量を見込んでください。移行は旧学校用のアカウント、クラス、スケッチ、コメント、過去版を新しいアカウント形式へ変換しません。移行前データが必要な場合は、スナップショットまたは事前バックアップから旧バージョンで参照してください。ユーザーセッションの有効期間は12時間です。
 
 ## 復元
 
-復元には root 権限が必要です。信頼できるバックアップだけを使用してください。アプリ本体と Arduino CLI はアーカイブに含まれないため、先に同じリリースのソースから `install.sh` を実行して、サービスアカウントと実行ファイルを用意してください。
+復元には root 権限が必要です。信頼できるバックアップだけを使用してください。アプリ本体、Arduino CLI、サービス設定もアーカイブに含まれます。初回導入時やサービスアカウントがない新しいホストでは、先に `install.sh` を実行してOSパッケージとサービスアカウントを用意し、その後にバックアップを復元してください。
 
 1. チェックサムを検証します。
 2. 現在の状態も必要なら、先に `sudo arduino-helper-backup` で退避します。
@@ -168,7 +180,7 @@ sudo systemctl status arduino-helper
 sudo journalctl -u arduino-helper -n 50 --no-pager
 ```
 
-展開すると、バックアップ時点の `/var/lib/arduino-helper`、`/var/lib/arduino-build` と `/etc` 配下のサービス設定に置き換わります。誤ったアーカイブを展開しないよう、ファイル名とチェックサムを事前に確認してください。
+展開すると、バックアップ時点の `/var/lib/arduino-helper`、`/var/lib/arduino-build`、`/opt/arduino-helper`、`/opt/arduino-cli`、関連する `/usr/local` の実行ファイルと `/etc` 配下のサービス設定に置き換わります。誤ったアーカイブを展開しないよう、ファイル名とチェックサムを事前に確認してください。
 
 ## 再起動とジョブ
 
@@ -182,6 +194,8 @@ sudo journalctl -u arduino-helper -f
 ```
 
 `HELPER_MIN_FREE_MB` の容量確認に失敗した場合、コンパイルは安全のため受け付けられません。容量判定は API の作業領域 (`HELPER_HOME`) に加え、設定されている Arduino CLI のデータ、ユーザーデータ、ダウンロード領域とデータ領域配下の build cache も対象にし、確認できた領域のうち最も少ない空き容量を使います。管理画面の空き容量表示が「確認不可」のときは、対象ファイルシステムとサービスユーザーからのアクセスを確認してください。
+
+メモリ不足時のコンパイルによるOOMを避けたい場合は `/etc/arduino-helper/helper.env` に `HELPER_MIN_MEMORY_MB=<MiB>` を設定します。既定値0は無効、最大値は1,000,000 MiBです。設定すると、コンパイル受付前にホストの利用可能メモリを確認し、値を下回る場合または計測できない場合はコンパイルを拒否します。必要値は対象ボード・スケッチ・同時利用負荷を実測して決めてください。現在のCLIは直列実行のため、同時コンパイル数は増やしません。
 
 GitHub Actions は push・pull request 時に Python 3.8 / 3.12 の単体テストと Python・shell 構文検査を実行します。Linux 上の systemd、Arduino CLI 実機、バックアップからの復元はこの CI の対象外です。
 

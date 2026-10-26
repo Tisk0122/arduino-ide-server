@@ -21,7 +21,7 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Check Python syntax
         run: |
-          python -m py_compile arduino-helper.py
+          python -m py_compile arduino-helper.py restore-test-arduino-helper.py backup-status-arduino-helper.py
           python -c "import ast, pathlib; ast.parse(pathlib.Path('arduino-build-run').read_text(encoding='utf-8'))"
       - name: Check shell syntax
         run: |
@@ -41,3 +41,12 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Run browser tests
         run: python -m unittest discover -s tests -p "test_browser.py" -v
+  linux-deploy-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test real updater deploy and rollback in an isolated filesystem
+        run: sudo env "PATH=$PATH" "$(command -v python)" -m unittest discover -s tests -p "test_auto_update.py" -v

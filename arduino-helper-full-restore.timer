@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly full restore test for Arduino Web IDE backups
+
+[Timer]
+OnCalendar=Mon *-*-* 04:40:00
+RandomizedDelaySec=15m
+Persistent=true
+Unit=arduino-helper-full-restore.service
+
+[Install]
+WantedBy=timers.target

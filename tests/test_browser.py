@@ -120,6 +120,7 @@ class BrowserFeatureTests(unittest.TestCase):
     def test_server_history_preview_and_restore(self):
         restored = {**OLD_SKETCH, "revision": 3, "updatedAt": 3}
         restore_requests = []
+        delete_requests = []
 
         def api(route):
             request = route.request
@@ -131,7 +132,14 @@ class BrowserFeatureTests(unittest.TestCase):
             elif path == "/account/sketches":
                 data = {"sketches": [REMOTE_SKETCH]}
             elif path == "/account/sketches/history_one/versions":
-                data = {"versions": [{"revision": 1, "createdAt": 1}]}
+                if request.method == "DELETE":
+                    delete_requests.append(request.post_data_json)
+                    data = {"ok": True, "deleted": 1,
+                            "storage": {"usedBytes": 100, "limitBytes": 50 * 1024 * 1024}}
+                else:
+                    data = {"versions": [{"revision": 2, "createdAt": 2},
+                                         {"revision": 1, "createdAt": 1}],
+                            "maxVersions": 100}
             elif path == "/account/sketches/history_one/versions/1":
                 data = {"sketch": OLD_SKETCH, "revision": 1, "createdAt": 1}
             elif path == "/account/sketches/history_one/restore":
@@ -157,12 +165,24 @@ class BrowserFeatureTests(unittest.TestCase):
         self.page.locator("#history-open-btn").click()
         self.page.locator("#account-history-section").wait_for(state="visible")
         self.page.locator("#account-history-load-btn").click()
+        versions = self.page.locator("#account-history-list .history-entry")
+        versions.first.wait_for()
+        self.assertEqual(versions.count(), 2)
+        self.page.on("dialog", lambda dialog: dialog.accept())
+        self.page.locator("#account-history-list input[type=checkbox]").nth(0).check()
+        self.page.locator("#account-history-delete-btn").click()
+        self.page.wait_for_function(
+            "() => document.querySelectorAll('#account-history-list .history-entry').length === 1",
+            timeout=10000,
+        )
+        self.assertEqual(delete_requests, [{"revisions": [2]}])
+        self.assertEqual(self.page.locator("#account-history-list .history-entry").count(), 1)
+
         version = self.page.locator("#account-history-list .history-entry")
         version.wait_for()
         version.click()
         self.page.locator("#account-history-preview").get_by_text(
             "pinMode(LED_BUILTIN, OUTPUT)", exact=False).wait_for()
-        self.page.on("dialog", lambda dialog: dialog.accept())
         self.page.locator("#account-history-restore-btn").click()
         self.page.locator("#m-history").wait_for(state="hidden")
         self.assertEqual(restore_requests, [{"currentRevision": 2, "targetRevision": 1}])

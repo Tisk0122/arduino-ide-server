@@ -17,6 +17,11 @@ if ! flock -s -w 14400 9; then
   exit 1
 fi
 
+full_restore=0
+if [ "${1:-}" = "--full" ]; then
+  full_restore=1
+  shift
+fi
 archive="${1:-}"
 if [ -z "$archive" ]; then
   backup_dir="${HELPER_BACKUP_DIR:-/var/backups/arduino-helper}"
@@ -27,6 +32,25 @@ if [ -z "$archive" ]; then
 fi
 archive="$(realpath -- "$archive")"
 [ -f "$archive" ] || { echo "エラー: バックアップがありません: $archive" >&2; exit 1; }
+status_writer=/usr/local/libexec/arduino-helper-backup-status
+verify_mode=light
+[ "$full_restore" -eq 1 ] && verify_mode=full
+finish_verify() {
+  result=$?
+  trap - EXIT
+  if [ "$result" -eq 0 ]; then
+    status_event=verify-success
+  else
+    status_event=verify-failed
+  fi
+  if ! python3 "$status_writer" "$status_event" "$verify_mode"; then
+    echo "エラー: バックアップ検査状態を記録できませんでした" >&2
+    result=1
+  fi
+  exit "$result"
+}
+trap finish_verify EXIT
+python3 "$status_writer" verify-start "$verify_mode"
 checksum="$archive.sha256"
 [ -f "$checksum" ] || { echo "エラー: SHA-256 ファイルがありません: $checksum" >&2; exit 1; }
 (cd "$(dirname "$archive")" && sha256sum -c "$(basename "$checksum")")
@@ -75,4 +99,12 @@ with tempfile.TemporaryDirectory(prefix="arduino-helper-restore-check-") as temp
     else:
         print("アーカイブにアカウントDBがありません。アーカイブ検証のみ成功しました")
 PY
+if [ "$full_restore" -eq 1 ]; then
+  max_gib="${HELPER_RESTORE_TEST_MAX_GIB:-20}"
+  if ! [[ "$max_gib" =~ ^[0-9]+$ ]] || [ "$max_gib" -lt 1 ] || [ "$max_gib" -gt 1024 ]; then
+    echo "エラー: HELPER_RESTORE_TEST_MAX_GIB は1〜1024の整数にしてください" >&2
+    exit 1
+  fi
+  /usr/local/libexec/arduino-helper-restore-test "$archive" "$max_gib"
+fi
 echo "バックアップ検証に成功しました: $archive"

@@ -434,6 +434,32 @@ class ServerLimitTests(unittest.TestCase):
 
         self.assertEqual(error.exception.code, 503)
 
+    def test_configured_memory_floor_blocks_compile_before_creating_work(self):
+        job = {"id": "testmemory",
+               "plan": {"fqbn": "arduino:avr:uno", "sketch": "Example", "main": "Example.ino"}}
+        with patch.object(server, "MIN_MEMORY_MB", 512), \
+                patch.object(server, "free_mb", return_value=4096), \
+                patch.object(server, "_host_memory_mb", return_value=(8192, 256)), \
+                patch.object(server, "run_cli") as run_cli:
+            with self.assertRaises(server.ApiError) as error:
+                server.run_compile(job)
+
+        self.assertEqual(error.exception.code, 503)
+        self.assertIn("メモリ", error.exception.msg)
+        run_cli.assert_not_called()
+        self.assertFalse((server.WORK_DIR / "j_testmemory").exists())
+
+    def test_configured_memory_floor_fails_closed_when_memory_is_unknown(self):
+        job = {"plan": {"fqbn": "arduino:avr:uno", "sketch": "Example", "main": "Example.ino"}}
+        with patch.object(server, "MIN_MEMORY_MB", 512), \
+                patch.object(server, "free_mb", return_value=4096), \
+                patch.object(server, "_host_memory_mb", side_effect=OSError("unavailable")):
+            with self.assertRaises(server.ApiError) as error:
+                server.run_compile(job)
+
+        self.assertEqual(error.exception.code, 503)
+        self.assertIn("確認できません", error.exception.msg)
+
     def test_build_storage_with_less_space_is_used_for_compile_guard(self):
         data_dir = Path(self.temp.name) / "arduino-data"
         user_dir = Path(self.temp.name) / "arduino-user"

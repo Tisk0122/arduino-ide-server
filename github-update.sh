@@ -3,13 +3,37 @@
 set -Eeuo pipefail
 umask 077
 
-APP_DIR=/opt/arduino-helper
-CONF_DIR=/etc/arduino-helper
-UPDATE_DIR=/var/lib/arduino-helper-updater
+TEST_ROOT="${ARDUINO_HELPER_TEST_ROOT:-}"
+if [ -n "$TEST_ROOT" ]; then
+  case "$TEST_ROOT" in
+    /*) ;;
+    *) printf 'ARDUINO_HELPER_TEST_ROOT は安全な絶対パスではありません\n' >&2; exit 2 ;;
+  esac
+  case "$TEST_ROOT" in
+    /|*/../*|*/..|*/.) printf 'ARDUINO_HELPER_TEST_ROOT は安全な絶対パスではありません\n' >&2; exit 2 ;;
+  esac
+  [[ -f "$TEST_ROOT/.arduino-helper-test-root" ]] || {
+    printf 'ARDUINO_HELPER_TEST_ROOT は安全な絶対パスではありません\n' >&2
+    exit 2
+  }
+  APP_DIR="$TEST_ROOT/opt/arduino-helper"
+  CONF_DIR="$TEST_ROOT/etc/arduino-helper"
+  UPDATE_DIR="$TEST_ROOT/var/lib/arduino-helper-updater"
+  SYSTEMD_DIR="$TEST_ROOT/etc/systemd/system"
+  LIBEXEC_DIR="$TEST_ROOT/usr/local/libexec"
+  SBIN_DIR="$TEST_ROOT/usr/local/sbin"
+  UPDATER_PATH="$LIBEXEC_DIR/arduino-helper-update"
+else
+  APP_DIR=/opt/arduino-helper
+  CONF_DIR=/etc/arduino-helper
+  UPDATE_DIR=/var/lib/arduino-helper-updater
+  SYSTEMD_DIR=/etc/systemd/system
+  LIBEXEC_DIR=/usr/local/libexec
+  SBIN_DIR=/usr/local/sbin
+  UPDATER_PATH="$LIBEXEC_DIR/arduino-helper-update"
+fi
 ENV_FILE="$CONF_DIR/github-webhook.env"
 SERVICE=arduino-helper
-UPDATER_PATH=/usr/local/libexec/arduino-helper-update
-SYSTEMD_DIR=/etc/systemd/system
 LOCK_FILE="$UPDATE_DIR/update.lock"
 KEEP_BACKUPS="${KEEP_BACKUPS:-3}"
 CHECK_ONLY=0
@@ -64,6 +88,8 @@ fi
 
 FILES=(
   "arduino-helper.py"
+  "restore-test-arduino-helper.py"
+  "backup-status-arduino-helper.py"
   "arduino-build-run"
   "www/index.html"
   "www/admin.html"
@@ -82,16 +108,21 @@ FILES=(
   "arduino-helper-backup.timer"
   "arduino-helper-verify-backup.service"
   "arduino-helper-verify-backup.timer"
+  "arduino-helper-full-restore.service"
+  "arduino-helper-full-restore.timer"
+  "arduino-helper-failure-notice@.service"
   "verify-arduino-helper-backup.sh"
 )
 
 target_for() {
   case "$1" in
-    configure-github-webhook.sh) printf '%s\n' /usr/local/libexec/arduino-helper-configure-github-webhook ;;
-    backup-arduino-helper.sh) printf '%s\n' /usr/local/sbin/arduino-helper-backup ;;
-    verify-arduino-helper-backup.sh) printf '%s\n' /usr/local/sbin/arduino-helper-verify-backup ;;
+    configure-github-webhook.sh) printf '%s\n' "$LIBEXEC_DIR/arduino-helper-configure-github-webhook" ;;
+    backup-arduino-helper.sh) printf '%s\n' "$SBIN_DIR/arduino-helper-backup" ;;
+    verify-arduino-helper-backup.sh) printf '%s\n' "$SBIN_DIR/arduino-helper-verify-backup" ;;
+    restore-test-arduino-helper.py) printf '%s\n' "$LIBEXEC_DIR/arduino-helper-restore-test" ;;
+    backup-status-arduino-helper.py) printf '%s\n' "$LIBEXEC_DIR/arduino-helper-backup-status" ;;
     github-update.sh) printf '%s\n' "$UPDATER_PATH" ;;
-    arduino-helper-update.service|arduino-helper-update.timer|arduino-helper-backup.service|arduino-helper-backup.timer|arduino-helper-verify-backup.service|arduino-helper-verify-backup.timer)
+    arduino-helper-update.service|arduino-helper-update.timer|arduino-helper-backup.service|arduino-helper-backup.timer|arduino-helper-verify-backup.service|arduino-helper-verify-backup.timer|arduino-helper-full-restore.service|arduino-helper-full-restore.timer|arduino-helper-failure-notice@.service)
       printf '%s/%s\n' "$SYSTEMD_DIR" "$1"
       ;;
     *) printf '%s/%s\n' "$APP_DIR" "$1" ;;
@@ -101,7 +132,7 @@ target_for() {
 mode_for() {
   case "$1" in
     arduino-build-run|configure-github-webhook.sh|github-update.sh) printf '0700\n' ;;
-    backup-arduino-helper.sh|verify-arduino-helper-backup.sh) printf '0750\n' ;;
+    backup-arduino-helper.sh|verify-arduino-helper-backup.sh|restore-test-arduino-helper.py|backup-status-arduino-helper.py) printf '0750\n' ;;
     *) printf '0644\n' ;;
   esac
 }
@@ -138,6 +169,11 @@ rollback() {
     systemctl restart arduino-helper-verify-backup.timer || log "復元検証timerの復旧に失敗しました"
   else
     systemctl disable --now arduino-helper-verify-backup.timer >/dev/null 2>&1 || true
+  fi
+  if [ -f "$stage/had/arduino-helper-full-restore.timer" ]; then
+    systemctl restart arduino-helper-full-restore.timer || log "完全復元検証timerの復旧に失敗しました"
+  else
+    systemctl disable --now arduino-helper-full-restore.timer >/dev/null 2>&1 || true
   fi
   if ! systemctl restart "$SERVICE"; then
     log "ロールバック後のサービス再起動にも失敗しました"
@@ -202,7 +238,7 @@ for f in "${FILES[@]}"; do
   [ ! -L "$f" ] || die "symlink は許可しません: $f"
 done
 
-run_logged python3 -m py_compile arduino-helper.py arduino-build-run
+run_logged python3 -m py_compile arduino-helper.py restore-test-arduino-helper.py backup-status-arduino-helper.py arduino-build-run
 
 mkdir -p "$stage/had"
 timestamp="$(date +%Y%m%d-%H%M%S)"
@@ -222,7 +258,7 @@ for f in "${FILES[@]}"; do
   fi
 done
 
-install -d -o root -g root -m 0755 "$APP_DIR" "$APP_DIR/www" "$SYSTEMD_DIR" /usr/local/libexec
+install -d -o root -g root -m 0755 "$APP_DIR" "$APP_DIR/www" "$SYSTEMD_DIR" "$LIBEXEC_DIR" "$SBIN_DIR"
 for f in "${FILES[@]}"; do
   target="$(target_for "$f")"
   mode="$(mode_for "$f")"
@@ -237,7 +273,7 @@ for f in "${FILES[@]}"; do
 done
 
 log "配置したコミット: $(git rev-parse --short HEAD)"
-run_logged python3 -m py_compile "$APP_DIR/arduino-helper.py" "$APP_DIR/arduino-build-run"
+run_logged python3 -m py_compile "$APP_DIR/arduino-helper.py" "$LIBEXEC_DIR/arduino-helper-restore-test" "$LIBEXEC_DIR/arduino-helper-backup-status" "$APP_DIR/arduino-build-run"
 run_logged systemctl daemon-reload
 log "サービスを再起動します"
 run_logged systemctl restart "$SERVICE"
@@ -295,6 +331,10 @@ run_logged systemctl enable --now arduino-helper-verify-backup.timer
 run_logged systemctl restart arduino-helper-verify-backup.timer
 systemctl is-enabled --quiet arduino-helper-verify-backup.timer || die "復元検証timerが enabled ではありません"
 systemctl is-active --quiet arduino-helper-verify-backup.timer || die "復元検証timerが active ではありません"
+run_logged systemctl enable --now arduino-helper-full-restore.timer
+run_logged systemctl restart arduino-helper-full-restore.timer
+systemctl is-enabled --quiet arduino-helper-full-restore.timer || die "完全復元検証timerが enabled ではありません"
+systemctl is-active --quiet arduino-helper-full-restore.timer || die "完全復元検証timerが active ではありません"
 
 commit="$(git rev-parse HEAD)"
 printf '%s\n' "$commit" > "$UPDATE_DIR/applied-commit.new.$$"

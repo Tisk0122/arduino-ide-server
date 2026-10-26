@@ -1,6 +1,7 @@
 [Unit]
 Description=Verify the latest Arduino Web IDE backup by isolated restore
 After=local-fs.target
+OnFailure=arduino-helper-failure-notice@%p.service
 
 [Service]
 Type=oneshot
