@@ -1070,12 +1070,25 @@ body.phone-blocked > :not(#phone-block) { visibility:hidden!important; pointer-e
   <div id="confirm-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);align-items:center;justify-content:center;">
     <div role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-msg" style="background:var(--bg-modal);border:1px solid var(--bd2);border-radius:var(--radius-lg);padding:24px;width:min(380px,94vw);box-shadow:var(--sh-lg);">
       <h3 style="font-size:15px;font-weight:700;color:var(--err);margin-bottom:10px;" id="confirm-title">確認</h3>
-      <p style="font-size:13px;color:var(--tx1);margin-bottom:20px;line-height:1.6;" id="confirm-msg"></p>
+      <p style="font-size:13px;color:var(--tx1);margin-bottom:20px;line-height:1.6;white-space:pre-line;" id="confirm-msg"></p>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
         <button type="button" class="btn btn-secondary" id="confirm-cancel">キャンセル</button>
         <button type="button" class="btn" id="confirm-ok" style="background:var(--err);color:#fff;border:none;">削除する</button>
       </div>
     </div>
+  </div>
+
+  <div id="password-result-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.62);align-items:center;justify-content:center;padding:20px;">
+    <section role="dialog" aria-modal="true" aria-labelledby="password-result-title" aria-describedby="password-result-help" style="width:min(520px,100%);padding:22px;border:1px solid var(--bd2);border-radius:var(--radius-lg);background:var(--bg-modal);box-shadow:var(--sh-lg);">
+      <h2 id="password-result-title" style="margin:0 0 9px;font-size:17px;">一時パスワード</h2>
+      <p id="password-result-help" class="sub" style="margin:0 0 14px;">このパスワードは今回だけ表示されます。利用者へ安全な方法で伝え、ログイン後すぐに変更するよう案内してください。</p>
+      <label for="password-result-value" class="sub">一時パスワード</label>
+      <input class="input mono" id="password-result-value" type="text" readonly autocomplete="off" spellcheck="false" style="display:block;width:100%;margin:6px 0 14px;padding:10px;">
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button type="button" class="btn" id="password-result-copy">コピー</button>
+        <button type="button" class="btn btn-primary" id="password-result-close">閉じる</button>
+      </div>
+    </section>
   </div>
 
   <footer>
@@ -2253,9 +2266,10 @@ var userMgr = {
       });
   },
 
-  toggleUser: function(uid, uname, currentActive) {
+  async toggleUser(uid, uname, currentActive) {
     var label = currentActive ? '無効化' : '有効化';
-    if (!confirm('@' + uname + ' を' + label + 'しますか？' + (currentActive ? '\n\n無効化するとログインできなくなります。' : ''))) return;
+    var warning = currentActive ? '\n\n無効化すると、このユーザーはログインできなくなります。' : '';
+    if (!await confirmDialog('ユーザーを' + label, '@' + uname + ' を' + label + 'しますか？' + warning, label + 'する')) return;
     api('/admin/api/accounts/' + encodeURIComponent(uid) + '/toggle', 8000, 'POST', {})
       .then(function(d) {
         toast('@' + uname + ' を' + (d.active ? '有効化' : '無効化') + 'しました', 'ok');
@@ -2271,11 +2285,14 @@ var userMgr = {
       .catch(function(err) { toast(label + 'に失敗しました: ' + err.message, 'err'); });
   },
 
-  resetPassword: function(uid, uname) {
-    if (!confirm('@' + uname + ' のパスワードを再設定しますか？\n\n既存の全セッションは失効します。新しい一時パスワードはこの画面で一度だけ表示されます。')) return;
+  async resetPassword(uid, uname) {
+    if (!await confirmDialog('パスワードを再設定', '@' + uname + ' のパスワードを再設定しますか？\n\n既存の全セッションは失効します。新しい一時パスワードはこの画面で一度だけ表示されます。', '再設定する')) return;
     api('/admin/api/accounts/' + encodeURIComponent(uid) + '/reset-password', 10000, 'POST', {})
       .then(function(data) {
-        window.prompt('@' + uname + ' の一時パスワードです。利用者へ安全な方法で伝え、新しいパスワードへ変更するよう案内してください。', data.temporaryPassword);
+        if (typeof data.temporaryPassword !== 'string' || !data.temporaryPassword) {
+          throw new Error('サーバーから一時パスワードを取得できませんでした');
+        }
+        showTemporaryPassword(data.temporaryPassword, uname);
         toast('@' + uname + ' のパスワードを再設定しました。全セッションを失効しました。', 'ok', 9000);
         userMgr.load();
         userMgr.loadAudit(0);
@@ -2283,8 +2300,8 @@ var userMgr = {
       .catch(function(err) { toast('パスワード再設定に失敗しました: ' + err.message, 'err'); });
   },
 
-  revokeSessions: function(uid, uname) {
-    if (!confirm('@' + uname + ' の全セッションを失効しますか？')) return;
+  async revokeSessions(uid, uname) {
+    if (!await confirmDialog('全セッションを失効', '@' + uname + ' のすべてのログインセッションを失効しますか？', '失効する')) return;
     api('/admin/api/accounts/' + encodeURIComponent(uid) + '/revoke-sessions', 8000, 'POST', {})
       .then(function(data) {
         toast('@' + uname + ' のセッションを ' + data.revokedSessions + ' 件失効しました', 'ok');
@@ -2294,38 +2311,80 @@ var userMgr = {
       .catch(function(err) { toast('セッション失効に失敗しました: ' + err.message, 'err'); });
   },
 
-  deleteUser: function(uid, uname) {
-    confirmDialog(
+  async deleteUser(uid, uname) {
+    if (!await confirmDialog(
       '@' + uname + ' を削除',
       'ユーザー「@' + uname + '」とそのすべてのスケッチ・セッションを完全に削除します。\n\nこの操作は元に戻せません。',
-      function() {
-        api('/admin/api/accounts/' + encodeURIComponent(uid), 10000, 'DELETE')
-          .then(function() {
-            toast('@' + uname + ' を削除しました', 'ok');
-            userMgr.users = userMgr.users.filter(function(u) { return u.id !== uid; });
-            userMgr.renderUsers();
-            if (userMgr.currentUid === uid) {
-              $('#user-sketch-panel').hidden = true;
-              $('#sketch-viewer-panel').hidden = true;
-              userMgr.currentUid = null;
-            }
-          })
-          .catch(function(err) { toast('削除に失敗しました: ' + err.message, 'err'); });
-      }
-    );
+      '削除する'
+    )) return;
+    api('/admin/api/accounts/' + encodeURIComponent(uid), 10000, 'DELETE')
+      .then(function() {
+        toast('@' + uname + ' を削除しました', 'ok');
+        userMgr.users = userMgr.users.filter(function(u) { return u.id !== uid; });
+        userMgr.renderUsers();
+        if (userMgr.currentUid === uid) {
+          $('#user-sketch-panel').hidden = true;
+          $('#sketch-viewer-panel').hidden = true;
+          userMgr.currentUid = null;
+        }
+      })
+      .catch(function(err) { toast('削除に失敗しました: ' + err.message, 'err'); });
   }
 };
 
-function confirmDialog(title, msg, onOk) {
+function confirmDialog(title, msg, okLabel) {
   var modal = $('#confirm-modal');
   $('#confirm-title').textContent = title;
   $('#confirm-msg').textContent = msg;
+  $('#confirm-ok').textContent = okLabel || '実行する';
   modal.style.display = 'flex';
   var okBtn = $('#confirm-ok');
   var cancelBtn = $('#confirm-cancel');
-  function cleanup() { modal.style.display = 'none'; okBtn.onclick = null; cancelBtn.onclick = null; }
-  okBtn.onclick = function() { cleanup(); onOk(); };
-  cancelBtn.onclick = cleanup;
+  var previousFocus = document.activeElement;
+  return new Promise(function(resolve) {
+    var finished = false;
+    function cleanup(result) {
+      if (finished) return;
+      finished = true;
+      modal.style.display = 'none';
+      okBtn.onclick = null;
+      cancelBtn.onclick = null;
+      modal.onclick = null;
+      modal.onkeydown = null;
+      if (previousFocus && previousFocus.focus) previousFocus.focus();
+      resolve(result);
+    }
+    okBtn.onclick = function() { cleanup(true); };
+    cancelBtn.onclick = function() { cleanup(false); };
+    modal.onclick = function(event) { if (event.target === modal) cleanup(false); };
+    modal.onkeydown = function(event) {
+      if (event.key === 'Escape') { event.preventDefault(); cleanup(false); }
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        (event.shiftKey ? okBtn : cancelBtn).focus();
+      }
+    };
+    cancelBtn.focus();
+  });
+}
+
+var passwordModalReturnFocus = null;
+function showTemporaryPassword(password, username) {
+  var modal = $('#password-result-modal');
+  var input = $('#password-result-value');
+  passwordModalReturnFocus = document.activeElement;
+  input.value = String(password || '');
+  $('#password-result-title').textContent = '@' + username + ' の一時パスワード';
+  modal.style.display = 'flex';
+  input.focus();
+  input.select();
+}
+
+function closeTemporaryPassword() {
+  $('#password-result-modal').style.display = 'none';
+  $('#password-result-value').value = '';
+  if (passwordModalReturnFocus && passwordModalReturnFocus.isConnected) passwordModalReturnFocus.focus();
+  passwordModalReturnFocus = null;
 }
 
 // ユーザー管理イベントデリゲーション
@@ -2355,7 +2414,38 @@ document.addEventListener('click', function(e) {
   }
   // 確認モーダル外クリックで閉じる
   if (e.target === $('#confirm-modal')) {
-    $('#confirm-modal').style.display = 'none';
+    $('#confirm-cancel').click();
+  }
+  if (e.target === $('#password-result-modal')) {
+    closeTemporaryPassword();
+  }
+});
+
+$('#password-result-close').addEventListener('click', closeTemporaryPassword);
+$('#password-result-copy').addEventListener('click', async function() {
+  var input = $('#password-result-value');
+  input.focus();
+  input.select();
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(input.value);
+      toast('一時パスワードをクリップボードにコピーしました', 'ok');
+    } else if (document.execCommand && document.execCommand('copy')) {
+      toast('一時パスワードをクリップボードにコピーしました', 'ok');
+    } else {
+      toast('コピーできませんでした。選択されたパスワードを手動でコピーしてください', 'warn', 7000);
+    }
+  } catch (err) {
+    toast('コピーに失敗しました。選択されたパスワードを手動でコピーしてください', 'warn', 7000);
+  }
+});
+$('#password-result-modal').addEventListener('keydown', function(event) {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeTemporaryPassword();
+  } else if (event.key === 'Tab') {
+    event.preventDefault();
+    (event.shiftKey ? $('#password-result-close') : $('#password-result-copy')).focus();
   }
 });
 

@@ -1070,6 +1070,21 @@ svg { display: block; flex-shrink: 0; }
 .compile-help[open] summary::after { content: '閉じる'; }
 .compile-help-content { max-height: 90px; overflow-y: auto; padding: 0 10px 8px; }
 .compile-help-list { display: grid; gap: 8px; padding-left: 21px; }
+.compile-diagnostics { display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: 5px 9px; border-bottom: 1px solid var(--bd1); }
+.compile-diagnostics[hidden] { display: none; }
+.compile-diagnostics-label { flex: 0 0 auto; color: var(--tx2); font-size: 11px; }
+.compile-diagnostic { flex: 0 0 auto; max-width: 260px; overflow: hidden; padding: 3px 8px; border: 1px solid rgba(224,82,82,.35); border-radius: 999px; color: var(--err); background: rgba(224,82,82,.08); text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.compile-diagnostic:hover { background: rgba(224,82,82,.18); }
+.command-palette { width: min(620px, calc(100vw - 40px)); align-self: flex-start; margin-top: min(16vh, 120px); }
+.command-palette-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; color: var(--tx1); font-size: 12px; font-weight: 700; }
+.command-palette-head kbd, .command-palette-hint { color: var(--tx2); font: 11px var(--ff-mono); }
+.command-palette .form-input { width: 100%; min-height: 42px; font-size: 14px; }
+.command-palette-list { display: grid; gap: 2px; max-height: min(52vh, 420px); overflow: auto; margin-top: 9px; }
+.command-palette-option { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 38px; padding: 7px 10px; border-radius: var(--radius); color: var(--tx1); text-align: left; }
+.command-palette-option[aria-selected="true"], .command-palette-option:hover { color: var(--tx0); background: var(--bg3); }
+.command-palette-option kbd { flex: 0 0 auto; color: var(--tx2); font: 10px var(--ff-mono); }
+.command-palette-empty { padding: 18px 10px; color: var(--tx2); text-align: center; }
+.command-palette-hint { margin-top: 9px; text-align: right; }
 .compile-help-list li { padding-left: 2px; line-height: 1.6; }
 .compile-help-list strong { color: var(--tx0); }
 .compile-help-cause { color: var(--tx1); }
@@ -1238,6 +1253,11 @@ svg { display: block; flex-shrink: 0; }
 .save-indicator[data-state="saving"] { color: #B8E0FF; }
 .save-indicator[data-state="saved"] { color: #A6F6C0; }
 .save-indicator[data-state="error"] { color: #FFC4BA; }
+#status-cloud-sync { cursor: pointer; }
+#status-cloud-sync:hover { background: rgba(255,255,255,.1); }
+#status-cloud-sync[data-state="pending"], #status-cloud-sync[data-state="syncing"] { color: #FFE08A; }
+#status-cloud-sync[data-state="synced"] { color: #A6F6C0; }
+#status-cloud-sync[data-state="error"] { color: #FFC4BA; }
 #status-save-location { color: rgba(255,255,255,0.85); }
 #status-save-announcement {
   position: absolute;
@@ -1779,6 +1799,13 @@ svg { display: block; flex-shrink: 0; }
 #helper-status-box.ok { color: var(--co-ok); }
 #helper-status-box.warn { color: var(--orange); }
 #helper-status-box.err { color: var(--red); }
+.helper-diagnostic { margin-top: 9px; padding: 10px 12px; border: 1px solid var(--bd1); border-radius: var(--radius); background: var(--bg2); }
+.helper-diagnostic[hidden] { display: none; }
+.helper-diagnostic-title { margin-bottom: 5px; color: var(--tx0); font-weight: 700; }
+.helper-diagnostic-list { display: grid; gap: 4px; padding: 0; list-style: none; color: var(--tx1); font-size: 11px; }
+.helper-diagnostic-list li::before { content: "•"; margin-right: 7px; color: var(--teal-lt); }
+.helper-diagnostic-list li.fail::before { content: "!"; color: var(--err); font-weight: 700; }
+.helper-diagnostic-copy { margin-top: 8px; }
 .welcome-body { display: grid; gap: 16px; }
 .welcome-copy { color: var(--tx1); line-height: 1.7; }
 .welcome-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 0; list-style: none; counter-reset: welcome; }
@@ -2302,6 +2329,10 @@ body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer
   <button class="tool-btn" id="sidebar-toggle-btn" title="サイドバー切替 (Ctrl+B)" aria-label="サイドバーを閉じる" aria-controls="sidebar" aria-expanded="true">
     <i data-lucide="panel-left" aria-hidden="true"></i>
   </button>
+  <button class="tool-btn" id="command-palette-btn" title="コマンドを検索 (Ctrl+Shift+P)">
+    <i data-lucide="search" aria-hidden="true"></i>
+    <span>コマンド</span>
+  </button>
   <div class="tool-sep"></div>
 
   <button class="tool-btn" id="verify-btn" title="検証・コンパイル (Ctrl+Enter)">
@@ -2471,6 +2502,7 @@ body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer
       <div id="panel-body">
         <!-- コンソール -->
         <div class="panel-pane active" id="console-pane" role="tabpanel" aria-labelledby="console-tab" aria-hidden="false">
+          <div class="compile-diagnostics" id="compile-diagnostics" role="group" aria-label="コンパイルエラー一覧" hidden></div>
           <details id="compile-help" class="compile-help" aria-live="polite" hidden></details>
           <div id="console-log"><div class="log-empty">コンソール出力はまだありません</div></div>
         </div>
@@ -2536,6 +2568,7 @@ body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer
   <span id="status-msg" role="status" aria-live="polite">IDEを準備しています…</span>
   <span class="sb-item" id="status-network" role="status" aria-live="polite" hidden></span>
   <span class="sb-item save-indicator" id="status-save" data-state="saved" role="status" aria-live="off">保存済み</span>
+  <span class="sb-item" id="status-cloud-sync" role="status" aria-live="polite" hidden></span>
   <span id="status-save-announcement" role="status" aria-live="polite" aria-atomic="true"></span>
   <div class="sb-div"></div>
   <span class="sb-item" id="status-save-location">保存先: このブラウザーのみ</span>
@@ -2806,7 +2839,10 @@ body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer
         <button class="btn btn-secondary" id="welcome-helper-btn" title="コンパイルサーバーのURLとアクセストークンを設定">接続設定をする</button>
         <button class="btn btn-secondary" id="usb-setup-allow-btn">USBポートを許可</button>
       </div>
-      <button class="btn btn-primary" id="usb-setup-done-btn">エディターを開く</button>
+      <div class="welcome-actions">
+        <button class="btn btn-secondary" id="welcome-tutorial-btn" type="button">操作チュートリアル</button>
+        <button class="btn btn-primary" id="usb-setup-done-btn">エディターを開く</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2893,6 +2929,11 @@ body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer
           <span id="helper-status-icon" aria-hidden="true"><i data-lucide="clock-3"></i></span>
           <span id="helper-status-text">未確認</span>
         </div>
+        <section class="helper-diagnostic" id="helper-diagnostic" aria-live="polite" hidden>
+          <h3 class="helper-diagnostic-title">接続診断</h3>
+          <ul class="helper-diagnostic-list" id="helper-diagnostic-list"></ul>
+          <button type="button" class="btn btn-secondary btn-sm helper-diagnostic-copy" id="helper-diagnostic-copy">診断概要をコピー（トークンを含まない）</button>
+        </section>
       </div>
     </div>
     <div class="modal-foot">
@@ -3361,6 +3402,19 @@ body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer
     </div>
   </div>
 
+  <!-- コマンドパレット -->
+  <div class="modal-overlay" id="m-command-palette">
+    <div class="modal command-palette" role="dialog" aria-modal="true" aria-labelledby="command-palette-title">
+      <div class="command-palette-head">
+        <label id="command-palette-title" for="command-palette-search">コマンドを検索</label>
+        <kbd>Esc</kbd>
+      </div>
+      <input type="search" id="command-palette-search" class="form-input" placeholder="操作名を入力…" autocomplete="off" spellcheck="false" aria-controls="command-palette-list" aria-activedescendant="">
+      <div id="command-palette-list" class="command-palette-list" role="listbox" aria-label="コマンド"></div>
+      <p class="command-palette-hint">↑↓で選択・Enterで実行・Ctrl+Shift+Pで開閉</p>
+    </div>
+  </div>
+
   <script>
 /* ================================================================
    Arduino Web IDE — メインスクリプト
@@ -3382,7 +3436,7 @@ const S = {
   db: null,
   localDb: null,
   sketches: [],
-  account: { token: '', user: null, loading: false, syncing: false },
+  account: { token: '', user: null, loading: false, syncing: false, syncStatus: 'idle', syncError: '' },
   curId: null,
   curTab: 0,
   dirty: new Set(),   // 'sketchId:tabIndex'
@@ -3390,7 +3444,8 @@ const S = {
   cfg: {
     fontSize: 13, tabSize: 2, autosave: 5,
     theme: 'dark', lineNums: true, curLine: true, syntax: true, reduceMotion: false,
-    compileHelp: false, completion: true, sidebarWidth: 230, panelMinimized: false,
+    compileHelp: false, completion: true, sidebarWidth: 230, sidebarHidden: false,
+    panelMinimized: false, panelHeight: 210, activePanel: 'console',
     pwaInstallNudgeDismissed: false,
   },
   serial: { port: null, reader: null, writer: null, connected: false, supported: true, detectedLabel: '', detectedBoardId: '', detectionGeneration: 0, authorizedPortCount: 0 },
@@ -3732,11 +3787,19 @@ const IDB = {
       catch (e) { IDB.fail(e); return res(false); }
       req.onsuccess = async () => {
         try {
-          if (sync && S.account.user && !S.account.loading) await Account.saveSketch(sketch);
+          if (sync && S.account.user && !S.account.loading) {
+            setCloudSyncStatus('syncing');
+            await Account.saveSketch(sketch);
+            setCloudSyncStatus('synced');
+          }
           S.saveFailed = false;
           res(true);
         } catch (err) {
-          IDB.fail(err);
+          S.saveFailed = true;
+          setCloudSyncStatus('error', err);
+          setSaveIndicator('端末保存済み・クラウド同期失敗', 'error');
+          console.error('Sketch was saved locally but cloud sync failed:', err);
+          toast('端末には保存しましたが、クラウド同期に失敗しました。下部の同期状態から再試行できます', 'err', 8000);
           res(false);
         }
       };
@@ -3935,6 +3998,32 @@ function setSaveIndicator(msg, state) {
   if (changed && announcement && !msg.startsWith('自動保存まで ')) announcement.textContent = msg;
 }
 
+function setCloudSyncStatus(state, error) {
+  S.account.syncStatus = state;
+  S.account.syncError = error ? Helper.explain(error) : '';
+  const el = document.getElementById('status-cloud-sync');
+  if (!el) return;
+  el.hidden = !S.account.user;
+  if (!S.account.user) return;
+  const labels = {
+    idle: 'クラウド: 未同期',
+    pending: 'クラウド: 同期待ち',
+    syncing: 'クラウド: 同期中…',
+    synced: 'クラウド: 同期済み',
+    error: 'クラウド: 同期失敗'
+  };
+  el.textContent = labels[state] || labels.idle;
+  el.dataset.state = state;
+  el.title = state === 'error'
+    ? `端末には保存されています。クラウド同期に失敗しました: ${S.account.syncError} クリックして再試行`
+    : state === 'synced'
+      ? '現在のスケッチは端末とアカウントのクラウドに保存されています'
+      : 'クリックしてアカウントのスケッチを同期します';
+  el.setAttribute('aria-label', el.title);
+  el.setAttribute('role', 'button');
+  el.tabIndex = 0;
+}
+
 function updateAutosaveIndicator() {
   if (!S.dirty.size) {
     setSaveIndicator('保存済み', 'saved');
@@ -3969,6 +4058,32 @@ function setHelperStatus(kind, text) {
   setIcon(icon, map[kind] || 'clock-3');
   box.className = kind === 'ok' ? 'ok' : kind === 'warn' ? 'warn' : kind === 'err' ? 'err' : '';
   document.getElementById('helper-status-text').textContent = text;
+}
+
+function renderHelperDiagnostics(data, error) {
+  const panel = document.getElementById('helper-diagnostic');
+  const list = document.getElementById('helper-diagnostic-list');
+  const urlConfigured = !!Helper.urls().length;
+  const checks = [
+    ['サーバーURL', urlConfigured, urlConfigured ? '設定済み' : '未設定'],
+    ['サーバーへの接続', !!data, data ? '応答あり' : (error && error.kind === 'config' ? 'URLを設定してください' : '応答なし')],
+    ['アクセストークン', !!(data && data.authed), data && data.authed ? '認証済み' : (data ? '未認証。トークンを確認してください' : '接続後に確認します')],
+    ['Arduino CLI', !!(data && data.cliFound), data && data.cliFound ? (data.cli || '利用可能') : (data ? '未検出。サーバー管理者へ連絡してください' : '接続後に確認します')]
+  ];
+  list.replaceChildren();
+  for (const [label, ok, detail] of checks) {
+    const item = document.createElement('li');
+    item.classList.toggle('fail', !ok);
+    item.textContent = `${label}: ${detail}`;
+    list.appendChild(item);
+  }
+  if (error && error.kind !== 'config') {
+    const item = document.createElement('li');
+    item.className = 'fail';
+    item.textContent = `詳細: ${Helper.explain(error)}`;
+    list.appendChild(item);
+  }
+  panel.hidden = false;
 }
 
 function syncWorkspaceScreenState() {
@@ -5436,6 +5551,7 @@ const Sk = {
       this.renderTabs();
       this.renderList();
     }
+    if (S.account.user && S.dirty.has(key)) setCloudSyncStatus('pending');
     updateAutosaveIndicator();
   },
 
@@ -5495,7 +5611,10 @@ const Sk = {
       S.saveFailed = !ok;
       this.renderTabs();
       this.renderList();
-      if (!ok) setSaveIndicator('保存に失敗しました', 'error');
+      if (!ok) setSaveIndicator(
+        S.account.syncStatus === 'error' ? '端末保存済み・クラウド同期失敗' : '保存に失敗しました',
+        'error'
+      );
       else if (S.dirty.size) updateAutosaveIndicator();
       else setSaveIndicator(S.db ? '保存済み' : 'セッション内に保存済み', 'saved');
     })();
@@ -6100,6 +6219,7 @@ const Account = {
   async synchronize() {
     if (!S.account.user || S.account.syncing) return;
     S.account.syncing = true;
+    setCloudSyncStatus('syncing');
     try {
       const data = await this.request('/account/sketches');
       await this.refreshStorage();
@@ -6138,7 +6258,11 @@ const Account = {
       }
       const who = S.account.user.name || S.account.user.username;
       document.getElementById('account-status').textContent = `${who} (@${S.account.user.username}) としてログイン中。スケッチはこのアカウントに同期されます。`;
+      setCloudSyncStatus('synced');
       return true;
+    } catch (error) {
+      setCloudSyncStatus('error', error);
+      throw error;
     } finally { S.account.syncing = false; }
   },
   async enter(token, user) {
@@ -6839,6 +6963,36 @@ function compileErrorLocations(output) {
   return locations;
 }
 
+function renderCompileDiagnostics(locations) {
+  const list = document.getElementById('compile-diagnostics');
+  list.replaceChildren();
+  if (!locations.length) {
+    list.hidden = true;
+    return;
+  }
+  const label = document.createElement('span');
+  label.className = 'compile-diagnostics-label';
+  label.textContent = `エラー ${locations.length} 件:`;
+  list.appendChild(label);
+  for (const location of locations) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'compile-diagnostic';
+    button.textContent = `${location.file}:${location.line}`;
+    button.title = `${location.file} の ${location.line} 行目へ移動`;
+    button.addEventListener('click', () => {
+      const sketch = Sk.cur();
+      const fileIndex = sketch ? sketch.files.findIndex(file => file.name === location.file) : -1;
+      if (fileIndex < 0) return;
+      if (S.curTab !== fileIndex) Sk.switchTab(fileIndex);
+      Ed.scrollToLine(location.line);
+      Ed.ta.focus();
+    });
+    list.appendChild(button);
+  }
+  list.hidden = false;
+}
+
 function showCompileErrorHelp(output) {
   const panel = document.getElementById('compile-help');
   if (!panel) return;
@@ -7050,6 +7204,9 @@ const Build = {
     });
     try {
       this._showPanel();
+      Ed.clearDiagnostics();
+      renderCompileDiagnostics([]);
+      document.getElementById('compile-help').hidden = true;
       this._clearLog();
       setStatus('コンパイル中...', 'info');
       this._log('コンパイルを開始します', 'info');
@@ -7179,7 +7336,9 @@ const Build = {
           ...(r.output ? String(r.output).split('\n') : []),
           ...(r.errors || []).map(error => String(error)),
         ];
-        Ed.setDiagnostics(compileErrorLocations(compilerOutput));
+        const locations = compileErrorLocations(compilerOutput);
+        Ed.setDiagnostics(locations);
+        renderCompileDiagnostics(locations);
         showCompileErrorHelp(compilerOutput);
         setStatus('コンパイル失敗', 'err');
         toast('コンパイルエラーがあります', 'err');
@@ -8136,14 +8295,20 @@ function updatePanelToggleA11y() {
 }
 
 function persistBottomPanelState() {
-  S.cfg.panelMinimized = document.getElementById('bottom-panel').classList.contains('minimized');
+  const panel = document.getElementById('bottom-panel');
+  S.cfg.panelMinimized = panel.classList.contains('minimized');
+  if (!S.cfg.panelMinimized) {
+    const requestedHeight = Number.parseFloat(panel.style.height);
+    const height = Number.isFinite(requestedHeight) ? requestedHeight : panel.getBoundingClientRect().height;
+    S.cfg.panelHeight = Math.max(120, Math.min(700, Math.round(height)));
+  }
   Cfg.save();
 }
 
 function expandBottomPanel() {
   const panel = document.getElementById('bottom-panel');
   panel.classList.remove('minimized');
-  panel.style.height = '210px';
+  panel.style.height = `${S.cfg.panelHeight || 210}px`;
   updatePanelToggleA11y();
   persistBottomPanelState();
 }
@@ -8222,11 +8387,17 @@ const Cfg = {
       : 13;
     if (typeof S.cfg.completion !== 'boolean') S.cfg.completion = true;
     if (typeof S.cfg.pwaInstallNudgeDismissed !== 'boolean') S.cfg.pwaInstallNudgeDismissed = false;
+    if (typeof S.cfg.sidebarHidden !== 'boolean') S.cfg.sidebarHidden = false;
     const sidebarWidth = Number(S.cfg.sidebarWidth);
     S.cfg.sidebarWidth = Number.isFinite(sidebarWidth)
       ? Math.max(SIDEBAR_WIDTH_MIN, Math.min(SIDEBAR_WIDTH_MAX, sidebarWidth))
       : 230;
     if (typeof S.cfg.panelMinimized !== 'boolean') S.cfg.panelMinimized = false;
+    const panelHeight = Number(S.cfg.panelHeight);
+    S.cfg.panelHeight = Number.isFinite(panelHeight)
+      ? Math.max(120, Math.min(700, panelHeight))
+      : 210;
+    if (!['console', 'serial'].includes(S.cfg.activePanel)) S.cfg.activePanel = 'console';
     try {
       const sharedTheme = localStorage.getItem(IDE_THEME_STORAGE_KEY);
       const legacyTheme = localStorage.getItem('arduino_docs_theme');
@@ -8394,8 +8565,17 @@ const Cfg = {
     }
     const panel = document.getElementById('bottom-panel');
     if (panel) {
+      const sidebar = document.getElementById('sidebar');
+      sidebar.classList.toggle('hidden', S.cfg.sidebarHidden);
+      const sidebarButton = document.getElementById('sidebar-toggle-btn');
+      sidebarButton.setAttribute('aria-expanded', String(!S.cfg.sidebarHidden));
+      sidebarButton.setAttribute('aria-label', S.cfg.sidebarHidden ? 'サイドバーを開く' : 'サイドバーを閉じる');
+      const sidebarHandle = document.getElementById('sidebar-resizer');
+      sidebarHandle.setAttribute('aria-hidden', String(S.cfg.sidebarHidden));
+      sidebarHandle.tabIndex = S.cfg.sidebarHidden ? -1 : 0;
       panel.classList.toggle('minimized', S.cfg.panelMinimized);
-      panel.style.height = S.cfg.panelMinimized ? '36px' : '210px';
+      panel.style.height = S.cfg.panelMinimized ? '36px' : `${S.cfg.panelHeight}px`;
+      setActivePanel(S.cfg.activePanel, false);
       updatePanelToggleA11y();
     }
   },
@@ -8710,6 +8890,7 @@ function toggleSidebar() {
   const sidebar = document.getElementById('sidebar');
   sidebar.classList.toggle('hidden');
   const expanded = !sidebar.classList.contains('hidden');
+  S.cfg.sidebarHidden = !expanded;
   const button = document.getElementById('sidebar-toggle-btn');
   button.setAttribute('aria-expanded', String(expanded));
   button.setAttribute('aria-label', expanded ? 'サイドバーを閉じる' : 'サイドバーを開く');
@@ -8717,12 +8898,14 @@ function toggleSidebar() {
   resizeHandle.setAttribute('aria-hidden', String(!expanded));
   resizeHandle.tabIndex = expanded ? 0 : -1;
   setTimeout(fitClearLabel, 0);
+  Cfg.save();
 }
 
 function updateAccountBtn() {
   const btn = document.getElementById('account-open-btn');
   const nameLabel = document.getElementById('acct-name-label');
   updateSaveLocation();
+  setCloudSyncStatus(S.account.user ? S.account.syncStatus : 'idle');
   if (S.account.user) {
     const displayName = S.account.user.name || S.account.user.username;
     btn.classList.add('logged-in');
@@ -8843,7 +9026,115 @@ document.addEventListener('click', e => {
   }
 });
 
+const CommandPalette = {
+  activeIndex: 0,
+  commands: [
+    ['新規スケッチを作成', 'new-btn', 'Ctrl+N', '新規 作成'],
+    ['スケッチを開く', 'open-btn', 'Ctrl+O', 'ファイル 読み込み'],
+    ['保存する', 'save-btn', 'Ctrl+S', '保存 自動保存'],
+    ['検証・コンパイル', 'verify-btn', 'Ctrl+Enter', 'コンパイル ビルド'],
+    ['ボードへ書き込む', 'upload-btn', 'Ctrl+Shift+Enter', '書き込み upload'],
+    ['コードを整形', 'format-code-btn', 'Shift+Alt+F', 'フォーマット'],
+    ['コード内を検索', 'find-open-btn', 'Ctrl+F', '置換'],
+    ['サイドバーを切り替え', 'sidebar-toggle-btn', 'Ctrl+B', 'スケッチブック'],
+    ['下部パネルを展開・最小化', 'panel-toggle-btn', '', 'コンソール'],
+    ['シリアルモニターを開く', 'serial-open-btn', 'Ctrl+Shift+M', 'USB'],
+    ['ボードを管理', 'board-mgr-btn', '', 'ボードパッケージ'],
+    ['ライブラリを管理', 'lib-open-btn', '', 'ライブラリ'],
+    ['編集履歴を開く', 'history-open-btn', '', '復元'],
+    ['アカウントとクラウド保存', 'account-open-btn', '', '同期 クラウド'],
+    ['設定を開く', 'settings-open-btn', 'Ctrl+,', '環境設定'],
+    ['ヘルプを開く', 'help-open-btn', 'F1', '使い方'],
+    ['バックアップメニューを開く', 'backup-btn', '', 'ZIP エクスポート 復元'],
+    ['コンパイルサーバーを診断', 'helper-cfg-btn', '', 'サーバー診断 接続 エラー トークン'],
+    ['ライト・ダークテーマを切り替え', 'theme-btn', '', '外観']
+  ],
+  init() {
+    const input = document.getElementById('command-palette-search');
+    input.addEventListener('input', () => this.render());
+    input.addEventListener('keydown', event => {
+      const options = Array.from(document.querySelectorAll('#command-palette-list [role="option"]'));
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        if (!options.length) return;
+        this.activeIndex = (this.activeIndex + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
+        this.updateActive(options);
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        options[this.activeIndex]?.click();
+      }
+    });
+    document.getElementById('command-palette-list').addEventListener('click', event => {
+      const option = event.target.closest('[data-command-index]');
+      if (option) this.execute(Number(option.dataset.commandIndex));
+    });
+  },
+  open() {
+    document.getElementById('command-palette-search').value = '';
+    this.activeIndex = 0;
+    this.render();
+    openModal('m-command-palette');
+    requestAnimationFrame(() => {
+      const input = document.getElementById('command-palette-search');
+      input.focus();
+      input.select();
+    });
+  },
+  render() {
+    const query = document.getElementById('command-palette-search').value.trim().toLocaleLowerCase();
+    const list = document.getElementById('command-palette-list');
+    const results = this.commands
+      .map((command, index) => ({command, index}))
+      .filter(({command}) => command[0].toLocaleLowerCase().includes(query) ||
+        command[3].toLocaleLowerCase().includes(query));
+    list.replaceChildren();
+    this.activeIndex = Math.min(this.activeIndex, Math.max(0, results.length - 1));
+    if (!results.length) {
+      const empty = document.createElement('div');
+      empty.className = 'command-palette-empty';
+      empty.textContent = '該当するコマンドはありません';
+      list.appendChild(empty);
+      document.getElementById('command-palette-search').removeAttribute('aria-activedescendant');
+      return;
+    }
+    results.forEach(({command, index}, resultIndex) => {
+      const option = document.createElement('button');
+      option.type = 'button';
+      option.id = `command-palette-option-${resultIndex}`;
+      option.className = 'command-palette-option';
+      option.setAttribute('role', 'option');
+      option.setAttribute('aria-selected', String(resultIndex === this.activeIndex));
+      option.dataset.commandIndex = String(index);
+      const label = document.createElement('span');
+      label.textContent = command[0];
+      option.appendChild(label);
+      if (command[2]) {
+        const shortcut = document.createElement('kbd');
+        shortcut.textContent = command[2];
+        option.appendChild(shortcut);
+      }
+      list.appendChild(option);
+    });
+    this.updateActive(Array.from(list.querySelectorAll('[role="option"]')));
+  },
+  updateActive(options) {
+    options.forEach((option, index) => option.setAttribute('aria-selected', String(index === this.activeIndex)));
+    const active = options[this.activeIndex];
+    if (!active) return;
+    document.getElementById('command-palette-search').setAttribute('aria-activedescendant', active.id);
+    active.scrollIntoView({block: 'nearest'});
+  },
+  execute(index) {
+    const command = this.commands[index];
+    if (!command) return;
+    closeModal('m-command-palette');
+    document.getElementById(command[1])?.click();
+  }
+};
+
 function initEvents() {
+  CommandPalette.init();
+  document.getElementById('command-palette-btn').addEventListener('click', () => CommandPalette.open());
   // ---- ツールバー ----
   document.getElementById('font-size-decrease').addEventListener('click', () =>
     changeEditorFontSize(-EDITOR_FONT_SIZE_STEP));
@@ -9204,6 +9495,11 @@ function initEvents() {
     closeModal('m-help');
     Tutorial.open();
   });
+  document.getElementById('welcome-tutorial-btn').addEventListener('click', () => {
+    rememberOnboardingDismissal();
+    closeModal('m-usb-setup');
+    Tutorial.open();
+  });
   document.getElementById('tutorial-next-btn').addEventListener('click', () => Tutorial.next());
   document.getElementById('tutorial-prev-btn').addEventListener('click', () => Tutorial.previous());
   document.getElementById('tutorial-skip-btn').addEventListener('click', () => closeModal('m-tutorial'));
@@ -9219,6 +9515,25 @@ function initEvents() {
   statusHelper.addEventListener('click', () => document.getElementById('helper-cfg-btn').click());
   statusHelper.addEventListener('keydown', e => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); statusHelper.click(); }
+  });
+  const cloudSync = document.getElementById('status-cloud-sync');
+  cloudSync.addEventListener('click', async () => {
+    if (!S.account.user || S.account.syncing) return;
+    try {
+      if (S.dirty.size || S.saveFailed) await Sk.saveAll();
+      if (S.saveFailed || S.dirty.size) throw new Error('未保存の変更があるため、同期を開始できません');
+      await Account.synchronize();
+      toast('アカウントのスケッチを同期しました', 'ok');
+    } catch (error) {
+      setCloudSyncStatus('error', error);
+      toast('クラウド同期に失敗しました: ' + error.message, 'err', 8000);
+    }
+  });
+  cloudSync.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      cloudSync.click();
+    }
   });
 
   // ---- サイドバー ----
@@ -9437,18 +9752,23 @@ function initEvents() {
     return true;
   };
   document.getElementById('helper-test-btn').addEventListener('click', async () => {
-    if (!readHelperForm()) return;
+    if (!readHelperForm()) {
+      renderHelperDiagnostics(null, Helper.mkErr('config', 'サーバーURLが設定されていません'));
+      return;
+    }
     const wasPrefilled = S.helper.prefillStudentToken;
     await Cfg.loadPublicHelperConfig();
     applyHelperTokenPolicy();
     if (wasPrefilled && !S.helper.prefillStudentToken) {
       setHelperStatus('pending', 'IDE用トークンを入力してください');
+      renderHelperDiagnostics(null, Helper.mkErr('config', 'IDE用トークンを入力してください'));
       toast('接続先が変わりました。IDE用トークンを入力してください', 'warn', 7000);
       return;
     }
     setHelperStatus('checking', '確認中...');
     try {
       const d = await Helper.connect();
+      renderHelperDiagnostics(d);
       const via = Helper.base() === normalizeUrl(S.helper.fallback) && S.helper.fallback ? ' [予備URL経由]' : '';
       if (!d.cliFound) { setHelperStatus('err', 'サーバーは稼働中ですが arduino-cli を実行できません'); toast('arduino-cli を実行できません', 'err'); }
       else if (!d.authed) { setHelperStatus('warn', 'サーバーに接続できましたが、トークンが正しくありません'); toast('トークンが正しくありません', 'warn'); }
@@ -9458,7 +9778,19 @@ function initEvents() {
       }
     } catch (e) {
       setHelperStatus('err', '接続失敗: ' + Helper.explain(e));
+      renderHelperDiagnostics(null, e);
       toast('サーバーに接続できません', 'err');
+    }
+  });
+  document.getElementById('helper-diagnostic-copy').addEventListener('click', async () => {
+    const text = Array.from(document.querySelectorAll('#helper-diagnostic-list li'))
+      .map(item => item.textContent).join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('トークンを含まない診断概要をコピーしました', 'ok');
+    } catch (error) {
+      console.error('Diagnostic summary could not be copied:', error);
+      toast('コピーできませんでした。診断項目を選択してコピーしてください', 'warn', 6000);
     }
   });
   document.getElementById('helper-save-btn').addEventListener('click', async () => {
@@ -9501,6 +9833,16 @@ function initEvents() {
 
   // ---- キーボードショートカット ----
   document.addEventListener('keydown', async e => {
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (ctrl && e.shiftKey && e.key.toLowerCase() === 'p') {
+      e.preventDefault();
+      if (document.getElementById('m-command-palette').classList.contains('open')) {
+        closeModal('m-command-palette');
+      } else {
+        CommandPalette.open();
+      }
+      return;
+    }
     const openModals = Array.from(document.querySelectorAll('.modal-overlay.open'));
     if (openModals.length) {
       const topModal = openModals[openModals.length - 1];
@@ -9531,7 +9873,6 @@ function initEvents() {
       }
       return;
     }
-    const ctrl = e.ctrlKey||e.metaKey;
     if (ctrl && e.key==='s')          { e.preventDefault(); await Sk.saveAll(); }
     else if (ctrl && e.key==='n')     { e.preventDefault(); document.getElementById('new-btn').click(); }
     else if (ctrl && e.key==='o')     { e.preventDefault(); openFile(); }
@@ -9554,6 +9895,7 @@ function initEvents() {
    タブ・ペイン・クリアボタンの対象ラベルを 1 箇所で同期する
 ================================================================ */
 function setActivePanel(name) {
+  if (!['console', 'serial'].includes(name)) return;
   document.querySelectorAll('.panel-tab[role="tab"]').forEach(t => {
     const active = t.dataset.panel === name;
     t.classList.toggle('active', active);
@@ -9565,6 +9907,8 @@ function setActivePanel(name) {
     p.classList.toggle('active', active);
     p.setAttribute('aria-hidden', String(!active));
   });
+  S.cfg.activePanel = name;
+  if (S.db) Cfg.save();
   const label = name === 'serial' ? 'シリアルをクリア' : 'コンソールをクリア';
   const btn = document.getElementById('console-clear-btn');
   btn.title = label;

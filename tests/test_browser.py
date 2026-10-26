@@ -349,6 +349,98 @@ class BrowserFeatureTests(unittest.TestCase):
         self.assertEqual(len(conflict_saves), 1)
         self.assertIn("digitalWrite(13, HIGH)", conflict_saves[0]["sketch"]["files"][0]["content"])
 
+    def test_command_palette_and_workspace_layout_persist(self):
+        self.open_ide()
+
+        self.page.locator("#command-palette-btn").click()
+        search = self.page.locator("#command-palette-search")
+        search.fill("サーバー診断")
+        self.assertTrue(self.page.get_by_role("option", name="コンパイルサーバーを診断").is_visible())
+        search.press("Escape")
+        self.page.keyboard.press("Control+Shift+P")
+        search.fill("ヘルプ")
+        search.press("Enter")
+        self.page.locator("#m-help").wait_for(state="visible")
+        self.page.locator('#m-help [data-close="m-help"]').last.click()
+
+        self.page.locator("#sidebar-toggle-btn").click()
+        self.page.locator("#serial-tab").click()
+        self.page.locator("#bottom-panel").evaluate("(node) => { node.style.height = '280px'; }")
+        self.page.evaluate("persistBottomPanelState()")
+        self.page.evaluate("Cfg.save()")
+        self.assertEqual(self.page.evaluate("S.cfg.activePanel"), "serial")
+        self.page.reload(wait_until="domcontentloaded")
+        self.page.locator("#loading-screen").wait_for(state="detached", timeout=20000)
+        self.assertTrue(self.page.locator("#sidebar").evaluate("(node) => node.classList.contains('hidden')"))
+        self.assertEqual(self.page.evaluate("S.cfg.panelHeight"), 280)
+        self.assertEqual(
+            self.page.locator("#serial-tab").get_attribute("aria-selected"),
+            "true",
+            self.page.evaluate("JSON.stringify({panel: S.cfg.activePanel, selected: document.querySelector('#serial-tab').getAttribute('aria-selected')})"),
+        )
+
+    def test_first_run_tutorial_and_actionable_server_diagnostics(self):
+        self.page.route("**/public-config", lambda route: route.fulfill(
+            status=200, content_type="application/json",
+            body=json.dumps({"prefillStudentToken": False})))
+        self.page.route("**/ping", lambda route: route.fulfill(
+            status=200, content_type="application/json",
+            body=json.dumps({"ok": True, "cliFound": False, "authed": False, "gen": 1})))
+        config = {"u": self.base, "t": ""}
+        encoded = base64.urlsafe_b64encode(json.dumps(config).encode()).decode().rstrip("=")
+        self.page.goto(self.base + "/#cfg=" + encoded, wait_until="domcontentloaded")
+        self.page.locator("#loading-screen").wait_for(state="detached", timeout=20000)
+        self.page.locator("#m-usb-setup").wait_for(state="visible")
+        self.page.locator("#welcome-tutorial-btn").click()
+        self.page.locator("#m-tutorial").wait_for(state="visible")
+        self.page.locator("#tutorial-skip-btn").click()
+
+        self.page.locator("#helper-cfg-btn").click()
+        self.page.locator("#helper-test-btn").click()
+        self.page.locator("#helper-diagnostic").wait_for(state="visible")
+        report = self.page.locator("#helper-diagnostic-list").text_content()
+        self.assertIn("サーバーへの接続: 応答あり", report)
+        self.assertIn("Arduino CLI: 未検出", report)
+        self.page.locator('#m-helper [data-close="m-helper"]').click()
+        self.page.evaluate("""() => {
+          S.account.user = {id: 'test', username: 'test', name: 'Test'};
+          setCloudSyncStatus('error', Helper.mkErr('network', '接続できません'));
+        }""")
+        self.assertIn("クラウド: 同期失敗", self.page.locator("#status-cloud-sync").text_content())
+        self.assertIn("端末には保存されています", self.page.locator("#status-cloud-sync").get_attribute("title"))
+        self.page.evaluate("S.account.user = null; setCloudSyncStatus('idle')")
+
+        self.page.evaluate("""async () => {
+          await Sk.create('navigation_test');
+          Sk.addFile('navigation_helper.cpp');
+          const location = {file: 'navigation_test.ino', line: 2};
+          Ed.setDiagnostics([location]);
+          renderCompileDiagnostics([location]);
+        }""")
+        self.page.locator("#compile-diagnostics button").click()
+        self.assertEqual(self.page.evaluate("S.curTab"), 0)
+        self.assertEqual(self.page.evaluate("Ed._cursorLine()"), 2)
+
+    def test_admin_confirmation_and_temporary_password_dialogs(self):
+        self.page.goto(self.base + "/admin.html", wait_until="domcontentloaded")
+        self.page.locator("#login").wait_for(state="visible")
+        self.page.locator("#app").evaluate("(node) => { node.hidden = false; }")
+        self.page.evaluate("""() => {
+          window.confirmationResult = null;
+          confirmDialog('操作の確認', '続行しますか？', '実行する')
+            .then(result => { window.confirmationResult = result; });
+        }""")
+        self.page.locator("#confirm-modal").wait_for(state="visible")
+        self.page.locator("#confirm-ok").click()
+        self.page.wait_for_function("window.confirmationResult === true")
+
+        self.page.evaluate("showTemporaryPassword('temporary-test-secret', 'member')")
+        self.page.locator("#password-result-modal").wait_for(state="visible")
+        self.assertEqual(self.page.locator("#password-result-value").input_value(), "temporary-test-secret")
+        self.page.keyboard.press("Escape")
+        self.page.locator("#password-result-modal").wait_for(state="hidden")
+        self.assertEqual(self.page.locator("#password-result-value").input_value(), "")
+
 
 if __name__ == "__main__":
     unittest.main()
