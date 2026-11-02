@@ -78,6 +78,62 @@ class AccountApiTests(unittest.TestCase):
         self.assertEqual(status, 200)
         return result
 
+    def test_html_pages_use_response_nonce_csp_and_security_headers(self):
+        import re
+
+        for route in ("/", "/admin", "/docs"):
+            with urllib.request.urlopen(self.base + route, timeout=5) as response:
+                html = response.read().decode("utf-8")
+                headers = response.headers
+            csp = headers.get("Content-Security-Policy", "")
+            script_policy = next((part.strip() for part in csp.split(";")
+                                  if part.strip().startswith("script-src ")), "")
+            nonce_match = re.search(r"'nonce-([^']+)'", script_policy)
+            self.assertTrue(nonce_match, route)
+            nonce = nonce_match.group(1)
+            self.assertNotIn("'unsafe-inline'", script_policy)
+            style_policy = next((part.strip() for part in csp.split(";")
+                                 if part.strip().startswith("style-src ")), "")
+            self.assertIn("'nonce-%s'" % nonce, style_policy)
+            self.assertNotIn("'unsafe-inline'", style_policy)
+            self.assertIn("style-src-attr 'unsafe-inline'", csp)
+            self.assertIn("script-src-attr 'none'", csp)
+            self.assertIn("object-src 'none'", csp)
+            self.assertIn("frame-ancestors 'none'", csp)
+            self.assertEqual(headers.get("Permissions-Policy"),
+                             "camera=(), microphone=(), geolocation=()")
+            for tag_name in ("script", "style"):
+                tags = re.findall(r"<%s\b[^>]*>" % tag_name, html, flags=re.IGNORECASE)
+                self.assertTrue(tags, route + " " + tag_name)
+                self.assertTrue(all(('nonce="%s"' % nonce) in tag for tag in tags), route + " " + tag_name)
+
+            from html.parser import HTMLParser
+
+            class InlineHandlerParser(HTMLParser):
+                def __init__(self):
+                    super().__init__()
+                    self.handlers = []
+
+                def handle_starttag(self, tag, attrs):
+                    self.handlers.extend(name for name, _ in attrs
+                                         if name and name.lower().startswith("on"))
+
+            parser = InlineHandlerParser()
+            parser.feed(html)
+            self.assertEqual(parser.handlers, [], route)
+
+    def test_html_response_nonces_change_between_requests(self):
+        import re
+
+        nonces = []
+        for _ in range(2):
+            with urllib.request.urlopen(self.base + "/", timeout=5) as response:
+                csp = response.headers.get("Content-Security-Policy", "")
+            match = re.search(r"script-src[^;]*'nonce-([^']+)'", csp)
+            self.assertIsNotNone(match)
+            nonces.append(match.group(1))
+        self.assertNotEqual(nonces[0], nonces[1])
+
     def test_public_registration_creates_personal_account_and_session(self):
         result = self.register()
         self.assertEqual(result["user"]["username"], "member01")

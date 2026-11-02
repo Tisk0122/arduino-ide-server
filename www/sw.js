@@ -1,7 +1,7 @@
 'use strict';
 
 const CACHE_PREFIX = 'arduino-web-ide-';
-const CACHE_NAME = `${CACHE_PREFIX}shell-v1`;
+const CACHE_NAME = `${CACHE_PREFIX}shell-v2`;
 const PRECACHE_URLS = [
   '/',
   '/docs',

@@ -14,6 +14,33 @@ jobs:
         python-version: ["3.8", "3.12"]
     steps:
       - uses: actions/checkout@v4
+      - name: Check text line endings and whitespace
+        run: |
+          python - <<'PY'
+          import os
+          import subprocess
+          from pathlib import Path
+          failed = []
+          tracked = subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0")
+          for entry in tracked:
+              if not entry:
+                  continue
+              path = Path(os.fsdecode(entry))
+              if not path.is_file():
+                  continue
+              raw = path.read_bytes()
+              if b"\0" in raw:
+                  continue  # Binary asset.
+              try:
+                  raw.decode("utf-8")
+              except UnicodeDecodeError:
+                  continue
+              if b"\r\n" in raw or b"\r" in raw:
+                  failed.append(str(path))
+          if failed:
+              raise SystemExit("LF line endings are required; found CRLF/CR:\n" + "\n".join(failed))
+          PY
+          git diff --check
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}

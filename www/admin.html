@@ -970,7 +970,7 @@ body.phone-blocked > :not(#phone-block) { visibility:hidden!important; pointer-e
             <option value="ng">失敗のみ</option>
             <option value="cancelled">キャンセルのみ</option>
           </select>
-          <input class="input grow" id="f-q" type="search" placeholder="ボード・スケッチ・クライアントで検索" autocomplete="off">
+          <input class="input grow" id="f-q" type="search" aria-label="利用履歴を検索" placeholder="ボード・スケッチ・クライアントで検索" autocomplete="off">
           <button class="btn btn-sm btn-danger" id="btn-hist-clear" type="button" title="保存されているすべての利用履歴を削除" style="margin-left: 16px; padding-left: 16px; border-left: 1px solid var(--bd1, #ddd);">履歴を全削除</button>
         </div>
         <span class="history-action-state" id="hist-action-state" role="status" aria-live="polite" aria-atomic="true"></span>
@@ -1001,7 +1001,7 @@ body.phone-blocked > :not(#phone-block) { visibility:hidden!important; pointer-e
         管理者は、各ユーザーのスケッチ一覧と内容を閲覧できます。スケッチに個人情報や秘密情報を含めないよう、利用者に案内してください。PW再設定で発行する一時パスワードは画面に一度だけ表示され、全セッションが失効します。本人へ安全な方法で伝え、ログイン後すぐ変更するよう案内してください。
       </div>
       <div style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-        <input class="input" id="user-search" type="search" placeholder="ユーザー名・表示名で検索…" style="flex:1;min-width:160px;max-width:300px;" autocomplete="off">
+        <input class="input" id="user-search" type="search" aria-label="ユーザーを検索" placeholder="ユーザー名・表示名で検索…" style="flex:1;min-width:160px;max-width:300px;" autocomplete="off">
         <span class="sub" id="user-count"></span>
         <button type="button" class="btn btn-sm" id="btn-reload-users">ユーザー一覧を更新</button>
       </div>

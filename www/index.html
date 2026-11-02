@@ -1255,6 +1255,7 @@ svg { display: block; flex-shrink: 0; }
 .save-indicator[data-state="error"] { color: #FFC4BA; }
 #status-cloud-sync { cursor: pointer; }
 #status-cloud-sync:hover { background: rgba(255,255,255,.1); }
+#status-cloud-sync:focus-visible { outline: 2px solid rgba(255,255,255,.9); outline-offset: -2px; border-radius: 3px; }
 #status-cloud-sync[data-state="pending"], #status-cloud-sync[data-state="syncing"] { color: #FFE08A; }
 #status-cloud-sync[data-state="synced"] { color: #A6F6C0; }
 #status-cloud-sync[data-state="error"] { color: #FFC4BA; }
@@ -1809,10 +1810,15 @@ svg { display: block; flex-shrink: 0; }
 .welcome-body { display: grid; gap: 16px; }
 .welcome-copy { color: var(--tx1); line-height: 1.7; }
 .welcome-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 0; list-style: none; counter-reset: welcome; }
-.welcome-steps li { display: flex; gap: 10px; align-items: flex-start; min-width: 0; padding: 12px; border: 1px solid var(--bd1); border-radius: var(--radius); background: var(--bg2); counter-increment: welcome; }
+.welcome-steps li { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; padding: 12px; border: 1px solid var(--bd1); border-radius: var(--radius); background: var(--bg2); counter-increment: welcome; }
 .welcome-steps li::before { content: counter(welcome); display: grid; place-items: center; flex: 0 0 23px; height: 23px; border-radius: 50%; color: #071719; background: var(--teal-lt); font-weight: 700; line-height: 1; }
-.welcome-step-copy { min-width: 0; color: var(--tx1); line-height: 1.6; }
+.welcome-step-copy { min-width: 0; flex: 1 1 220px; color: var(--tx1); line-height: 1.6; }
 .welcome-step-copy strong { display: block; margin-bottom: 3px; color: var(--tx0); }
+.welcome-step-state { flex: 0 0 auto; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--bd2); color: var(--tx2); background: var(--bg3); font-size: 11px; font-weight: 650; white-space: nowrap; }
+.welcome-steps li[data-state="ok"] .welcome-step-state { color: var(--co-ok); border-color: var(--co-ok); }
+.welcome-steps li[data-state="warn"] .welcome-step-state { color: var(--co-warn); border-color: var(--co-warn); }
+.welcome-steps li[data-state="error"] .welcome-step-state { color: var(--co-err); border-color: var(--co-err); }
+.welcome-step-action { margin-left: auto; }
 .welcome-usb { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--bd1); border-radius: var(--radius-lg); background: var(--bg-hover); }
 .welcome-usb h2 { font-size: 13px; font-weight: 700; color: var(--tx0); }
 .welcome-usb .info-notice { margin: 0; }
@@ -2217,6 +2223,8 @@ body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer
 .phone-block-card h1 { margin: 0; color: #EEF2F8; font-size: clamp(20px, 5vw, 26px); line-height: 1.5; }
 .phone-block-card p { margin: 14px 0 0; color: #B8C4D4; font-size: 14px; line-height: 1.8; }
 .phone-block-note { margin-top: 24px !important; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.09); color: #8A9BB0 !important; font-size: 12px !important; }
+.phone-block-docs { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; margin-top: 16px; padding: 9px 14px; border: 1px solid rgba(45,212,216,.38); border-radius: 8px; color: #8FE6E7; background: rgba(14,165,168,.12); font-size: 13px; font-weight: 650; }
+.phone-block-docs:hover { background: rgba(14,165,168,.2); }
 </style>
 <script>
 (() => {
@@ -2255,7 +2263,8 @@ body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer
     <p class="phone-block-label">DESKTOP ONLY</p>
     <h1 id="phone-block-title">スマートフォンでは<br>ご利用いただけません</h1>
     <p>Arduino Web IDEは、コード編集やUSB接続のためPC向けに設計されています。Windows・macOS・Linuxのパソコンから、このサイトを開いてください。</p>
-    <p class="phone-block-note">スマートフォンの画面では操作できません。PCのブラウザーでアクセスしてください。</p>
+    <p class="phone-block-note">USB書き込みやシリアル通信を含むIDE操作はPC向けです。スマートフォンでは使い方ガイドを閲覧できます。</p>
+    <a class="phone-block-docs" href="/docs">スマートフォンで使い方ガイドを見る</a>
   </div>
 </main>
 <div id="app">
@@ -2457,7 +2466,7 @@ body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer
       <!-- 検索バー -->
       <div id="find-bar">
         <div class="find-row">
-          <input class="find-input" id="find-input" placeholder="検索..." autocomplete="off">
+          <input class="find-input" id="find-input" aria-label="コード内を検索" placeholder="検索..." autocomplete="off">
           <button class="find-btn" id="find-prev-btn" title="前を検索 (Shift+Enter)" aria-label="前の検索結果へ移動">
             <i data-lucide="arrow-up" aria-hidden="true"></i>
           </button>
@@ -2470,7 +2479,7 @@ body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer
           </button>
         </div>
         <div class="find-row">
-          <input class="find-input" id="replace-input" placeholder="置換後..." autocomplete="off">
+          <input class="find-input" id="replace-input" aria-label="置換後の文字列" placeholder="置換後..." autocomplete="off">
           <button class="find-text-btn" id="replace-one-btn">置換</button>
           <button class="find-text-btn" id="replace-all-btn">全置換</button>
         </div>
@@ -2568,7 +2577,7 @@ body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer
   <span id="status-msg" role="status" aria-live="polite">IDEを準備しています…</span>
   <span class="sb-item" id="status-network" role="status" aria-live="polite" hidden></span>
   <span class="sb-item save-indicator" id="status-save" data-state="saved" role="status" aria-live="off">保存済み</span>
-  <span class="sb-item" id="status-cloud-sync" role="status" aria-live="polite" hidden></span>
+  <button class="sb-item" type="button" id="status-cloud-sync" aria-live="polite" hidden></button>
   <span id="status-save-announcement" role="status" aria-live="polite" aria-atomic="true"></span>
   <div class="sb-div"></div>
   <span class="sb-item" id="status-save-location">保存先: このブラウザーのみ</span>
@@ -2583,7 +2592,7 @@ body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer
     シリアル未接続
   </span>
   <div class="sb-div"></div>
-  <span class="sb-item pending" id="status-helper" role="button" tabindex="0" aria-live="polite" aria-busy="true" aria-label="コンパイルサーバー: 起動確認前。クリックして設定を開く" title="IDEとコンパイルサーバーの状態。クリックして接続設定を開く"><span id="status-helper-label">サーバー: 起動確認中…</span><i data-lucide="chevron-right" aria-hidden="true"></i></span>
+  <button class="sb-item pending" type="button" id="status-helper" aria-live="polite" aria-busy="true" aria-label="コンパイルサーバー: 起動確認前。クリックして設定を開く" title="IDEとコンパイルサーバーの状態。クリックして接続設定を開く"><span id="status-helper-label">サーバー: 起動確認中…</span><i data-lucide="chevron-right" aria-hidden="true"></i></button>
   <div class="sb-div"></div>
   <span class="sb-item">UTF-8</span>
   <div class="sb-div"></div>
@@ -2743,14 +2752,14 @@ body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer
       </div>
       <div id="bt-select">
         <div class="lib-search-wrap">
-          <input type="text" id="board-filter" class="form-input" placeholder="ボードを絞り込み..." autocomplete="off">
+          <input type="text" id="board-filter" aria-label="ボードを検索" class="form-input" placeholder="ボードを絞り込み..." autocomplete="off">
         </div>
         <div id="board-list"></div>
       </div>
       <div id="bt-pkg" style="display:none">
         <div class="info-notice" id="pkg-notice" style="display:none"></div>
         <div class="lib-search-wrap">
-          <input type="text" id="core-search" class="form-input" placeholder="2文字以上で検索 (例: esp32, rp2040)。空欄でインストール済み" autocomplete="off">
+          <input type="text" id="core-search" aria-label="ボードコアを検索" class="form-input" placeholder="2文字以上で検索 (例: esp32, rp2040)。空欄でインストール済み" autocomplete="off">
         </div>
         <div class="form-hint">パッケージ検索には2文字以上入力してください。</div>
         <div id="core-list"></div>
@@ -2782,7 +2791,7 @@ body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer
           <span class="lib-search-icon">
             <i data-lucide="search"></i>
           </span>
-          <input type="text" id="lib-search" placeholder="2文字以上で検索 (例: Servo, NeoPixel, DHT)" autocomplete="off">
+          <input type="text" id="lib-search" aria-label="ライブラリを検索" placeholder="2文字以上で検索 (例: Servo, NeoPixel, DHT)" autocomplete="off">
         </div>
         <div class="form-hint">ライブラリ検索には2文字以上入力してください。</div>
       </div>
@@ -2811,9 +2820,12 @@ body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer
     </div>
     <div class="modal-body welcome-body">
       <p class="welcome-copy" id="usb-setup-description">まずはスケッチを作成して「検証」でコンパイルできます。サーバー接続が必要な場合は、コンパイルサーバーのURLとアクセストークンを設定してください。</p>
-      <ol class="welcome-steps">
-        <li><span class="welcome-step-copy"><strong>スケッチを作成・検証</strong>「新規」で作成し、「検証」でコンパイルします。</span></li>
-        <li><span class="welcome-step-copy"><strong>スケッチを保存・移行</strong>スケッチはこのブラウザー内に保存されます。別の端末へ移すときは「バックアップ」でZIPを書き出してください。</span></li>
+      <ol class="welcome-steps" aria-label="セットアップ状況">
+        <li data-setup-step="storage"><span class="welcome-step-copy"><strong>端末への保存</strong>編集内容はまずこのブラウザー内に保存されます。</span><span class="welcome-step-state" id="welcome-storage-state" role="status">確認中…</span></li>
+        <li data-setup-step="server"><span class="welcome-step-copy"><strong>コンパイルサーバー</strong>検証・コンパイルに必要です。配布リンクで設定済みの場合は接続を確認できます。</span><span class="welcome-step-state" id="welcome-server-state" role="status">確認中…</span><button class="btn btn-sm btn-secondary welcome-step-action" id="welcome-server-check-btn" type="button">接続を確認</button></li>
+        <li data-setup-step="board"><span class="welcome-step-copy"><strong>ボードの選択</strong>使用するArduinoや互換ボードを上部から選択します。</span><span class="welcome-step-state" id="welcome-board-state" role="status">確認中…</span></li>
+        <li data-setup-step="usb"><span class="welcome-step-copy"><strong>USBポート（任意）</strong>実機への書き込み・シリアル通信を使う場合だけ許可します。</span><span class="welcome-step-state" id="welcome-usb-state" role="status">確認中…</span></li>
+        <li data-setup-step="cloud"><span class="welcome-step-copy"><strong>クラウド同期（任意）</strong>アカウントにログインすると、別の端末ともスケッチを共有できます。</span><span class="welcome-step-state" id="welcome-cloud-state" role="status">確認中…</span></li>
       </ol>
       <section class="welcome-usb" aria-labelledby="welcome-usb-title">
         <h2 id="welcome-usb-title">USBボードを使う場合（任意）</h2>
@@ -2841,6 +2853,7 @@ body.phone-blocked > :not(#phone-block) { visibility: hidden !important; pointer
       </div>
       <div class="welcome-actions">
         <button class="btn btn-secondary" id="welcome-tutorial-btn" type="button">操作チュートリアル</button>
+        <button class="btn btn-secondary" id="welcome-verify-btn" type="button">検証を試す</button>
         <button class="btn btn-primary" id="usb-setup-done-btn">エディターを開く</button>
       </div>
     </div>
@@ -3790,17 +3803,19 @@ const IDB = {
           if (sync && S.account.user && !S.account.loading) {
             setCloudSyncStatus('syncing');
             await Account.saveSketch(sketch);
-            setCloudSyncStatus('synced');
+            // Do not report "synced" if the user edited again while the request was in flight.
+            setCloudSyncStatus(S.dirty.size ? 'pending' : 'synced');
           }
           S.saveFailed = false;
           res(true);
         } catch (err) {
-          S.saveFailed = true;
+          S.saveFailed = false;
           setCloudSyncStatus('error', err);
-          setSaveIndicator('端末保存済み・クラウド同期失敗', 'error');
+          setSaveIndicator('端末保存済み', 'saved');
           console.error('Sketch was saved locally but cloud sync failed:', err);
-          toast('端末には保存しましたが、クラウド同期に失敗しました。下部の同期状態から再試行できます', 'err', 8000);
-          res(false);
+          toast('端末には保存しました。クラウド同期は未完了です。下部のクラウド状態ボタンから再試行できます', 'warn', 8000);
+          // The IndexedDB write succeeded. Keep local save success separate from cloud sync failure.
+          res(true);
         }
       };
       req.onerror   = () => { IDB.fail(req.error); res(false); };
@@ -3994,6 +4009,13 @@ function setSaveIndicator(msg, state) {
   const changed = el.textContent !== msg;
   el.textContent = msg;
   el.dataset.state = state;
+  el.title = state === 'error'
+    ? '端末への保存に失敗しました。バックアップを作成し、ブラウザーの保存容量を確認してください。'
+    : state === 'saving'
+      ? '現在、このブラウザーの保存領域へ書き込んでいます。'
+      : state === 'pending'
+        ? '未保存の変更があります。自動保存または Ctrl+S で保存できます。'
+        : 'このブラウザーの保存領域への書き込みが完了しています。クラウド同期状態は別表示です。';
   const announcement = document.getElementById('status-save-announcement');
   if (changed && announcement && !msg.startsWith('自動保存まで ')) announcement.textContent = msg;
 }
@@ -4010,18 +4032,19 @@ function setCloudSyncStatus(state, error) {
     pending: 'クラウド: 同期待ち',
     syncing: 'クラウド: 同期中…',
     synced: 'クラウド: 同期済み',
-    error: 'クラウド: 同期失敗'
+    error: 'クラウド: 未同期（再試行）'
   };
   el.textContent = labels[state] || labels.idle;
   el.dataset.state = state;
   el.title = state === 'error'
-    ? `端末には保存されています。クラウド同期に失敗しました: ${S.account.syncError} クリックして再試行`
+    ? `端末には保存されています。クラウド同期に失敗しました: ${S.account.syncError || '接続状態を確認してください'}。クリックして再試行します。`
     : state === 'synced'
-      ? '現在のスケッチは端末とアカウントのクラウドに保存されています'
-      : 'クリックしてアカウントのスケッチを同期します';
+      ? '端末とアカウントのクラウドへの保存が完了しています。クリックすると最新状態を確認します。'
+      : state === 'syncing'
+        ? '端末のスケッチをクラウドへ同期しています。'
+        : '端末には保存されています。クリックするとクラウド同期を実行します。';
   el.setAttribute('aria-label', el.title);
-  el.setAttribute('role', 'button');
-  el.tabIndex = 0;
+  if (typeof refreshWelcomeChecklist === 'function') refreshWelcomeChecklist();
 }
 
 function updateAutosaveIndicator() {
@@ -6017,10 +6040,12 @@ const Helper = {
       else if (!d.authed) this.setBadge('接続済み・トークン要確認', 'warn');
       else this.setBadge('接続OK' + (S.helper.admin ? ' (管理者)' : ' (IDE用)'), 'ok');
       if (d.authed && d.cliFound) { try { await Boards.refresh(); } catch (_) {} }
+      if (typeof refreshWelcomeChecklist === 'function') refreshWelcomeChecklist();
       return d;
     } catch (e) {
       S.helper.ok = false; S.helper.authed = false; S.helper.admin = false; S.helper.info = null;
       this.setBadge(e && e.kind === 'config' ? 'URL未設定' : '未接続・設定を確認', e && e.kind === 'config' ? 'warn' : 'err');
+      if (typeof refreshWelcomeChecklist === 'function') refreshWelcomeChecklist();
       throw e;
     }
   },
@@ -6258,7 +6283,8 @@ const Account = {
       }
       const who = S.account.user.name || S.account.user.username;
       document.getElementById('account-status').textContent = `${who} (@${S.account.user.username}) としてログイン中。スケッチはこのアカウントに同期されます。`;
-      setCloudSyncStatus('synced');
+      // A user may continue editing while the initial account sync is running.
+      setCloudSyncStatus(S.dirty.size ? 'pending' : 'synced');
       return true;
     } catch (error) {
       setCloudSyncStatus('error', error);
@@ -9508,33 +9534,14 @@ function initEvents() {
     if (sk) { sk.board = e.target.value; IDB.put(S.db, sk); }
     Boards.updateStatus(e.target.value);
     updateDetectedBoardSuggestion();
+    refreshWelcomeChecklist();
   });
   window.addEventListener('resize', fitClearLabel);
   fitClearLabel();
   const statusHelper = document.getElementById('status-helper');
   statusHelper.addEventListener('click', () => document.getElementById('helper-cfg-btn').click());
-  statusHelper.addEventListener('keydown', e => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); statusHelper.click(); }
-  });
   const cloudSync = document.getElementById('status-cloud-sync');
-  cloudSync.addEventListener('click', async () => {
-    if (!S.account.user || S.account.syncing) return;
-    try {
-      if (S.dirty.size || S.saveFailed) await Sk.saveAll();
-      if (S.saveFailed || S.dirty.size) throw new Error('未保存の変更があるため、同期を開始できません');
-      await Account.synchronize();
-      toast('アカウントのスケッチを同期しました', 'ok');
-    } catch (error) {
-      setCloudSyncStatus('error', error);
-      toast('クラウド同期に失敗しました: ' + error.message, 'err', 8000);
-    }
-  });
-  cloudSync.addEventListener('keydown', event => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      cloudSync.click();
-    }
-  });
+  cloudSync.addEventListener('click', () => retryCloudSync('manual'));
 
   // ---- サイドバー ----
   document.getElementById('sb-new-btn').addEventListener('click', () => {
@@ -9729,6 +9736,28 @@ function initEvents() {
   document.getElementById('welcome-helper-btn').addEventListener('click', () => {
     closeModal('m-usb-setup');
     document.getElementById('helper-cfg-btn').click();
+  });
+  document.getElementById('welcome-server-check-btn').addEventListener('click', async event => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.textContent = '確認中…';
+    try {
+      const result = await Helper.connect();
+      refreshWelcomeChecklist();
+      if (result.authed && result.cliFound) toast('コンパイルサーバーに接続できました', 'ok');
+      else toast('サーバーには応答しましたが、トークンまたは arduino-cli の状態を確認してください', 'warn', 7000);
+    } catch (error) {
+      refreshWelcomeChecklist();
+      toast('サーバー接続を確認できませんでした: ' + Helper.explain(error), 'warn', 8000);
+    } finally {
+      button.disabled = false;
+      button.textContent = '接続を確認';
+    }
+  });
+  document.getElementById('welcome-verify-btn').addEventListener('click', () => {
+    rememberOnboardingDismissal();
+    closeModal('m-usb-setup');
+    document.getElementById('verify-btn').click();
   });
   document.getElementById('usb-setup-allow-btn').addEventListener('click', () => Ser.authorizePort());
   document.getElementById('usb-setup-done-btn').addEventListener('click', () => closeModal('m-usb-setup'));
@@ -9934,6 +9963,50 @@ let onboardingDismissedThisSession = false;
 const USB_SETUP_STORAGE_KEY = 'ide_usb_setup_dismissed';
 const WELCOME_STORAGE_KEY = 'ide_welcome_dismissed';
 
+function refreshWelcomeChecklist() {
+  const setStep = (key, state, label) => {
+    const row = document.querySelector(`[data-setup-step="${key}"]`);
+    const status = document.getElementById(`welcome-${key}-state`);
+    if (!row || !status) return;
+    row.dataset.state = state;
+    status.textContent = label;
+  };
+
+  setStep('storage', S.db ? 'ok' : 'warn', S.db ? 'この端末に保存可能' : 'セッション内のみ');
+
+  if (!S.helper.url && !S.helper.fallback) {
+    setStep('server', 'warn', '未設定');
+  } else if (S.helper.ok && S.helper.authed && S.helper.info && S.helper.info.cliFound) {
+    setStep('server', 'ok', '接続・認証OK');
+  } else if (S.helper.ok && S.helper.info && !S.helper.info.cliFound) {
+    setStep('server', 'error', 'CLI未準備');
+  } else if (S.helper.ok && !S.helper.authed) {
+    setStep('server', 'warn', 'トークン要確認');
+  } else {
+    setStep('server', 'warn', '未確認・未接続');
+  }
+
+  let boardName = '未選択';
+  try { boardName = boardById(Boards.currentId()).name; } catch (_) {}
+  setStep('board', boardName ? 'ok' : 'warn', boardName);
+
+  if (!S.serial.supported) {
+    setStep('usb', 'optional', 'この環境では利用不可');
+  } else if (S.serial.connected) {
+    setStep('usb', 'ok', '接続中');
+  } else if (S.serial.authorizedPortCount > 0) {
+    setStep('usb', 'ok', `許可済み ${S.serial.authorizedPortCount} 台`);
+  } else {
+    setStep('usb', 'optional', '未許可（必要な場合のみ）');
+  }
+
+  if (!S.account.user) setStep('cloud', 'optional', '未ログイン（任意）');
+  else if (S.account.syncStatus === 'synced') setStep('cloud', 'ok', '同期済み');
+  else if (S.account.syncStatus === 'error') setStep('cloud', 'error', '同期失敗・再試行可能');
+  else if (S.account.syncStatus === 'syncing') setStep('cloud', 'warn', '同期中…');
+  else setStep('cloud', 'optional', '未同期（任意）');
+}
+
 function updateUsbSetupStatus() {
   const count = document.getElementById('usb-setup-count');
   const allow = document.getElementById('usb-setup-allow-btn');
@@ -9946,6 +10019,7 @@ function updateUsbSetupStatus() {
   support.textContent = S.serial.supported
     ? 'Web Serial API対応のChrome / Edgeと安全な接続が必要です（通常はHTTPS、ローカルではlocalhost）。USBの接続・切断はIDEの表示に反映されます。ポート選択画面の一覧は自動更新できないため、抜き差し後は閉じて開き直してください。'
     : 'このブラウザーではUSBシリアルを利用できません。Chrome / Edgeを使用し、通常はHTTPS、ローカルではlocalhostでページを開いてください。';
+  refreshWelcomeChecklist();
 }
 
 function rememberOnboardingDismissal() {
@@ -9989,6 +10063,7 @@ async function maybeShowWelcome() {
     }
   }
   updateUsbSetupStatus();
+  refreshWelcomeChecklist();
   openModal('m-usb-setup');
 }
 
@@ -10063,18 +10138,48 @@ const PWA = {
   }
 };
 
+async function retryCloudSync(source = 'manual') {
+  if (!S.account.user || S.account.syncing) return false;
+  if (!navigator.onLine) {
+    if (source === 'manual') toast('現在オフラインです。端末への保存は続行され、オンラインに戻るとクラウド同期を再試行します', 'warn', 7000);
+    return false;
+  }
+  try {
+    if (S.dirty.size || S.saveFailed) await Sk.saveAll();
+    if (S.saveFailed || S.dirty.size) throw new Error('端末への保存が完了していないため、クラウド同期を開始できません');
+    await Account.synchronize();
+    if (S.dirty.size) {
+      setCloudSyncStatus('pending');
+      if (source === 'manual') toast('同期中に新しい編集があり、未保存の変更が残っています。Ctrl+Sで端末へ保存してから、クラウド状態ボタンで再同期してください', 'warn', 8000);
+      return false;
+    }
+    if (source === 'manual') toast('クラウド同期が完了しました', 'ok');
+    return true;
+  } catch (error) {
+    setCloudSyncStatus('error', error);
+    if (source === 'manual') toast('クラウド同期に失敗しました: ' + error.message, 'err', 8000);
+    return false;
+  }
+}
+
 function setupPwa() {
   const networkStatus = document.getElementById('status-network');
   const updateNetworkStatus = () => {
     const offline = !navigator.onLine;
     networkStatus.hidden = !offline;
     networkStatus.textContent = offline
-      ? 'オフライン: 編集・保存可 / コンパイル・書き込み不可'
+      ? 'オフライン: 端末保存可 / コンパイル・クラウド同期不可'
       : '';
   };
 
   updateNetworkStatus();
-  window.addEventListener('online', updateNetworkStatus);
+  window.addEventListener('online', () => {
+    updateNetworkStatus();
+    if (S.account.user && S.account.syncStatus === 'error') {
+      setCloudSyncStatus('pending');
+      window.setTimeout(() => retryCloudSync('reconnect'), 1200);
+    }
+  });
   window.addEventListener('offline', updateNetworkStatus);
   window.addEventListener('beforeinstallprompt', event => {
     event.preventDefault();
@@ -10227,9 +10332,10 @@ async function boot_internal() {
       loadingScreen.innerHTML = `
         <div role="alert" style="color:var(--co-err);font-size:18px;font-weight:700;">初期化に失敗しました</div>
         <div style="color:var(--tx2);margin-top:8px;font-size:13px;">${escHtml(err.message)}</div>
-        <button onclick="location.reload()" style="margin-top:20px;padding:8px 24px;background:var(--teal);color:#fff;border-radius:4px;font-size:13px;border:none;cursor:pointer;">
+        <button id="startup-reload-btn" type="button" style="margin-top:20px;padding:8px 24px;background:var(--teal);color:#fff;border-radius:4px;font-size:13px;border:none;cursor:pointer;">
           再読み込み
         </button>`;
+      document.getElementById('startup-reload-btn').addEventListener('click', () => location.reload(), { once: true });
     } else {
       console.error('IDE initialization failed:', err);
       setStatus('初期化に失敗しました', 'err');

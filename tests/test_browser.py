@@ -1,6 +1,8 @@
 import base64
 import functools
 import json
+import os
+import shutil
 import tempfile
 import threading
 import unittest
@@ -37,13 +39,38 @@ OLD_SKETCH = {
 class BrowserFeatureTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.playwright = sync_playwright().start()
+        launch_options = {}
+        system_chromium = (shutil.which("chromium") or shutil.which("chromium-browser")
+                           or shutil.which("google-chrome"))
+        if system_chromium:
+            launch_options["executable_path"] = system_chromium
+        if os.name != "nt" and hasattr(os, "geteuid") and os.geteuid() == 0:
+            launch_options["args"] = ["--no-sandbox"]
+        try:
+            cls.browser = cls.playwright.chromium.launch(**launch_options)
+        except Exception as error:
+            cls.playwright.stop()
+            cls.playwright = None
+            raise unittest.SkipTest("Chromium executable is not installed: %s" % error)
         handler = functools.partial(SimpleHTTPRequestHandler, directory=str(ROOT / "www"))
         cls.server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
         cls.server_thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.server_thread.start()
         cls.base = "http://127.0.0.1:%d" % cls.server.server_address[1]
-        cls.playwright = sync_playwright().start()
-        cls.browser = cls.playwright.chromium.launch()
+        probe = cls.browser.new_page()
+        try:
+            probe.goto(cls.base + "/", wait_until="domcontentloaded", timeout=5000)
+        except Exception as error:
+            probe.close()
+            cls.server.shutdown()
+            cls.server.server_close()
+            cls.server_thread.join(timeout=3)
+            cls.browser.close()
+            cls.playwright.stop()
+            cls.server = None
+            raise unittest.SkipTest("Chromium cannot access the local test server in this environment: %s" % error)
+        probe.close()
 
     @classmethod
     def tearDownClass(cls):
@@ -76,6 +103,41 @@ class BrowserFeatureTests(unittest.TestCase):
         button = self.page.locator("#usb-setup-done-btn")
         if button.is_visible():
             button.click()
+
+    def test_first_run_checklist_exposes_live_setup_state(self):
+        self.page.route("**/public-config", lambda route: route.fulfill(
+            status=200, content_type="application/json",
+            body=json.dumps({"prefillStudentToken": False})))
+        self.page.route("**/ping", lambda route: route.fulfill(
+            status=200, content_type="application/json",
+            body=json.dumps({"ok": True, "cliFound": False, "authed": False, "gen": 1})))
+        config = {"u": self.base, "t": ""}
+        encoded = base64.urlsafe_b64encode(json.dumps(config).encode()).decode().rstrip("=")
+        self.page.goto(self.base + "/#cfg=" + encoded, wait_until="domcontentloaded")
+        self.page.locator("#loading-screen").wait_for(state="detached", timeout=20000)
+        self.page.locator("#m-usb-setup.open").wait_for(state="visible", timeout=5000)
+        for state_id in (
+            "welcome-storage-state", "welcome-server-state", "welcome-board-state",
+            "welcome-usb-state", "welcome-cloud-state",
+        ):
+            self.page.locator("#" + state_id).wait_for(state="visible")
+        self.assertIn("この端末に保存可能", self.page.locator("#welcome-storage-state").inner_text())
+        self.assertIn("Arduino Uno", self.page.locator("#welcome-board-state").inner_text())
+        self.page.wait_for_function(
+            "document.getElementById('welcome-server-state').textContent.includes('CLI未準備')",
+            timeout=8000,
+        )
+        self.page.locator("#usb-setup-done-btn").click()
+        self.assertFalse(self.page.locator("#m-usb-setup").evaluate("el => el.classList.contains('open')"))
+
+    def test_phone_view_keeps_documentation_accessible(self):
+        self.page.set_viewport_size({"width": 390, "height": 844})
+        self.page.goto(self.base + "/", wait_until="domcontentloaded")
+        docs_link = self.page.get_by_role("link", name="スマートフォンで使い方ガイドを見る")
+        docs_link.wait_for(state="visible", timeout=5000)
+        docs_link.click()
+        self.page.wait_for_url("**/docs")
+        self.assertTrue(self.page.locator("body").is_visible())
 
     def test_zip_import_export_and_compile_error_guidance(self):
         self.open_ide()

@@ -2647,6 +2647,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
         if close:
             self.send_header("Connection", "close")
             self.close_connection = True
@@ -2662,11 +2663,43 @@ class Handler(BaseHTTPRequestHandler):
         self._cors()
         self.end_headers()
 
+    @staticmethod
+    def _html_csp(nonce):
+        # Inline scripts are allowed only when the response-specific nonce is present.
+        # The only external script fallback is the pinned jsDelivr vendor bundle.
+        return "; ".join((
+            "default-src 'self'",
+            "script-src 'self' 'nonce-%s' blob: https://cdn.jsdelivr.net 'wasm-unsafe-eval'" % nonce,
+            "script-src-attr 'none'",
+            "style-src 'self' 'nonce-%s'" % nonce,
+            "style-src-attr 'unsafe-inline'",
+            "img-src 'self' data: blob:",
+            "font-src 'self' data:",
+            "connect-src 'self' http: https: ws: wss:",
+            "worker-src 'self' blob:",
+            "manifest-src 'self'",
+            "media-src 'self' blob: data:",
+            "object-src 'none'",
+            "frame-src 'none'",
+            "frame-ancestors 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+        ))
+
     def _send_html(self, fpath):
         p = Path(fpath)
         if not p.is_file():
             raise ApiError(404, "ページが見つかりません (%s がありません)" % p.name)
-        body = p.read_bytes()
+        nonce = secrets.token_urlsafe(18)
+        html = p.read_text(encoding="utf-8")
+        # Attach a per-response nonce to every script element. Event-handler
+        # attributes are separately disabled by script-src-attr 'none'.
+        html = re.sub(
+            r"(?i)<(script|style)\b(?![^>]*\bnonce=)",
+            lambda match: '<%s nonce="%s"' % (match.group(1), nonce),
+            html,
+        )
+        body = html.encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
@@ -2674,7 +2707,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
-        self.send_header("Content-Security-Policy", "frame-ancestors 'none'; object-src 'none'; base-uri 'self'")
+        self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        self.send_header("Content-Security-Policy", self._html_csp(nonce))
         self._cors()
         self.end_headers()
         self.wfile.write(body)
@@ -2810,23 +2844,11 @@ class Handler(BaseHTTPRequestHandler):
         if method == "GET" and path in ("/", "/index.html"):
             www = Path(__file__).resolve().parent / "www" / "index.html"
             if www.exists():
-                body = www.read_bytes()
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.send_header("Content-Length", str(len(body)))
-                self.send_header("Cache-Control", "no-store")
-                self.send_header("X-Content-Type-Options", "nosniff")
-                self.send_header("X-Frame-Options", "DENY")
-                self.send_header("Referrer-Policy", "no-referrer")
-                self.send_header("Content-Security-Policy", "frame-ancestors 'none'; object-src 'none'; base-uri 'self'")
-                self._cors()
-                self.end_headers()
-                self.wfile.write(body)
-            else:
-                self.send_response(302)
-                self.send_header("Location", "https://claude.ai")
-                self.send_header("Content-Length", "0")
-                self.end_headers()
+                return self._send_html(www)
+            self.send_response(404)
+            self.send_header("Content-Length", "0")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
             return
 
         if method == "GET" and path in ("/admin", "/admin.html"):
