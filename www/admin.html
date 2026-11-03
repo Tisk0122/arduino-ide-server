@@ -916,7 +916,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
   <main>
     <div id="global-err" class="notice err" role="alert" aria-live="assertive" hidden></div>
-    <div id="toast-wrap" aria-label="通知" data-ui-build="2026-11-03.2"></div>
+    <div id="toast-wrap" aria-label="通知" data-ui-build="2026-11-03.3"></div>
 
     <div id="admin-intro">
       <div>
@@ -2024,12 +2024,14 @@ function renderHistory() {
 }
 
 $('#btn-hist-more').addEventListener('click', function () { loadHistory('more'); });
-$('#btn-hist-clear').addEventListener('click', function () {
+$('#btn-hist-clear').addEventListener('click', async function () {
   if (!state.token || state.clearingHistory) return;
-  confirmDialog(
+  var confirmed = await confirmDialog(
     '利用履歴を全削除',
     '保存されているコンパイル・管理作業の利用履歴をすべて削除します。この操作は取り消せません。画面の利用履歴と集計統計もリセットされます。サービスの稼働ログは削除されません。実行中の処理は、完了後に新しい利用履歴として記録される場合があります。',
-    function() {
+    '削除する'
+  );
+  if (!confirmed || !state.token || state.clearingHistory) return;
 
   state.clearingHistory = true;
   state.historyGeneration++;
@@ -2077,8 +2079,6 @@ $('#btn-hist-clear').addEventListener('click', function () {
     button.disabled = false;
     button.textContent = '履歴を全削除';
   });
-
-  }); // confirmDialog
 });
 $('#f-kind').addEventListener('change', function () { loadHistory('reset'); });
 $('#f-state').addEventListener('change', function () { loadHistory('reset'); });
@@ -2559,7 +2559,7 @@ function confirmDialog(title, msg, okLabel) {
   var modal = $('#confirm-modal');
   $('#confirm-title').textContent = title;
   $('#confirm-msg').textContent = msg;
-  $('#confirm-ok').textContent = okLabel || '実行する';
+  $('#confirm-ok').textContent = (typeof okLabel === 'string' && okLabel.trim()) ? okLabel : '実行する';
   modal.style.display = 'flex';
   var okBtn = $('#confirm-ok');
   var cancelBtn = $('#confirm-cancel');
