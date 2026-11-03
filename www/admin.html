@@ -471,6 +471,7 @@ td.wrap-cell { white-space: normal; overflow-wrap: anywhere; word-break: normal;
 .filters { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; }
 .filters .grow { flex: 1 1 240px; min-width: 160px; max-width: none; }
 .admin-select { position: relative; flex: 0 0 auto; min-width: 148px; }
+.admin-select.board-platform-select { width: min(280px, 36%); min-width: 148px; }
 .admin-select-native { display: none !important; }
 .admin-select-btn {
   display: flex;
@@ -825,7 +826,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 
 
-/* ===== Unified admin design system 2026-11-03.5 ===== */
+/* ===== Unified admin design system 2026-11-03.7 ===== */
 #app main { width: min(100% - 40px, 1520px); padding-top: 28px; }
 #admin-intro p, .sec-head .sec-note, .notice { font-size: 13px; line-height: 1.65; }
 #admin-nav { gap: 6px; padding: 12px 0 15px; scroll-padding-inline: 12px; }
@@ -1014,7 +1015,7 @@ td.wrap-cell { min-width: 120px; line-height: 1.55; }
   #section-boards .board-source-form .btn, #section-boards .board-package-search .btn { width:100%; }
   #section-boards .board-index-item { align-items:flex-start; flex-direction:column; }
   #section-boards .board-catalog-tools { align-items:stretch; flex-direction:column; }
-  #section-boards .board-platform-filter { width:100%; }
+  #section-boards .admin-select.board-platform-select { width:100%; min-width:0; }
   #section-boards .board-table-wrap { overflow:visible; border:0; background:transparent; }
   #section-boards .board-table, #section-boards .board-table tbody, #section-boards .board-table tr, #section-boards .board-table td { display:block; width:100%; }
   #section-boards .board-table thead { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
@@ -1130,7 +1131,7 @@ td.wrap-cell { min-width: 120px; line-height: 1.55; }
 
   <main>
     <div id="global-err" class="notice err" role="alert" aria-live="assertive" hidden></div>
-    <div id="toast-wrap" aria-label="通知" data-ui-build="2026-11-03.6"></div>
+    <div id="toast-wrap" aria-label="通知" data-ui-build="2026-11-03.7"></div>
 
     <div id="admin-intro">
       <div>
@@ -2143,6 +2144,7 @@ function renderSupportedBoardPlatformOptions() {
     return '<option value="' + esc(platform) + '">' + esc(platform) + '</option>';
   }).join('');
   if (platforms.indexOf(current) !== -1) select.value = current;
+  if (typeof select._syncAdminSelect === 'function') select._syncAdminSelect();
 }
 
 function renderSupportedBoards() {
@@ -3038,10 +3040,11 @@ $('#f-q').addEventListener('input', function () {
     setActive(selected < 0 ? 0 : selected, true);
   }
 
-  ['f-kind', 'f-state'].forEach(function (id) {
+  ['f-kind', 'f-state', 'supported-board-platform-filter'].forEach(function (id) {
     var select = document.getElementById(id);
+    if (!select) return;
     var wrapper = document.createElement('div');
-    wrapper.className = 'admin-select';
+    wrapper.className = 'admin-select' + (id === 'supported-board-platform-filter' ? ' board-platform-select' : '');
     select.parentNode.insertBefore(wrapper, select);
     wrapper.appendChild(select);
     select.classList.add('admin-select-native');
@@ -3052,7 +3055,9 @@ $('#f-q').addEventListener('input', function () {
     button.setAttribute('aria-haspopup', 'listbox');
     button.setAttribute('aria-expanded', 'false');
     button.setAttribute('aria-controls', pop.id);
-    button.setAttribute('aria-label', select.getAttribute('aria-label'));
+    var associatedLabel = document.querySelector('label[for=\"' + id + '\"]');
+    var accessibleLabel = select.getAttribute('aria-label') || (associatedLabel ? associatedLabel.textContent.trim() : '');
+    if (accessibleLabel) button.setAttribute('aria-label', accessibleLabel);
     button.innerHTML = '<span class="admin-select-label"></span><span class="admin-select-chevron" aria-hidden="true"></span>';
     wrapper.insertBefore(button, select);
 
@@ -3061,6 +3066,7 @@ $('#f-q').addEventListener('input', function () {
       button.firstElementChild.textContent = option ? option.textContent : '—';
     }
     select.addEventListener('change', sync);
+    select._syncAdminSelect = sync;
     sync();
 
     button.addEventListener('click', function () {
