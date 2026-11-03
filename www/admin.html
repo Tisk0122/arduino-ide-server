@@ -737,6 +737,48 @@ body.phone-blocked > :not(#phone-block) { visibility:hidden!important; pointer-e
 .phone-block-card p { margin:14px 0 0; color:#b8c4d4; font-size:14px; line-height:1.8; }
 .phone-block-note { margin-top:24px!important; padding-top:16px; border-top:1px solid rgba(255,255,255,.09); color:#8a9bb0!important; font-size:12px!important; }
 
+
+/* ===== UI refinement 2026: readable admin console ===== */
+#app main { width: min(100% - 40px, 1480px); margin-inline: auto; }
+.sec-head { align-items: center; row-gap: 10px; }
+.sec-head h2 { color: var(--tx1); font-size: 13px; letter-spacing: .045em; }
+.sec-head .filters {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 9px;
+  min-width: 0; margin-top: 4px;
+}
+.sec-head .filters .input { min-height: 36px; font-size: 12px; }
+.sec-head .filters .grow { flex: 1 1 260px; }
+#btn-hist-clear { min-height: 36px; margin-left: auto !important; padding-inline: 14px !important; border-left: 1px solid var(--bd1) !important; }
+.history-action-state { display: block; flex: 1 1 100%; min-height: 0; line-height: 1.55; font-size: 12px; }
+.history-action-state:not(:empty) { margin: 3px 0 5px; padding: 9px 12px; border: 1px solid rgba(52,201,122,.22); border-radius: 8px; background: rgba(52,201,122,.07); }
+.history-action-state.error:not(:empty) { color: var(--err); border-color: rgba(255,112,112,.24); background: rgba(255,112,112,.07); }
+.tbl-wrap { border-radius: 12px; border-color: var(--bd1); box-shadow: 0 8px 28px rgba(0,0,0,.12); }
+table { font-size: 12px; }
+th, td { padding: 11px 14px; vertical-align: middle; }
+th { font-size: 10.5px; letter-spacing: .07em; }
+tbody tr:hover { background: rgba(45,212,216,.045); }
+.tbl-wrap td .pill {
+  display: inline-flex; align-items: center; justify-content: center;
+  vertical-align: middle; min-width: 48px; min-height: 24px;
+  padding: 2px 10px; margin: 0; line-height: 1.2;
+  text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.pill.ok, .pill.ng, .pill.warn, .pill.info { font-weight: 700; }
+.card, .tbl-wrap { transition: border-color .18s ease, box-shadow .18s ease; }
+.btn { min-height: 34px; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--teal-lt); outline-offset: 2px;
+}
+@media (max-width: 760px) {
+  #app main { width: min(100% - 24px, 1480px); }
+  .sec-head { align-items: flex-start; }
+  .sec-head .filters { width: 100%; }
+  .sec-head .filters > * { min-width: 0; }
+  .sec-head .filters select { flex: 1 1 130px; }
+  #btn-hist-clear { flex: 1 1 100%; margin-left: 0 !important; }
+  th, td { padding: 10px 11px; }
+}
+
 </style>
 <script>
 (() => {
@@ -1928,8 +1970,14 @@ $('#btn-hist-clear').addEventListener('click', function () {
     refresh(true);
   }).catch(function (err) {
     if (err.auth) { stopAuto(); showLogin(err.message, true); return; }
-    $('#hist-action-state').textContent = '利用履歴を削除できませんでした: ' + err.message;
+    var rawMessage = err && err.message ? String(err.message) : '';
+    var safeMessage = rawMessage.replace(/[<>]/g, '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, 180);
+    if (!safeMessage || /(?:function\s*\(|classList\.|textContent\s*=|button\.disabled)/i.test(safeMessage)) {
+      safeMessage = 'サーバーとの通信または削除処理でエラーが発生しました。サーバーログを確認してください。';
+    }
+    $('#hist-action-state').textContent = '利用履歴を削除できませんでした。' + safeMessage;
     $('#hist-action-state').classList.add('error');
+    toast('利用履歴を削除できませんでした。' + safeMessage, 'err', 6500);
   }).finally(function () {
     state.clearingHistory = false;
     button.disabled = false;
