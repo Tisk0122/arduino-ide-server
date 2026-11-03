@@ -670,24 +670,34 @@ td.wrap-cell { white-space: normal; overflow-wrap: anywhere; word-break: normal;
 }
 #toast-wrap {
   position: fixed;
-  top: 66px;
-  right: 16px;
-  z-index: 1000;
+  top: max(16px, env(safe-area-inset-top, 0px)) !important;
+  right: max(16px, env(safe-area-inset-right, 0px)) !important;
+  left: auto !important;
+  bottom: auto !important;
+  z-index: 10000;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 8px;
-  width: min(360px, calc(100vw - 32px));
-  max-height: calc(100vh - 82px);
-  max-height: calc(100dvh - 82px);
+  width: min(420px, calc(100vw - 32px)) !important;
+  max-width: calc(100vw - 32px) !important;
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-x: hidden;
   overflow-y: auto;
+  box-sizing: border-box;
   pointer-events: none;
 }
-.toast {
+#toast-wrap .toast {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
-  width: 100%;
-  padding: 10px 14px;
+  flex: 0 0 auto;
+  width: 100% !important;
+  min-width: 0;
+  max-width: 100% !important;
+  box-sizing: border-box;
+  padding: 11px 14px;
   border: 1px solid var(--bd2);
   border-left: 3px solid var(--teal);
   border-radius: var(--radius-lg);
@@ -695,18 +705,47 @@ td.wrap-cell { white-space: normal; overflow-wrap: anywhere; word-break: normal;
   color: var(--tx0);
   box-shadow: var(--sh-md);
   font-size: 12.5px;
-  word-break: break-word;
+  line-height: 1.6;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
   pointer-events: auto;
   animation: toast-in .2s ease;
 }
 .toast.ok { border-left-color: var(--ok); }
 .toast.err { border-left-color: var(--err); }
 .toast.warn { border-left-color: var(--warn); }
-.toast-icon { flex: none; font-weight: 700; }
-.toast.ok .toast-icon { color: var(--ok); }
-.toast.err .toast-icon { color: var(--err); }
-.toast.warn .toast-icon { color: var(--warn); }
-.toast-message { min-width: 0; }
+.toast-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-weight: 800;
+  line-height: 1;
+}
+.toast.ok .toast-icon { color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); }
+.toast.err .toast-icon { color: var(--err); background: color-mix(in srgb, var(--err) 13%, transparent); }
+.toast.warn .toast-icon { color: var(--warn); background: color-mix(in srgb, var(--warn) 13%, transparent); }
+.toast-message {
+  display: block;
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+  line-height: 1.6;
+}
+@media (max-width: 520px) {
+  #toast-wrap {
+    top: max(12px, env(safe-area-inset-top, 0px)) !important;
+    right: max(12px, env(safe-area-inset-right, 0px)) !important;
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+  }
+}
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) {
   .toast { animation: none; }
@@ -877,7 +916,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
   <main>
     <div id="global-err" class="notice err" role="alert" aria-live="assertive" hidden></div>
-    <div id="toast-wrap" aria-label="通知"></div>
+    <div id="toast-wrap" aria-label="通知" data-ui-build="2026-11-03.2"></div>
 
     <div id="admin-intro">
       <div>
@@ -1433,8 +1472,25 @@ function api(path, timeoutMs, method, body) {
   });
 }
 
+function safeToastMessage(value) {
+  // Do not let a leaked source fragment, function serialization, or API payload
+  // turn a short notification into a giant single-line code dump.
+  if (typeof value !== 'string') {
+    return '処理に失敗しました。ページを再読み込みして、もう一度お試しください。';
+  }
+  var message = value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, ' ')
+    .replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  var looksLikeSource = /(?:\.\s*(?:finally|then|catch)\s*\(\s*function\b|classList\s*\.\s*(?:add|remove|toggle)\s*\(|(?:textContent|innerHTML)\s*=|(?:button|state)\s*\.\s*[A-Za-z_$][\w$]*\s*=|function\s*\([^)]*\)\s*\{)/i.test(message);
+  if (looksLikeSource || !message) {
+    return '処理に失敗しました。ページを再読み込みして、もう一度お試しください。';
+  }
+  return message.slice(0, 320);
+}
+
 function toast(message, type, duration) {
   var wrap = $('#toast-wrap');
+  if (!wrap) return;
+  message = safeToastMessage(message);
   var item = document.createElement('div');
   var icon = type === 'ok' ? '✓' : (type === 'err' ? '!' : (type === 'warn' ? '!' : 'i'));
   item.className = 'toast ' + (type || 'info');
@@ -1993,7 +2049,7 @@ $('#btn-hist-clear').addEventListener('click', function () {
     toast('過去の利用履歴を ' + result.deleted + ' 件削除しました。実行中の処理は完了後に記録される場合があります。', 'ok', 5000);
     refresh(true);
   }).catch(function (err) {
-    if (err.auth) { stopAuto(); showLogin(err.message, true); return; }
+    if (err && err.auth) { stopAuto(); showLogin('認証の有効期限が切れました。もう一度ログインしてください。', true); return; }
     var status = Number(err && err.status) || 0;
     var safeMessage;
     if (err && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
@@ -2011,6 +2067,8 @@ $('#btn-hist-clear').addEventListener('click', function () {
     } else {
       safeMessage = '管理サーバーに接続できませんでした。接続状態を確認して再試行してください。';
     }
+    // Never print err.message / response body here: proxies may return HTML or
+    // source text. Use only the status-derived Japanese messages above.
     $('#hist-action-state').textContent = '利用履歴を削除できませんでした。' + safeMessage;
     $('#hist-action-state').classList.add('error');
     toast('利用履歴を削除できませんでした。' + safeMessage, 'err', 6500);
