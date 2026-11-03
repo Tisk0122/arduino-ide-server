@@ -72,7 +72,7 @@
   --bg-hover:rgba(0,0,0,0.04);
   --tx0:     #1A2535;
   --tx1:     #3A4E66;
-  --tx2:     #607590;
+  --tx2:     #52677F;
   --tx3:     #52677F;
   --bd0:     rgba(0,0,0,0.05);
   --bd1:     rgba(0,0,0,0.09);
@@ -726,6 +726,7 @@ td.wrap-cell { white-space: normal; overflow-wrap: anywhere; word-break: normal;
   font-weight: 800;
   line-height: 1;
 }
+.toast-icon svg { display: block; width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .toast.ok .toast-icon { color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); }
 .toast.err .toast-icon { color: var(--err); background: color-mix(in srgb, var(--err) 13%, transparent); }
 .toast.warn .toast-icon { color: var(--warn); background: color-mix(in srgb, var(--warn) 13%, transparent); }
@@ -823,6 +824,73 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   th, td { padding: 10px 11px; }
 }
 
+
+/* ===== Unified admin design system 2026-11-03.5 ===== */
+#app main { width: min(100% - 40px, 1520px); padding-top: 28px; }
+#admin-intro p, .sec-head .sec-note, .notice { font-size: 13px; line-height: 1.65; }
+#admin-nav { gap: 6px; padding: 12px 0 15px; scroll-padding-inline: 12px; }
+#admin-nav a { min-height: 34px; display: inline-flex; align-items: center; padding: 7px 13px; font-size: 12px; }
+section { scroll-margin-top: 88px; }
+.sub { font-size: 12px; line-height: 1.65; }
+.live-heading { font-size: 12px; }
+.live-indicator { font-size: 11px; }
+.metric-detail { font-size: 11.5px; line-height: 1.5; }
+.sec-head h2 { font-size: 14px; }
+.sec-head .filters .input, .input { font-size: 13px; }
+.btn-sm { font-size: 12px; min-height: 34px; padding: 6px 11px; }
+table { font-size: 13px; }
+th { font-size: 12px; letter-spacing: .035em; }
+th, td { padding: 12px 14px; }
+td.wrap-cell { min-width: 120px; line-height: 1.55; }
+.tbl-wrap td .pill { min-height: 26px; font-size: 12px; }
+.pill-mark { display: inline-grid; place-items: center; width: 15px; height: 15px; flex: 0 0 15px; line-height: 1; }
+.pill-mark svg { display: block; width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.metric-card { padding: 18px; }
+.board-manager-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.board-manager-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 14px; align-items: start; }
+.board-card { min-width: 0; padding: 16px; }
+.board-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.board-card-heading h3 { margin: 0 0 4px; font-size: 15px; color: var(--tx0); }
+.board-card-heading .sub { margin: 0; }
+.board-table { min-width: 620px; }
+.board-table td { vertical-align: middle; }
+.board-table .board-id { display: block; margin-top: 3px; color: var(--tx2); font-family: var(--ff-mono); font-size: 11px; overflow-wrap: anywhere; }
+.board-table .board-fqbn { font-family: var(--ff-mono); font-size: 11.5px; overflow-wrap: anywhere; white-space: normal; max-width: 300px; }
+.board-table .board-actions { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.board-filter { width: 100%; min-height: 38px; margin: 0 0 10px; }
+.board-search-card { margin-top: 14px; padding: 18px; }
+.board-search-form { display: flex; align-items: center; gap: 9px; }
+.board-search-form .input { flex: 1 1 auto; min-width: 0; min-height: 40px; }
+.board-search-form .btn { min-height: 40px; }
+.board-index-form { margin: 10px 0 6px; }
+.board-index-list { display: grid; gap: 7px; margin-top: 10px; }
+.board-index-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 9px 11px; border: 1px solid var(--bd1); border-radius: 9px; background: var(--bg2); }
+.board-index-url { min-width: 0; overflow-wrap: anywhere; color: var(--tx1); font-size: 12px; }
+.board-index-item .btn { flex: 0 0 auto; }
+@media (max-width: 640px) { .board-index-form { display: grid; grid-template-columns: 1fr; } .board-index-item { align-items: flex-start; flex-direction: column; } }
+.board-search-hint { margin: 9px 0 12px; }
+.board-results-table { min-width: 760px; }
+.board-results-table td { white-space: normal; line-height: 1.55; }
+.board-results-table .sub { display: block; margin-top: 3px; font-family: var(--ff-mono); font-size: 11px; overflow-wrap: anywhere; }
+.board-job-panel { margin-top: 14px; padding: 16px; }
+.board-job-log { max-height: 260px; min-height: 72px; overflow: auto; margin: 0; padding: 12px; border: 1px solid var(--bd1); border-radius: 9px; background: var(--bg0); color: var(--tx1); font: 12px/1.65 var(--ff-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.history-error-cell { min-width: 180px; max-width: 360px; overflow-wrap: anywhere; white-space: normal; }
+.board-job-log:empty::before { content: 'CLIの出力を待っています…'; color: var(--tx3); font-family: var(--ff-ui); }
+.sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0,0,0,0) !important; white-space: nowrap !important; border: 0 !important; }
+@media (max-width: 1050px) { .board-manager-grid { grid-template-columns: minmax(0,1fr); } }
+@media (max-width: 760px) {
+  #app main { width: min(100% - 24px, 1520px); padding-top: 18px; }
+  #admin-intro { align-items: flex-start; flex-direction: column; }
+  .board-search-form { align-items: stretch; flex-direction: column; }
+  .board-search-form .btn { width: 100%; }
+  .board-card-heading { align-items: flex-start; }
+  .board-manager-actions { width: 100%; justify-content: space-between; }
+  th, td { padding: 11px 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #admin-nav a, .metric-card, .card, .tbl-wrap { transition: none !important; }
+}
+
 </style>
 <script>
 (() => {
@@ -916,7 +984,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
   <main>
     <div id="global-err" class="notice err" role="alert" aria-live="assertive" hidden></div>
-    <div id="toast-wrap" aria-label="通知" data-ui-build="2026-11-03.3"></div>
+    <div id="toast-wrap" aria-label="通知" data-ui-build="2026-11-03.5"></div>
 
     <div id="admin-intro">
       <div>
@@ -928,11 +996,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
     <nav id="admin-nav" aria-label="管理コンソール内の移動">
       <a href="#section-live">リソース</a>
       <a href="#section-server">サーバー状態</a>
+      <a href="#section-boards">ボード管理</a>
       <a href="#section-stats">利用統計</a>
-      <a href="#section-jobs">実行中ジョブ</a>
+      <a href="#section-jobs">アクティブジョブ</a>
       <a href="#section-history">利用履歴</a>
       <a href="#sec-users">ユーザー管理</a>
-      <a href="#section-security">トークン・設定</a>
+      <a href="#section-token-info">トークン情報</a>
+      <a href="#section-token-secrets">アクセストークン</a>
+      <a href="#section-security">配布設定</a>
+      <a href="#section-config">設定・制限</a>
     </nav>
 
     <section id="section-live" aria-labelledby="live-title">
@@ -1022,6 +1094,86 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
       </div>
     </section>
 
+    <section id="section-boards" aria-labelledby="boards-section-title">
+      <div class="sec-head">
+        <h2 id="boards-section-title">ボード管理</h2>
+        <div class="board-manager-actions">
+          <span class="sec-note" id="board-manager-status" role="status" aria-live="polite">ボード情報を読み込んでいません</span>
+          <button type="button" class="btn btn-sm" id="btn-core-index-update">ボード情報を同期</button>
+          <button type="button" class="btn btn-sm" id="btn-board-refresh">一覧を更新</button>
+        </div>
+      </div>
+      <div class="notice" role="note">
+        このサーバーにインストールされているArduinoボードパッケージと、利用可能なボード（FQBN）を確認できます。新しいボードに対応するには、対応するプラットフォームパッケージを追加してください。
+      </div>
+      <article class="card board-index-card">
+        <div class="board-card-heading">
+          <div><h3>追加ボードソース</h3><p class="sub">サードパーティ製ボードのBoards Managerインデックスを登録できます。</p></div>
+          <span class="pill" id="core-index-count">0 件</span>
+        </div>
+        <form id="core-index-form" class="board-search-form board-index-form">
+          <label class="sr-only" for="core-index-url">Boards ManagerインデックスURL</label>
+          <input class="input" id="core-index-url" type="url" maxlength="2048" inputmode="url" placeholder="https://example.com/package_index.json" autocomplete="url" required>
+          <button class="btn btn-primary" id="btn-core-index-add" type="submit">URLを追加して同期</button>
+        </form>
+        <p class="sub board-search-hint">HTTPSの公開JSONインデックスURLに対応します。追加するとArduino CLIがその提供元の情報を取得します。信頼できるメーカー・プロジェクトのURLだけを登録してください。</p>
+        <div id="core-index-list" class="board-index-list" aria-live="polite"><p class="empty">登録済みの追加ソースを取得しています…</p></div>
+      </article>
+      <div class="board-manager-grid">
+        <article class="card board-card">
+          <div class="board-card-heading">
+            <div><h3>インストール済みパッケージ</h3><p class="sub">このサーバーで利用できるボード定義の提供元です。</p></div>
+            <span class="pill" id="core-installed-count">- 件</span>
+          </div>
+          <div class="tbl-wrap">
+            <table class="board-table">
+              <thead><tr><th scope="col">パッケージ</th><th scope="col">バージョン</th><th scope="col">対応ボード</th><th scope="col">操作</th></tr></thead>
+              <tbody id="core-installed-body"><tr><td colspan="4" class="empty">読み込み中...</td></tr></tbody>
+            </table>
+          </div>
+        </article>
+        <article class="card board-card">
+          <div class="board-card-heading">
+            <div><h3>対応ボード一覧</h3><p class="sub">インストール済みパッケージから検出したボードです。</p></div>
+            <span class="pill" id="supported-board-count">- 件</span>
+          </div>
+          <label class="sr-only" for="supported-board-filter">対応ボードを検索</label>
+          <input class="input board-filter" id="supported-board-filter" type="search" placeholder="ボード名・FQBN・パッケージで検索" autocomplete="off">
+          <div class="tbl-wrap">
+            <table class="board-table board-catalog-table">
+              <thead><tr><th scope="col">ボード名</th><th scope="col">FQBN</th><th scope="col">パッケージ</th></tr></thead>
+              <tbody id="supported-board-body"><tr><td colspan="3" class="empty">読み込み中...</td></tr></tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+      <article class="card board-search-card">
+        <div class="board-card-heading">
+          <div><h3>対応ボードパッケージを追加</h3><p class="sub">Arduino CLIに登録されているボードパッケージソースを検索して追加します。</p></div>
+          <span class="pill info">管理者操作</span>
+        </div>
+        <form id="core-search-form" class="board-search-form">
+          <label class="sr-only" for="core-search-input">ボードパッケージを検索</label>
+          <input class="input" id="core-search-input" type="search" minlength="2" maxlength="100" placeholder="例：esp32、arduino、megaAVR" autocomplete="off">
+          <button class="btn btn-primary" id="btn-core-search" type="submit">検索</button>
+        </form>
+        <p class="sub board-search-hint" id="core-search-status" role="status" aria-live="polite">2文字以上入力して検索してください。</p>
+        <div class="tbl-wrap">
+          <table class="board-table board-results-table">
+            <thead><tr><th scope="col">パッケージ名 / ID</th><th scope="col">最新バージョン</th><th scope="col">代表的なボード</th><th scope="col">状態 / 操作</th></tr></thead>
+            <tbody id="core-search-results"><tr><td colspan="4" class="empty">検索結果はここに表示されます。</td></tr></tbody>
+          </table>
+        </div>
+      </article>
+      <article class="card board-job-panel" id="core-job-panel" hidden>
+        <div class="board-card-heading">
+          <div><h3 id="core-job-title">ボードパッケージ操作</h3><p class="sub" id="core-job-status" role="status" aria-live="polite">処理を開始しています...</p></div>
+          <span class="pill info" id="core-job-state">準備中</span>
+        </div>
+        <pre id="core-job-log" class="board-job-log" aria-label="ボードパッケージ操作ログ" aria-live="off"></pre>
+      </article>
+    </section>
+
     <section id="section-stats">
       <div class="sec-head"><h2>利用統計</h2><span class="sec-note">保存中の履歴を集計（最大4,000件。超過時は直近2,000件を保持）</span></div>
       <div class="grid g4">
@@ -1046,7 +1198,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
       </div>
     </section>
 
-    <section id="section-jobs">
+    <section id="section-token-info">
       <div class="sec-head"><h2>トークン情報</h2>
         <span class="sec-note">この一覧はマスク表示です。実トークンは次のセクションで確認できます。</span></div>
       <div class="notice" id="single-token-note" hidden>
@@ -1063,7 +1215,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
       </div>
     </section>
 
-    <section id="section-history">
+    <section id="section-token-secrets">
       <div class="sec-head"><h2>アクセストークン</h2><span class="sec-note">管理者のみ表示・コピーできます</span></div>
       <div class="tbl-wrap">
         <table>
@@ -1095,8 +1247,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
       </div>
     </section>
 
-    <section>
-      <div class="sec-head"><h2>設定・制限</h2></div>
+    <section id="section-config" aria-labelledby="config-section-title">
+      <div class="sec-head"><h2 id="config-section-title">設定・制限</h2></div>
       <div class="grid g3">
         <div class="card"><h3>サーバー設定</h3><div id="cfg-server"></div></div>
         <div class="card"><h3>制限値</h3><div id="cfg-limits"></div></div>
@@ -1108,8 +1260,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
       </div>
     </section>
 
-    <section>
-      <div class="sec-head"><h2>アクティブジョブ</h2><span class="sec-note">待機中・実行中</span></div>
+    <section id="section-jobs" aria-labelledby="jobs-section-title">
+      <div class="sec-head"><h2 id="jobs-section-title">アクティブジョブ</h2><span class="sec-note">待機中・実行中</span></div>
       <div class="tbl-wrap">
         <table>
           <thead><tr>
@@ -1121,8 +1273,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
       </div>
     </section>
 
-    <section>
-      <div class="sec-head"><h2>利用履歴</h2>
+    <section id="section-history" aria-labelledby="history-section-title">
+      <div class="sec-head"><h2 id="history-section-title">利用履歴</h2>
         <span class="sec-note" id="hist-note"></span>
         <div class="tb-spacer"></div>
         <div class="filters">
@@ -1296,6 +1448,12 @@ var state = {
   busy: false,
   refreshQueued: false,
   metricHistory: { cpu: [], memory: [], disk: [] }
+};
+
+var boardManager = {
+  cores: [], boards: [], indexUrls: [], indexUrlsUnavailable: false,
+  searchResults: [], searchGeneration: 0,
+  loading: false, jobBusy: false, jobGeneration: 0, searchTimer: null
 };
 
 function esc(v) {
@@ -1492,14 +1650,20 @@ function toast(message, type, duration) {
   if (!wrap) return;
   message = safeToastMessage(message);
   var item = document.createElement('div');
-  var icon = type === 'ok' ? '✓' : (type === 'err' ? '!' : (type === 'warn' ? '!' : 'i'));
+  var icon = type === 'ok'
+    ? '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="m4.8 8 2.1 2.1 4.3-4.4"/></svg>'
+    : type === 'err'
+      ? '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.5v4M8 11.2v.1"/></svg>'
+      : type === 'warn'
+        ? '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 14.5 13H1.5z"/><path d="M8 5.5v3.6M8 11.2v.1"/></svg>'
+        : '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v4M8 4.8v.1"/></svg>';
   item.className = 'toast ' + (type || 'info');
   item.setAttribute('role', type === 'err' ? 'alert' : 'status');
   item.setAttribute('aria-live', type === 'err' ? 'assertive' : 'polite');
   var iconNode = document.createElement('span');
   iconNode.className = 'toast-icon';
   iconNode.setAttribute('aria-hidden', 'true');
-  iconNode.textContent = icon;
+  iconNode.innerHTML = icon;
   var messageNode = document.createElement('span');
   messageNode.className = 'toast-message';
   messageNode.textContent = message;
@@ -1694,6 +1858,423 @@ $('#save-token-settings').addEventListener('click', function () {
       applyTheme(event.newValue);
     }
   });
+})();
+
+
+/* ---------------- ボード / プラットフォーム管理 ---------------- */
+function boardManagerMessage(message, isError) {
+  var el = $('#board-manager-status');
+  el.textContent = message || '';
+  el.classList.toggle('ng', Boolean(isError));
+  el.classList.toggle('ok', !isError && Boolean(message));
+}
+
+function renderBoardIndexUrls() {
+  var list = $('#core-index-list');
+  var urls = boardManager.indexUrls || [];
+  $('#core-index-count').textContent = boardManager.indexUrlsUnavailable ? '取得不可' : urls.length + ' 件';
+  $('#core-index-url').disabled = boardManager.indexUrlsUnavailable || boardManager.jobBusy;
+  $('#btn-core-index-add').disabled = boardManager.indexUrlsUnavailable || boardManager.jobBusy;
+  if (boardManager.indexUrlsUnavailable) {
+    list.innerHTML = '<p class="empty error">追加ソース設定を取得できません。Arduino CLIのバージョンと設定ファイルの読み取り権限を確認してください。</p>';
+    return;
+  }
+  if (!urls.length) {
+    list.innerHTML = '<p class="empty">追加ソースは登録されていません。標準のArduinoインデックスは引き続き利用できます。</p>';
+    return;
+  }
+  list.innerHTML = urls.map(function (url) {
+    return '<div class="board-index-item"><code class="board-index-url">' + esc(url) + '</code>' +
+      '<button type="button" class="btn btn-sm btn-danger" data-index-action="remove" data-index-url="' + esc(url) + '"' +
+      (boardManager.jobBusy || boardManager.indexUrlsUnavailable ? ' disabled' : '') + '>削除</button></div>';
+  }).join('');
+}
+
+function renderInstalledCores() {
+  renderBoardIndexUrls();
+  $('#btn-core-index-update').disabled = boardManager.jobBusy;
+  var body = $('#core-installed-body');
+  var cores = boardManager.cores || [];
+  $('#core-installed-count').textContent = cores.length + ' 件';
+  if (!cores.length) {
+    body.innerHTML = '<tr><td colspan="4" class="empty">インストール済みのボードパッケージはありません。下の検索から追加できます。</td></tr>';
+    return;
+  }
+  body.innerHTML = cores.map(function (core) {
+    var count = boardManager.boards.filter(function (board) {
+      return board.platform && board.platform === core.id;
+    }).length;
+    var displayName = core.name || core.id;
+    var version = core.installed || 'バージョン不明';
+    var maintain = core.maintainer ? '<span class="sub">' + esc(core.maintainer) + '</span>' : '';
+    return '<tr>' +
+      '<td><strong>' + esc(displayName) + '</strong><span class="board-id">' + esc(core.id) + '</span>' + maintain + '</td>' +
+      '<td>' + esc(version) + '</td>' +
+      '<td><strong>' + count + ' 種</strong></td>' +
+      '<td><div class="board-actions"><button type="button" class="btn btn-sm btn-danger" data-core-action="uninstall" data-core-id="' + esc(core.id) + '" data-core-name="' + esc(displayName) + '"' + (boardManager.jobBusy ? ' disabled' : '') + '>削除</button></div></td>' +
+      '</tr>';
+  }).join('');
+}
+
+function renderSupportedBoards() {
+  var query = ($('#supported-board-filter').value || '').trim().toLocaleLowerCase();
+  var boards = boardManager.boards || [];
+  var filtered = boards.filter(function (board) {
+    var haystack = [board.name, board.fqbn, board.platform].join(' ').toLocaleLowerCase();
+    return !query || haystack.indexOf(query) !== -1;
+  });
+  $('#supported-board-count').textContent = filtered.length + ' / ' + boards.length + ' 件';
+  var body = $('#supported-board-body');
+  if (!boards.length) {
+    body.innerHTML = '<tr><td colspan="3" class="empty">対応ボードを取得できませんでした。Arduino CLIとインストール済みパッケージを確認してください。</td></tr>';
+    return;
+  }
+  if (!filtered.length) {
+    body.innerHTML = '<tr><td colspan="3" class="empty">検索条件に一致するボードはありません。</td></tr>';
+    return;
+  }
+  body.innerHTML = filtered.slice(0, 500).map(function (board) {
+    return '<tr><td><strong>' + esc(board.name || board.fqbn) + '</strong></td>' +
+      '<td class="board-fqbn">' + esc(board.fqbn) + '</td>' +
+      '<td class="board-id">' + esc(board.platform || (board.fqbn || '').split(':').slice(0, 2).join(':') || '-') + '</td></tr>';
+  }).join('');
+  if (filtered.length > 500) {
+    body.insertAdjacentHTML('beforeend', '<tr><td colspan="3" class="empty">表示は先頭500件です。検索欄で絞り込んでください。</td></tr>');
+  }
+}
+
+function renderCoreSearchResults() {
+  var body = $('#core-search-results');
+  var results = boardManager.searchResults || [];
+  if (!results.length) {
+    var query = ($('#core-search-input').value || '').trim();
+    body.innerHTML = query.length < 2
+      ? '<tr><td colspan="4" class="empty">検索語を2文字以上入力すると、追加可能なパッケージが表示されます。</td></tr>'
+      : '<tr><td colspan="4" class="empty">該当するパッケージはありません。検索語を変えるか、ボード情報インデックスを同期してください。</td></tr>';
+    return;
+  }
+  body.innerHTML = results.map(function (core) {
+    var installed = boardManager.cores.some(function (item) { return item.id === core.id; }) || Boolean(core.installed);
+    var displayName = core.name || core.id;
+    var sampleBoards = Array.isArray(core.boards) ? core.boards.slice(0, 5).join('、') : '';
+    var button = installed
+      ? '<span class="pill ok">追加済み</span>'
+      : '<button type="button" class="btn btn-sm btn-primary" data-core-action="install" data-core-id="' + esc(core.id) + '" data-core-name="' + esc(displayName) + '"' + (boardManager.jobBusy || boardManager.loading ? ' disabled' : '') + '>追加</button>';
+    return '<tr><td><strong>' + esc(displayName) + '</strong><span class="sub">' + esc(core.id) + '</span></td>' +
+      '<td>' + esc(core.latest || '-') + '</td>' +
+      '<td>' + (sampleBoards ? esc(sampleBoards) : '<span class="muted">情報なし</span>') + '</td>' +
+      '<td>' + button + '</td></tr>';
+  }).join('');
+}
+
+async function loadBoardManager(showFeedback) {
+  if (!state.token || boardManager.loading) return;
+  boardManager.loading = true;
+  var refreshButton = $('#btn-board-refresh');
+  refreshButton.disabled = true;
+  $('#btn-core-index-update').disabled = boardManager.jobBusy;
+  refreshButton.textContent = '取得中…';
+  boardManagerMessage('インストール済みパッケージと対応ボードを取得しています…', false);
+  try {
+    var data = await Promise.all([
+      api('/cores/list', 45000),
+      api('/boards', 45000),
+      api('/cores/indexes', 30000).catch(function (error) {
+        if (error && error.auth) throw error;
+        return { urls: [], unavailable: true };
+      })
+    ]);
+    boardManager.cores = Array.isArray(data[0].cores) ? data[0].cores : [];
+    boardManager.boards = Array.isArray(data[1].boards) ? data[1].boards : [];
+    boardManager.indexUrls = Array.isArray(data[2].urls) ? data[2].urls : [];
+    boardManager.indexUrlsUnavailable = Boolean(data[2].unavailable);
+    renderBoardIndexUrls();
+    renderInstalledCores();
+    renderSupportedBoards();
+    renderCoreSearchResults();
+    boardManagerMessage('更新済み · パッケージ ' + boardManager.cores.length + ' 件 / 対応ボード ' + boardManager.boards.length + ' 件', false);
+    if (showFeedback) toast('ボード情報を更新しました', 'ok');
+  } catch (err) {
+    if (err && err.auth) { stopAuto(); showLogin('認証の有効期限が切れました。もう一度ログインしてください。', true); }
+    else {
+      boardManagerMessage('ボード情報を取得できませんでした。Arduino CLIの状態とサーバーログを確認してください。', true);
+      $('#core-installed-body').innerHTML = '<tr><td colspan="4" class="empty">取得に失敗しました。</td></tr>';
+      $('#supported-board-body').innerHTML = '<tr><td colspan="3" class="empty">取得に失敗しました。</td></tr>';
+      if (showFeedback) toast('ボード情報を取得できませんでした', 'err');
+    }
+  } finally {
+    boardManager.loading = false;
+    refreshButton.disabled = false;
+    $('#btn-core-index-update').disabled = boardManager.jobBusy;
+    refreshButton.textContent = '一覧を更新';
+  }
+}
+
+async function searchCorePackages(query) {
+  var generation = ++boardManager.searchGeneration;
+  query = String(query || '').trim();
+  var status = $('#core-search-status');
+  if (query.length < 2) {
+    boardManager.searchResults = [];
+    renderCoreSearchResults();
+    status.textContent = '2文字以上入力して検索してください。';
+    return;
+  }
+  status.textContent = 'パッケージを検索しています…';
+  $('#btn-core-search').disabled = true;
+  try {
+    var data = await api('/cores/search?q=' + encodeURIComponent(query), 45000);
+    if (generation !== boardManager.searchGeneration) return;
+    boardManager.searchResults = Array.isArray(data.cores) ? data.cores : [];
+    renderCoreSearchResults();
+    status.textContent = boardManager.searchResults.length + ' 件のパッケージが見つかりました。';
+  } catch (err) {
+    if (generation !== boardManager.searchGeneration) return;
+    if (err && err.auth) { stopAuto(); showLogin('認証の有効期限が切れました。もう一度ログインしてください。', true); return; }
+    boardManager.searchResults = [];
+    renderCoreSearchResults();
+    status.textContent = '検索に失敗しました。Arduino CLIのインデックス更新状態を確認してください。';
+    toast('ボードパッケージを検索できませんでした', 'err');
+  } finally {
+    if (generation === boardManager.searchGeneration) $('#btn-core-search').disabled = false;
+  }
+}
+
+function appendCoreJobLines(lines) {
+  if (!Array.isArray(lines) || !lines.length) return;
+  var log = $('#core-job-log');
+  var next = log.textContent;
+  next += (next ? '\n' : '') + lines.map(function (line) { return String(line); }).join('\n');
+  log.textContent = next.slice(-24000);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function watchCoreJob(jobId, generation, successMessage) {
+  var offset = 0;
+  while (generation === boardManager.jobGeneration && state.token) {
+    var data = await api('/jobs/' + encodeURIComponent(jobId) + '?from=' + offset, 20000);
+    appendCoreJobLines(data.lines);
+    offset = Number(data.next) || offset;
+    var stateLabel = data.state === 'queued' ? '待機中' : data.state === 'running' ? '実行中' : data.state === 'done' ? '完了' : data.state === 'cancelled' ? 'キャンセル' : '失敗';
+    $('#core-job-state').textContent = stateLabel;
+    $('#core-job-status').textContent = data.state === 'queued'
+      ? 'ほかのArduino CLI処理の完了を待っています。' + (data.position ? ' 順番: ' + data.position : '')
+      : data.state === 'running' ? 'Arduino CLIで処理しています。ログを受信しています…'
+      : data.state === 'done' ? 'パッケージ操作が正常に完了しました。'
+      : data.state === 'cancelled' ? '処理はキャンセルされました。'
+      : '処理に失敗しました。下のログとサーバーログを確認してください。';
+    $('#core-job-state').className = 'pill ' + (data.state === 'done' ? 'ok' : data.state === 'error' ? 'ng' : data.state === 'cancelled' ? 'warn' : 'info');
+    if (data.state === 'done' || data.state === 'error' || data.state === 'cancelled') {
+      boardManager.jobBusy = false;
+      renderInstalledCores();
+      renderCoreSearchResults();
+      if (data.state === 'done') {
+        toast(successMessage || 'ボードパッケージの操作が完了しました', 'ok');
+        await loadBoardManager(false);
+        refresh(false);
+      } else {
+        toast(data.state === 'cancelled' ? 'ボードパッケージの操作はキャンセルされました' : 'ボードパッケージの操作に失敗しました。ログを確認してください', data.state === 'cancelled' ? 'warn' : 'err', 6000);
+        await loadBoardManager(false);
+      }
+      return;
+    }
+    await new Promise(function (resolve) { window.setTimeout(resolve, 1400); });
+  }
+}
+
+async function runCoreAction(action, coreId, coreName) {
+  if (boardManager.jobBusy) return;
+  var install = action === 'install';
+  var accepted = await confirmDialog(
+    install ? 'ボードパッケージを追加' : 'ボードパッケージを削除',
+    install
+      ? '「' + coreName + '」をこのサーバーに追加します。ダウンロードとインストールが行われ、完了後に対応ボード一覧へ反映されます。'
+      : '「' + coreName + '」をこのサーバーから削除します。このパッケージに含まれるボードは、このサーバーでコンパイルに使用できなくなります。',
+    install ? '追加する' : '削除する'
+  );
+  if (!accepted || !state.token || boardManager.jobBusy) return;
+
+  boardManager.jobBusy = true;
+  var generation = ++boardManager.jobGeneration;
+  var panel = $('#core-job-panel');
+  panel.hidden = false;
+  $('#core-job-title').textContent = (install ? '追加: ' : '削除: ') + coreName;
+  $('#core-job-status').textContent = '管理ジョブを登録しています…';
+  $('#core-job-state').textContent = '準備中';
+  $('#core-job-state').className = 'pill info';
+  $('#core-job-log').textContent = '';
+  renderInstalledCores();
+  renderCoreSearchResults();
+  try {
+    var response = await api(install ? '/cores/install' : '/cores/uninstall', 20000, 'POST', { id: coreId });
+    if (!response || !response.job) throw new Error('ジョブIDを取得できませんでした');
+    $('#core-job-status').textContent = 'ジョブを登録しました。処理状況を確認しています…';
+    await watchCoreJob(response.job, generation);
+  } catch (err) {
+    if (generation !== boardManager.jobGeneration) return;
+    boardManager.jobBusy = false;
+    renderInstalledCores();
+    renderCoreSearchResults();
+    if (err && err.auth) { stopAuto(); showLogin('認証の有効期限が切れました。もう一度ログインしてください。', true); return; }
+    $('#core-job-state').textContent = '失敗';
+    $('#core-job-state').className = 'pill ng';
+    $('#core-job-status').textContent = '管理ジョブを開始できませんでした。サーバー状態とCLI権限を確認してください。';
+    toast('ボードパッケージの操作を開始できませんでした', 'err', 6000);
+  }
+}
+
+async function updateCoreIndex() {
+  if (boardManager.jobBusy) return;
+  var accepted = await confirmDialog(
+    'ボード情報インデックスを同期',
+    'Arduino CLIに登録されているボードパッケージソースの一覧を同期します。ネットワーク通信が発生し、完了まで時間がかかる場合があります。',
+    '同期する'
+  );
+  if (!accepted || !state.token || boardManager.jobBusy) return;
+  boardManager.jobBusy = true;
+  var generation = ++boardManager.jobGeneration;
+  $('#core-job-panel').hidden = false;
+  $('#core-job-title').textContent = 'ボード情報インデックスの同期';
+  $('#core-job-status').textContent = '同期ジョブを登録しています…';
+  $('#core-job-state').textContent = '準備中';
+  $('#core-job-state').className = 'pill info';
+  $('#core-job-log').textContent = '';
+  renderInstalledCores();
+  renderCoreSearchResults();
+  try {
+    var response = await api('/cores/update-index', 20000, 'POST', {});
+    if (!response || !response.job) throw new Error('ジョブIDを取得できませんでした');
+    await watchCoreJob(response.job, generation);
+    var query = $('#core-search-input').value.trim();
+    if (query.length >= 2) searchCorePackages(query);
+  } catch (err) {
+    if (generation !== boardManager.jobGeneration) return;
+    boardManager.jobBusy = false;
+    renderInstalledCores();
+    renderCoreSearchResults();
+    if (err && err.auth) { stopAuto(); showLogin('認証の有効期限が切れました。もう一度ログインしてください。', true); return; }
+    $('#core-job-state').textContent = '失敗';
+    $('#core-job-state').className = 'pill ng';
+    $('#core-job-status').textContent = 'インデックス同期を開始できませんでした。CLIとサーバー権限を確認してください。';
+    toast('ボード情報インデックスを同期できませんでした', 'err', 6000);
+  }
+}
+
+async function runCoreIndexSourceAction(action, url) {
+  if (boardManager.jobBusy) return;
+  var adding = action === 'add';
+  var accepted = await confirmDialog(
+    adding ? 'ボードソースを追加' : 'ボードソースを削除',
+    adding
+      ? 'このURLの提供元を信頼できることを確認してください。Arduino CLIがインデックスを取得し、そこに含まれるプラットフォームパッケージを検索・追加できるようになります。\n\n' + url
+      : 'このボードソースURLを登録から削除し、インデックスを同期します。既にインストール済みのプラットフォームは自動では削除されません。\n\n' + url,
+    adding ? '追加して同期' : '削除して同期'
+  );
+  if (!accepted || !state.token || boardManager.jobBusy) return;
+  boardManager.jobBusy = true;
+  var generation = ++boardManager.jobGeneration;
+  $('#core-job-panel').hidden = false;
+  $('#core-job-title').textContent = (adding ? 'ボードソースを追加・同期' : 'ボードソースを削除・同期');
+  $('#core-job-status').textContent = '管理ジョブを登録しています…';
+  $('#core-job-state').textContent = '準備中';
+  $('#core-job-state').className = 'pill info';
+  $('#core-job-log').textContent = '';
+  renderInstalledCores();
+  renderCoreSearchResults();
+  try {
+    var response = await api(adding ? '/cores/indexes/add' : '/cores/indexes/remove', 20000, 'POST', { url: url });
+    if (!response || !response.job) throw new Error('ジョブIDを取得できませんでした');
+    $('#core-job-status').textContent = 'ソース設定とインデックス同期を実行しています…';
+    await watchCoreJob(response.job, generation, adding ? 'ボードソースを登録し、インデックスを同期しました' : 'ボードソースを削除し、インデックスを同期しました');
+    var query = $('#core-search-input').value.trim();
+    if (query.length >= 2) await searchCorePackages(query);
+  } catch (err) {
+    if (generation !== boardManager.jobGeneration) return;
+    boardManager.jobBusy = false;
+    renderInstalledCores();
+    renderCoreSearchResults();
+    if (err && err.auth) { stopAuto(); showLogin('認証の有効期限が切れました。もう一度ログインしてください。', true); return; }
+    $('#core-job-state').textContent = '失敗';
+    $('#core-job-state').className = 'pill ng';
+    $('#core-job-status').textContent = 'ボードソースを変更できませんでした。ログを確認してください。';
+    toast('ボードソースを変更できませんでした', 'err', 6000);
+  }
+}
+
+$('#core-index-form').addEventListener('submit', function (event) {
+  event.preventDefault();
+  var input = $('#core-index-url');
+  var value = input.value.trim();
+  var parsed;
+  try { parsed = new URL(value); } catch (_) { parsed = null; }
+  if (!parsed || parsed.protocol !== 'https:' || !parsed.hostname || !parsed.pathname.toLowerCase().endsWith('.json')) {
+    toast('HTTPSのJSONインデックスURLを入力してください', 'warn');
+    input.focus();
+    return;
+  }
+  runCoreIndexSourceAction('add', value);
+});
+
+document.addEventListener('click', function (event) {
+  var button = event.target.closest('[data-index-action="remove"]');
+  if (!button || !$('#section-boards').contains(button)) return;
+  runCoreIndexSourceAction('remove', button.dataset.indexUrl || '');
+});
+
+$('#btn-core-index-update').addEventListener('click', updateCoreIndex);
+$('#btn-board-refresh').addEventListener('click', function () { loadBoardManager(true); });
+$('#supported-board-filter').addEventListener('input', renderSupportedBoards);
+$('#core-search-form').addEventListener('submit', function (event) {
+  event.preventDefault();
+  searchCorePackages($('#core-search-input').value);
+});
+$('#core-search-input').addEventListener('input', function () {
+  if (boardManager.searchTimer) window.clearTimeout(boardManager.searchTimer);
+  var value = this.value;
+  boardManager.searchTimer = window.setTimeout(function () {
+    if (String(value).trim().length >= 2) searchCorePackages(value);
+    else {
+      boardManager.searchGeneration++;
+      boardManager.searchResults = [];
+      renderCoreSearchResults();
+      $('#core-search-status').textContent = '2文字以上入力して検索してください。';
+    }
+  }, 450);
+});
+document.addEventListener('click', function (event) {
+  var actionButton = event.target.closest('[data-core-action]');
+  if (!actionButton || !$('#section-boards').contains(actionButton)) return;
+  runCoreAction(actionButton.dataset.coreAction, actionButton.dataset.coreId, actionButton.dataset.coreName);
+});
+
+
+
+(function setupAdminSectionNavigation() {
+  var links = Array.from(document.querySelectorAll('#admin-nav a'));
+  var sections = links.map(function (link) { return document.querySelector(link.getAttribute('href')); }).filter(Boolean);
+  function activate(id) {
+    links.forEach(function (link) {
+      var active = link.getAttribute('href') === '#' + id;
+      link.classList.toggle('active', active);
+      if (active) link.setAttribute('aria-current', 'location');
+      else link.removeAttribute('aria-current');
+    });
+  }
+  links.forEach(function (link) {
+    link.addEventListener('click', function () {
+      var target = link.getAttribute('href').slice(1);
+      activate(target);
+      if (target === 'section-boards' && !boardManager.cores.length && !boardManager.loading) loadBoardManager(false);
+    });
+  });
+  if ('IntersectionObserver' in window) {
+    var observer = new IntersectionObserver(function (entries) {
+      var visible = entries.filter(function (entry) { return entry.isIntersecting; })
+        .sort(function (a, b) { return b.intersectionRatio - a.intersectionRatio; });
+      if (visible[0]) activate(visible[0].target.id);
+    }, { rootMargin: '-18% 0px -68% 0px', threshold: [0, .1, .25, .5] });
+    sections.forEach(function (section) { observer.observe(section); });
+  }
 })();
 
 /* ---------------- 自動更新 ---------------- */
@@ -1925,8 +2506,8 @@ function render(d) {
   var act = q.active || [];
   $('#jobs-body').innerHTML = act.length ? act.map(function (j) {
     var pill = j.state === 'running'
-      ? '<span class="pill info">実行中</span>'
-      : '<span class="pill warn">待機中</span>';
+      ? '<span class="pill info"><span class="pill-mark" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M5 3.5v9M11 3.5v9"/></svg></span>実行中</span>'
+      : '<span class="pill warn"><span class="pill-mark" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 3v5l3 2"/><circle cx="8" cy="8" r="6.2"/></svg></span>待機中</span>';
     var target = j.kind === 'compile' ? (j.title || '-') : ('(管理) ' + (j.title || '-'));
     var detail = (j.detail && j.detail !== j.title)
       ? ' <span class="sub">' + esc(j.detail) + '</span>' : '';
@@ -1970,10 +2551,10 @@ function histQuery(offset, limit) {
 
 function histRow(r) {
   var res = r.success
-    ? '<span class="pill ok"><span class="pill-mark" aria-hidden="true">✓</span><span class="pill-label">成功</span></span>'
+    ? '<span class="pill ok"><span class="pill-mark" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m3 8 3.2 3.2L13 4.5"/></svg></span><span class="pill-label">成功</span></span>'
     : (r.state === 'cancelled'
-      ? '<span class="pill"><span class="pill-mark" aria-hidden="true">Ⅱ</span><span class="pill-label">中断</span></span>'
-      : '<span class="pill ng"><span class="pill-mark" aria-hidden="true">!</span><span class="pill-label">失敗</span></span>');
+      ? '<span class="pill"><span class="pill-mark" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M5 3.5v9M11 3.5v9"/></svg></span><span class="pill-label">中断</span></span>'
+      : '<span class="pill ng"><span class="pill-mark" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 3v6M8 12.5v.1"/><circle cx="8" cy="8" r="6.2"/></svg></span><span class="pill-label">失敗</span></span>');
   var kind = r.kind === 'compile' ? 'コンパイル' : '管理作業';
   var target = r.kind === 'compile' ? (r.sketch || '-') : (r.title || '-');
   var detail = r.kind === 'compile' ? (r.fqbn || '-') : '';
@@ -1984,10 +2565,10 @@ function histRow(r) {
     '<td>' + kind + '</td>' +
     '<td>' + res + '</td>' +
     '<td>' + esc(target) + '</td>' +
-    '<td class="wrap-cell" style="font-size:11px">' + detail + '</td>' +
-    '<td class="mono" style="font-size:11px">' + esc(r.client || '-') + '</td>' +
+    '<td class="wrap-cell">' + detail + '</td>' +
+    '<td class="mono wrap-cell">' + esc(r.client || '-') + '</td>' +
     '<td>' + esc(took) + '</td>' +
-    '<td class="wrap-cell muted" style="font-size:11px; max-width:320px">' + esc(r.error || '') + '</td>' +
+    '<td class="wrap-cell muted history-error-cell">' + esc(r.error || '') + '</td>' +
     '</tr>';
 }
 
@@ -2687,6 +3268,7 @@ function boot() {
   refresh(true);
   startAuto();
   userMgr.load();
+  loadBoardManager(false);
 }
 
 if (state.token) boot();

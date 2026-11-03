@@ -71,6 +71,10 @@ Python 3.8+ の標準ライブラリだけで動きます。arduino-cli が必�
   DELETE /account/sketches/<id>/versions      過去版を選択削除
   POST /account/sketches/<id>/restore         過去版を復元 (currentRevision, targetRevision)
   /teacher                        廃止された先生・クラス画面 (404)
+  GET  /cores/indexes             登録済みBoards Manager追加URL
+  POST /cores/indexes/add {url}   URL登録＋インデックス同期ジョブ
+  POST /cores/indexes/remove {url} URL削除＋インデックス同期ジョブ
+  POST /cores/update-index       -> {job} (Boards Manager index update)
   POST /cores/install   {id}      -> {job}
   POST /cores/uninstall {id}      -> {job}
   POST /libs/install    {name, version?} -> {job}
@@ -111,7 +115,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
-VERSION = "2.9.0"
+VERSION = "2.10.0"
 
 
 def env_int(name, default, lo=0, hi=10 ** 9):
@@ -264,6 +268,63 @@ class ApiError(Exception):
 def log(msg):
     sys.stderr.write("%s %s\n" % (time.strftime("%Y-%m-%d %H:%M:%S"), msg))
     sys.stderr.flush()
+
+
+def validate_board_index_url(value):
+    """Validate a public HTTPS Boards Manager package index URL."""
+    if not isinstance(value, str):
+        raise ApiError(400, "ボードソースURLは文字列で指定してください")
+    value = value.strip()
+    if not value or len(value) > 2048 or any(ch.isspace() for ch in value):
+        raise ApiError(400, "ボードソースURLが空、長すぎる、または空白を含んでいます")
+    try:
+        parsed = urlparse(value)
+        host = parsed.hostname
+        port = parsed.port
+    except ValueError:
+        raise ApiError(400, "ボードソースURLの形式が正しくありません")
+    if (parsed.scheme.lower() != "https" or not host
+            or parsed.username is not None or parsed.password is not None
+            or parsed.query or parsed.fragment or port not in (None, 443)
+            or not parsed.path.lower().endswith(".json")
+            or host.lower() == "localhost" or host.lower().endswith((".local", ".internal"))):
+        raise ApiError(400, "HTTPSの公開ホストにあるJSONインデックスURLを指定してください")
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        ip = None
+    if ip is not None and not ip.is_global:
+        raise ApiError(400, "プライベートまたは予約済みIPアドレスは登録できません")
+    if ip is None and "." not in host:
+        raise ApiError(400, "公開ドメイン名を含むURLを指定してください")
+    return value
+
+
+def read_board_index_urls():
+    """Read configured Boards Manager additional URLs from Arduino CLI."""
+    rc, output = run_cli(["config", "dump", "--json"], timeout=30)
+    if rc != 0:
+        detail = _cli_error_detail(output, 300)
+        raise ApiError(502, "Arduino CLIのボードソース設定を取得できませんでした" +
+                       (": " + detail if detail else ""))
+    try:
+        config = json.loads(output)
+    except (TypeError, ValueError):
+        log("arduino-cli config dump --json のJSON解析に失敗しました: %r" % output[:300])
+        raise ApiError(502, "Arduino CLIの設定をJSONとして読み取れませんでした")
+    board_manager = config.get("board_manager", {}) if isinstance(config, dict) else {}
+    urls = board_manager.get("additional_urls", []) if isinstance(board_manager, dict) else []
+    if not isinstance(urls, list):
+        urls = []
+    safe_urls = []
+    for candidate in urls[:100]:
+        try:
+            normalized = validate_board_index_url(candidate)
+        except ApiError:
+            continue
+        if normalized not in safe_urls:
+            safe_urls.append(normalized)
+    return safe_urls
 
 
 # ---------------------------------------------------------------
@@ -1414,7 +1475,7 @@ def _admin_monitoring(metrics, recs, queued):
 # ---------------------------------------------------------------
 # 管理ジョブ (ボード・ライブラリの変更)
 # ---------------------------------------------------------------
-def start_admin_job(title, args, cleanup=None, client="admin"):
+def start_admin_job(title, args, cleanup=None, client="admin", followup=None):
     with JOBS_LOCK:
         waiting = sum(1 for item in JOBS.values()
                       if item["kind"] == "admin" and item["state"] == "queued")
@@ -1460,8 +1521,22 @@ def start_admin_job(title, args, cleanup=None, client="admin"):
             def on_line(l):
                 if len(job["lines"]) < MAX_JOB_LINES:
                     job["lines"].append(l)
-            rc, _ = run_cli(args, timeout=OP_TIMEOUT, on_line=on_line, cancel_file=cancel_path(job))
-            job["rc"] = rc
+            commands = [args] + (list(followup or []))
+            rc = 0
+            for index, command in enumerate(commands):
+                if job["cancel"]:
+                    break
+                if index:
+                    on_line("--- 続行: " + " ".join(command) + " ---")
+                rc, _ = run_cli(command, timeout=OP_TIMEOUT, on_line=on_line,
+                                cancel_file=cancel_path(job))
+                job["rc"] = rc
+                if rc == 0 and index == 0 and len(commands) > 1:
+                    # A configuration mutation is already committed even if the
+                    # subsequent package-index refresh fails. Invalidate stale reads.
+                    bump_gen()
+                if rc != 0:
+                    break
             if job["cancel"]:
                 finish(job, "cancelled")
             else:
@@ -3498,6 +3573,9 @@ class Handler(BaseHTTPRequestHandler):
                     return {"cores": norm_cores(data)}
                 data = read_cached("cl", 20, _cores_list)
                 return self._send(200, data)
+            if path == "/cores/indexes":
+                self._need(role, True)
+                return self._send(200, {"urls": read_board_index_urls()})
             if path == "/libs/search":
                 qq = q.get("q", "")[:100]
                 # 2文字未満または特殊クエリは空リストを返す (arduino-cli がエラーを返す場合がある)
@@ -3523,8 +3601,9 @@ class Handler(BaseHTTPRequestHandler):
                 data = read_cached("ll", 20, _libs_list)
                 return self._send(200, data)
         elif method == "POST":
-            admin_paths = ("/cores/install", "/cores/uninstall", "/libs/install", "/libs/uninstall",
-                           "/libs/install-zip", "/update")
+            admin_paths = ("/cores/update-index", "/cores/install", "/cores/uninstall",
+                           "/cores/indexes/add", "/cores/indexes/remove",
+                           "/libs/install", "/libs/uninstall", "/libs/install-zip", "/update")
             if path == "/compile":
                 body = self._body()
                 job, pos = submit_compile(body, self._client_id())
@@ -3536,6 +3615,24 @@ class Handler(BaseHTTPRequestHandler):
                 self._need(role, True)
                 body = self._body()
                 cid = self._client_id()
+                if path == "/cores/update-index":
+                    return self._send(200, {"job": start_admin_job("update core index", ["core", "update-index"], client=cid)})
+                if path in ("/cores/indexes/add", "/cores/indexes/remove"):
+                    index_url = validate_board_index_url(body.get("url"))
+                    configured = read_board_index_urls()
+                    if path.endswith("/add"):
+                        if index_url in configured:
+                            raise ApiError(409, "このボードソースURLは既に登録されています")
+                        job_id = start_admin_job(
+                            "add board source", ["config", "add", "board_manager.additional_urls", index_url],
+                            client=cid, followup=[["core", "update-index"]])
+                    else:
+                        if index_url not in configured:
+                            raise ApiError(404, "このボードソースURLは登録されていません")
+                        job_id = start_admin_job(
+                            "remove board source", ["config", "remove", "board_manager.additional_urls", index_url],
+                            client=cid, followup=[["core", "update-index"]])
+                    return self._send(200, {"job": job_id})
                 if path == "/cores/install":
                     cid_ = check_name(body.get("id"), RE_CORE, "パッケージID")
                     return self._send(200, {"job": start_admin_job("install " + cid_, ["core", "install", cid_], client=cid)})

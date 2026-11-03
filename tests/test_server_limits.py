@@ -294,6 +294,124 @@ class ServerLimitTests(unittest.TestCase):
 
         process.kill.assert_called_once_with()
 
+    def test_board_index_url_validation_requires_public_https_json_url(self):
+        self.assertEqual(
+            server.validate_board_index_url("https://example.com/package_index.json"),
+            "https://example.com/package_index.json",
+        )
+        invalid_urls = [
+            "http://example.com/package_index.json",
+            "https://example.com/not-an-index.txt",
+            "https://user:pass@example.com/package_index.json",
+            "https://localhost/package_index.json",
+            "https://127.0.0.1/package_index.json",
+            "https://example.com/package_index.json?token=secret",
+            "https://example.com/package_index.json#fragment",
+            "https://example.com:8443/package_index.json",
+            "not a url",
+            "",
+        ]
+        for value in invalid_urls:
+            with self.subTest(value=value), self.assertRaises(server.ApiError):
+                server.validate_board_index_url(value)
+
+    def test_read_board_index_urls_only_returns_valid_unique_urls(self):
+        payload = json.dumps({"board_manager": {"additional_urls": [
+            "https://example.com/package_index.json",
+            "https://example.com/package_index.json",
+            "http://unsafe.example/package_index.json",
+            "https://another.example/index.json",
+        ]}})
+        with patch.object(server, "run_cli", return_value=(0, payload)) as run_cli:
+            result = server.read_board_index_urls()
+        self.assertEqual(result, [
+            "https://example.com/package_index.json",
+            "https://another.example/index.json",
+        ])
+        run_cli.assert_called_once_with(["config", "dump", "--json"], timeout=30)
+
+    def test_admin_can_add_board_index_url_and_schedule_index_sync(self):
+        handler = object.__new__(server.Handler)
+        handler.path = "/cores/indexes/add"
+        handler.headers = {"Authorization": "Bearer admin-test-token"}
+        handler.client_address = ("127.0.0.1", 1234)
+        handler._body = lambda: {"url": "https://example.com/package_index.json"}
+        handler._client_id = lambda: "test-client"
+        responses = []
+        handler._send = lambda status, payload, **kwargs: responses.append((status, payload)) or payload
+
+        with patch.object(server, "cli_available", return_value=True), \
+                patch.object(server, "read_board_index_urls", return_value=[]), \
+                patch.object(server, "start_admin_job", return_value="job-board-index") as start_job:
+            result = handler._dispatch("POST")
+
+        self.assertEqual(result, {"job": "job-board-index"})
+        start_job.assert_called_once_with(
+            "add board source",
+            ["config", "add", "board_manager.additional_urls", "https://example.com/package_index.json"],
+            client="test-client",
+            followup=[["core", "update-index"]],
+        )
+        self.assertEqual(responses[0][0], 200)
+
+    def test_admin_index_source_job_runs_index_refresh_after_config_mutation(self):
+        calls = []
+        def fake_run_cli(args, **kwargs):
+            calls.append(list(args))
+            return (0, "") if len(calls) == 1 else (1, "network failure")
+
+        class InlineThread:
+            def __init__(self, target, daemon=True):
+                self.target = target
+            def start(self):
+                self.target()
+
+        with patch.object(server, "run_cli", side_effect=fake_run_cli), \
+                patch.object(server, "persist_job"), \
+                patch.object(server.threading, "Thread", InlineThread):
+            job_id = server.start_admin_job(
+                "add board source",
+                ["config", "add", "board_manager.additional_urls", "https://example.com/package_index.json"],
+                client="test-client",
+                followup=[["core", "update-index"]],
+            )
+
+        self.assertEqual(calls, [
+            ["config", "add", "board_manager.additional_urls", "https://example.com/package_index.json"],
+            ["core", "update-index"],
+        ])
+        self.assertEqual(server.JOBS[job_id]["state"], "error")
+        self.assertIn("失敗", server.JOBS[job_id]["error"])
+
+    def test_board_index_list_is_admin_only(self):
+        handler = object.__new__(server.Handler)
+        handler.path = "/cores/indexes"
+        handler.headers = {"Authorization": "Bearer test-token"}
+        handler.client_address = ("127.0.0.1", 1234)
+        with patch.object(server, "cli_available", return_value=True):
+            with self.assertRaises(server.ApiError) as context:
+                handler._dispatch("GET")
+        self.assertEqual(context.exception.code, 403)
+
+    def test_admin_can_schedule_core_index_update_as_admin_job(self):
+        handler = object.__new__(server.Handler)
+        handler.path = "/cores/update-index"
+        handler.headers = {"Authorization": "Bearer admin-test-token"}
+        handler.client_address = ("127.0.0.1", 1234)
+        handler._body = lambda: {}
+        handler._client_id = lambda: "test-client"
+        responses = []
+        handler._send = lambda status, payload, **kwargs: responses.append((status, payload)) or payload
+
+        with patch.object(server, "cli_available", return_value=True), \
+                patch.object(server, "start_admin_job", return_value="job-123") as start_job:
+            result = handler._dispatch("POST")
+
+        self.assertEqual(result, {"job": "job-123"})
+        start_job.assert_called_once_with(
+            "update core index", ["core", "update-index"], client="test-client")
+        self.assertEqual(responses[0][0], 200)
+
     def test_search_endpoints_propagate_cli_errors_and_do_not_cache(self):
         endpoints = (
             ("/cores/search?q=esp32", "cs:esp32"),
