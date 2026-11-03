@@ -247,3 +247,10 @@ Arduino CLIが検索結果を出力しても、タイムアウト・キャンセ
 IDEは動的な`style`属性を利用するため、`style-src-attr 'unsafe-inline'`は残しています。`style`要素自体はnonceで制限しています。また、配布先のコンパイルサーバーへ接続できるよう、`connect-src`はHTTP(S)とWebSocketのスキームを許可しています。これは任意の外部スクリプト実行を許可する設定ではありませんが、将来サーバーURLを固定できる運用では接続先もホスト単位に絞ってください。
 
 TLS終端を行うリバースプロキシでは、HTTPSの運用を確認したうえでHSTSを設定してください。アプリケーションサーバー自身はHTTPで待ち受ける構成もあるため、HSTSをアプリ側で無条件に付けないでください。`X-Forwarded-Proto`などのヘッダーを信頼する場合は、信頼済みプロキシからの通信に限定し、外部から直接送信された値を信用しないでください。
+
+
+## Boards Manager インデックス同期と実行ラッパー
+
+ボード管理機能では、管理者APIから `arduino-cli core update-index` と、追加ソース設定の読み書きに `arduino-cli config dump --json` / `config add|remove board_manager.additional_urls <URL>` を使用します。これらはコンパイル用の `arduino-build-run` ラッパーの厳密な許可リストに含める必要があります。許可されるのは上記のコマンド形だけで、任意の `config set` / `config delete`、他の `core` サブコマンド、追加CLIオプションは許可しません。URLはHTTPS・公開ホスト・JSONパスに限定し、認証情報、クエリ、フラグメント、非標準ポート、ローカル/プライベートIPを拒否します。
+
+ラッパーの実行ファイルは `/usr/local/libexec/arduino-build-run` です。更新時はroot所有・モード0755で配置してください。`arduino-helper` サービスから `arduino-build` ユーザーへ切り替えて実行するため、root専用の0700にすると起動できません。

@@ -116,6 +116,7 @@ FILES=(
 
 target_for() {
   case "$1" in
+    arduino-build-run) printf '%s\n' "$LIBEXEC_DIR/arduino-build-run" ;;
     configure-github-webhook.sh) printf '%s\n' "$LIBEXEC_DIR/arduino-helper-configure-github-webhook" ;;
     backup-arduino-helper.sh) printf '%s\n' "$SBIN_DIR/arduino-helper-backup" ;;
     verify-arduino-helper-backup.sh) printf '%s\n' "$SBIN_DIR/arduino-helper-verify-backup" ;;
@@ -131,7 +132,8 @@ target_for() {
 
 mode_for() {
   case "$1" in
-    arduino-build-run|configure-github-webhook.sh|github-update.sh) printf '0700\n' ;;
+    arduino-build-run) printf '0755\n' ;;
+    configure-github-webhook.sh|github-update.sh) printf '0700\n' ;;
     backup-arduino-helper.sh|verify-arduino-helper-backup.sh|restore-test-arduino-helper.py|backup-status-arduino-helper.py) printf '0750\n' ;;
     *) printf '0644\n' ;;
   esac
@@ -273,7 +275,7 @@ for f in "${FILES[@]}"; do
 done
 
 log "配置したコミット: $(git rev-parse --short HEAD)"
-run_logged python3 -m py_compile "$APP_DIR/arduino-helper.py" "$LIBEXEC_DIR/arduino-helper-restore-test" "$LIBEXEC_DIR/arduino-helper-backup-status" "$APP_DIR/arduino-build-run"
+run_logged python3 -m py_compile "$APP_DIR/arduino-helper.py" "$LIBEXEC_DIR/arduino-helper-restore-test" "$LIBEXEC_DIR/arduino-helper-backup-status" "$LIBEXEC_DIR/arduino-build-run"
 run_logged systemctl daemon-reload
 log "サービスを再起動します"
 run_logged systemctl restart "$SERVICE"

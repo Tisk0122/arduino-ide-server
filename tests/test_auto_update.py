@@ -138,6 +138,7 @@ class AutoUpdateContractTests(unittest.TestCase):
                 directory.mkdir(parents=True, exist_ok=True)
             (app / "arduino-helper.py").write_text("previous application\n", encoding="utf-8")
             (libexec / "arduino-helper-update").write_text("previous updater\n", encoding="utf-8")
+            (libexec / "arduino-build-run").write_text("previous wrapper\n", encoding="utf-8")
             update_dir = test_root / "var/lib/arduino-helper-updater"
             update_dir.mkdir(parents=True)
             applied = update_dir / "applied-commit"
@@ -168,6 +169,9 @@ class AutoUpdateContractTests(unittest.TestCase):
             (deployed_root / "opt/arduino-helper/arduino-helper.py").read_bytes(),
             (ROOT / "arduino-helper.py").read_bytes(),
         )
+        deployed_wrapper = deployed_root / "usr/local/libexec/arduino-build-run"
+        self.assertEqual(deployed_wrapper.read_bytes(), (ROOT / "arduino-build-run").read_bytes())
+        self.assertEqual(deployed_wrapper.stat().st_mode & 0o777, 0o755)
         self.assertNotEqual(deployed_commit.read_text(encoding="utf-8"), "previous-commit\n")
 
         rollback_root, failed, rollback_commit = run_case("/account")
@@ -180,6 +184,10 @@ class AutoUpdateContractTests(unittest.TestCase):
         self.assertEqual(
             (rollback_root / "usr/local/libexec/arduino-helper-update").read_text(encoding="utf-8"),
             "previous updater\n",
+        )
+        self.assertEqual(
+            (rollback_root / "usr/local/libexec/arduino-build-run").read_text(encoding="utf-8"),
+            "previous wrapper\n",
         )
         self.assertEqual(rollback_commit.read_text(encoding="utf-8"), "previous-commit\n")
         self.assertFalse((rollback_root / "etc/systemd/system/arduino-helper-backup.timer").exists())
@@ -216,6 +224,8 @@ class AutoUpdateContractTests(unittest.TestCase):
             "verify-arduino-helper-backup.sh",
             "restore-test-arduino-helper.py",
         }.issubset(files))
+        self.assertIn("arduino-build-run) printf '%s\\n' \"$LIBEXEC_DIR/arduino-build-run\"", updater)
+        self.assertIn("arduino-build-run) printf '0755\\n' ;;", updater)
         self.assertIn('github-update.sh) printf', updater)
         self.assertIn("configure-github-webhook.sh) printf", updater)
         self.assertIn('install -d -o root -g root -m 0755 "$(dirname "$target")"', updater)

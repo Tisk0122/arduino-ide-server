@@ -115,7 +115,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
-VERSION = "2.10.0"
+VERSION = "2.10.1"
 
 
 def env_int(name, default, lo=0, hi=10 ** 9):

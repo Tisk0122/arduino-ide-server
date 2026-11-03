@@ -7,6 +7,7 @@ separate low-privilege user and a strict allow-list of Arduino CLI arguments.
 The root-owned configuration file is trusted only when invoked through sudo.
 """
 import json
+import ipaddress
 import os
 import pwd
 import resource
@@ -15,6 +16,7 @@ import signal
 import subprocess
 import sys
 import time
+from urllib.parse import urlsplit
 
 CONF_PATH = "/etc/arduino-helper/build-run.conf"
 
@@ -142,6 +144,47 @@ def validate_compile(args, root):
     validate_path(positional[0], root, "スケッチ")
 
 
+def validate_board_index_url(value):
+    """Allow only public HTTPS JSON indexes for the Boards Manager."""
+    if not isinstance(value, str) or not value or len(value) > 2048:
+        die("ボードソースURLが不正です")
+    if any(ch.isspace() or ord(ch) < 0x20 for ch in value):
+        die("ボードソースURLに空白または制御文字は指定できません")
+    try:
+        parsed = urlsplit(value)
+        host = parsed.hostname
+        port = parsed.port
+    except ValueError:
+        die("ボードソースURLの形式が正しくありません")
+    if (parsed.scheme.lower() != "https" or not host
+            or parsed.username is not None or parsed.password is not None
+            or parsed.query or parsed.fragment or port not in (None, 443)
+            or not parsed.path.lower().endswith(".json")):
+        die("HTTPSの公開ホストにあるJSONインデックスURLのみ許可されています")
+
+    host = host.rstrip(".").lower()
+    if not host or host == "localhost" or host.endswith((".local", ".internal")):
+        die("ローカルまたは内部ホストのボードソースURLは許可されていません")
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        address = None
+    if address is not None:
+        if not address.is_global:
+            die("プライベートまたは予約済みIPアドレスは許可されていません")
+    else:
+        try:
+            ascii_host = host.encode("idna").decode("ascii")
+        except UnicodeError:
+            die("ボードソースURLのホスト名が不正です")
+        labels = ascii_host.split(".")
+        if len(labels) < 2 or any(
+                not label or len(label) > 63 or label.startswith("-") or label.endswith("-")
+                or not all(ch.isalnum() or ch == "-" for ch in label)
+                for label in labels):
+            die("公開ドメイン名を含むボードソースURLを指定してください")
+
+
 def validate_command(args, root):
     if not args:
         die("arduino-cli の引数がありません")
@@ -159,9 +202,21 @@ def validate_command(args, root):
         if len(args) == 4 and args[2:] != ["--format", "json"]:
             die("board listall のオプションが不正です")
         return
+    if cmd == "config":
+        if args == ["config", "dump", "--json"]:
+            return
+        if (len(args) == 4 and args[1] in ("add", "remove")
+                and args[2] == "board_manager.additional_urls"):
+            validate_board_index_url(args[3])
+            return
+        die("config は dump --json と board_manager.additional_urls の add/remove のみ許可されています")
     if cmd not in ("core", "lib") or len(args) < 2:
         die("許可されていないコマンドです: %s" % cmd)
     sub = args[1]
+    if cmd == "core" and sub == "update-index":
+        if len(args) != 2:
+            die("core update-index に追加の引数は許可されていません")
+        return
     if cmd == "core" and sub not in ("install", "uninstall", "list", "search"):
         die("許可されていない core サブコマンドです: %s" % sub)
     if cmd == "lib" and sub not in ("install", "uninstall", "list", "search"):
