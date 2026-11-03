@@ -749,9 +749,11 @@ body.phone-blocked > :not(#phone-block) { visibility:hidden!important; pointer-e
 .sec-head .filters .input { min-height: 36px; font-size: 12px; }
 .sec-head .filters .grow { flex: 1 1 260px; }
 #btn-hist-clear { min-height: 36px; margin-left: auto !important; padding-inline: 14px !important; border-left: 1px solid var(--bd1) !important; }
-.history-action-state { display: block; flex: 1 1 100%; min-height: 0; line-height: 1.55; font-size: 12px; }
-.history-action-state:not(:empty) { margin: 3px 0 5px; padding: 9px 12px; border: 1px solid rgba(52,201,122,.22); border-radius: 8px; background: rgba(52,201,122,.07); }
+.history-action-state { display: block; flex: 1 1 100%; min-height: 0; line-height: 1.55; font-size: 12px; overflow-wrap: anywhere; }
+.history-action-state:not(:empty) { display: flex; align-items: center; gap: 10px; margin: 3px 0 5px; padding: 10px 13px; border: 1px solid rgba(52,201,122,.22); border-radius: 9px; background: rgba(52,201,122,.07); }
+.history-action-state:not(:empty)::before { content: '✓'; display: grid; place-items: center; width: 20px; height: 20px; flex: 0 0 20px; border: 1px solid currentColor; border-radius: 50%; font-size: 12px; font-weight: 800; line-height: 1; }
 .history-action-state.error:not(:empty) { color: var(--err); border-color: rgba(255,112,112,.24); background: rgba(255,112,112,.07); }
+.history-action-state.error:not(:empty)::before { content: '!'; }
 .tbl-wrap { border-radius: 12px; border-color: var(--bd1); box-shadow: 0 8px 28px rgba(0,0,0,.12); }
 table { font-size: 12px; }
 th, td { padding: 11px 14px; vertical-align: middle; }
@@ -764,6 +766,9 @@ tbody tr:hover { background: rgba(45,212,216,.045); }
   text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums;
 }
 .pill.ok, .pill.ng, .pill.warn, .pill.info { font-weight: 700; }
+.tbl-wrap td .pill { gap: 6px; }
+.pill-mark { display: inline-grid; place-items: center; width: 13px; height: 13px; flex: 0 0 13px; border-radius: 50%; font-size: 9px; font-weight: 800; line-height: 1; }
+.pill-label { display: block; line-height: 1.2; text-align: center; }
 .card, .tbl-wrap { transition: border-color .18s ease, box-shadow .18s ease; }
 .btn { min-height: 34px; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
@@ -1400,14 +1405,30 @@ function api(path, timeoutMs, method, body) {
     opts.signal = AbortSignal.timeout(timeoutMs);
   }
   return fetch(path, opts).then(function (r) {
-    if (r.status === 401 || r.status === 403) {
-      var e = new Error('認証に失敗しました (管理者トークンを確認してください)');
-      e.auth = true;
-      throw e;
-    }
-    return r.json().then(function (j) {
-      if (!r.ok) throw new Error(j && j.error ? j.error : ('HTTP ' + r.status));
-      return j;
+    return r.text().then(function (raw) {
+      var payload = null;
+      if (raw) {
+        try { payload = JSON.parse(raw); }
+        catch (_) { payload = null; }
+      }
+      if (r.status === 401 || r.status === 403) {
+        var authError = new Error('認証に失敗しました (管理者トークンを確認してください)');
+        authError.auth = true;
+        authError.status = r.status;
+        throw authError;
+      }
+      if (!r.ok) {
+        var requestError = new Error('管理者APIリクエストに失敗しました (HTTP ' + r.status + ')');
+        requestError.status = r.status;
+        requestError.serverMessage = payload && typeof payload.error === 'string' ? payload.error : '';
+        throw requestError;
+      }
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        var responseError = new Error('サーバーからJSON形式の応答が返されませんでした');
+        responseError.status = r.status;
+        throw responseError;
+      }
+      return payload;
     });
   });
 }
@@ -1892,8 +1913,11 @@ function histQuery(offset, limit) {
 }
 
 function histRow(r) {
-  var res = r.success ? '<span class="pill ok">成功</span>'
-    : (r.state === 'cancelled' ? '<span class="pill">中断</span>' : '<span class="pill ng">失敗</span>');
+  var res = r.success
+    ? '<span class="pill ok"><span class="pill-mark" aria-hidden="true">✓</span><span class="pill-label">成功</span></span>'
+    : (r.state === 'cancelled'
+      ? '<span class="pill"><span class="pill-mark" aria-hidden="true">Ⅱ</span><span class="pill-label">中断</span></span>'
+      : '<span class="pill ng"><span class="pill-mark" aria-hidden="true">!</span><span class="pill-label">失敗</span></span>');
   var kind = r.kind === 'compile' ? 'コンパイル' : '管理作業';
   var target = r.kind === 'compile' ? (r.sketch || '-') : (r.title || '-');
   var detail = r.kind === 'compile' ? (r.fqbn || '-') : '';
@@ -1970,10 +1994,22 @@ $('#btn-hist-clear').addEventListener('click', function () {
     refresh(true);
   }).catch(function (err) {
     if (err.auth) { stopAuto(); showLogin(err.message, true); return; }
-    var rawMessage = err && err.message ? String(err.message) : '';
-    var safeMessage = rawMessage.replace(/[<>]/g, '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, 180);
-    if (!safeMessage || /(?:function\s*\(|classList\.|textContent\s*=|button\.disabled)/i.test(safeMessage)) {
-      safeMessage = 'サーバーとの通信または削除処理でエラーが発生しました。サーバーログを確認してください。';
+    var status = Number(err && err.status) || 0;
+    var safeMessage;
+    if (err && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+      safeMessage = 'サーバーの応答が時間切れになりました。時間をおいて再試行してください。';
+    } else if (status === 404) {
+      safeMessage = '削除APIが見つかりません。サーバーの更新状態を確認してください。';
+    } else if (status === 405) {
+      safeMessage = '削除リクエストが許可されていません。リバースプロキシのDELETE設定を確認してください。';
+    } else if (status >= 500) {
+      safeMessage = 'サーバー内部で削除に失敗しました。サーバーログを確認してください。';
+    } else if (status >= 200 && status < 300) {
+      safeMessage = 'サーバーから予期しない形式の応答が返されました。管理画面とサーバーAPIの更新状態を確認してください。';
+    } else if (status > 0) {
+      safeMessage = '管理者APIがリクエストを受け付けませんでした (HTTP ' + status + ')。';
+    } else {
+      safeMessage = '管理サーバーに接続できませんでした。接続状態を確認して再試行してください。';
     }
     $('#hist-action-state').textContent = '利用履歴を削除できませんでした。' + safeMessage;
     $('#hist-action-state').classList.add('error');
